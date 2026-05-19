@@ -583,6 +583,7 @@ html, body {
 .modal { 
   width: min(500px, 92vw); 
   max-height: 90vh; 
+  overflow-y: auto;
   display: flex; 
   flex-direction: column; 
   background: var(--panel); 

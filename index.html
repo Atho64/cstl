@@ -63,6 +63,21 @@
       </section>
       <section class="panel panel-right">
         <h2 class="panel-title">Area Kerja</h2>
+
+        <div class="card-box mb-2">
+          <label class="section-label mt-0">Pilih Berdasarkan Range (Baris)</label>
+          <div class="flex-center gap-4 mb-2 wrap">
+            <input id="rangeFromInput" type="number" class="text-input grow" placeholder="Dari baris..." min="1" disabled />
+            <span class="text-muted">-</span>
+            <input id="rangeToInput" type="number" class="text-input grow" placeholder="Sampai baris..." min="1" disabled />
+            <button id="btnSelectRange" class="btn btn-outline" disabled>Centang</button>
+          </div>
+          <div class="flex-center gap-4 mb-2 wrap">
+            <button id="btnSelectAll" class="btn btn-outline grow" disabled>Pilih Semua</button>
+            <button id="btnClearSelection" class="btn btn-outline grow" disabled>Hapus Pilihan</button>
+          </div>
+        </div>
+
         <div class="tabs-wrap mb-2" style="display: flex; gap: 8px;">
           <button id="tabTranslate" class="btn btn-primary grow">Translate</button>
           <button id="tabGlossary" class="btn btn-outline grow">Glossary Extractor</button>
@@ -70,17 +85,6 @@
 
         <div id="viewTranslate">
           <div class="card-box mb-2">
-            <label class="section-label mt-0">Pilih Berdasarkan Range (Baris)</label>
-            <div class="flex-center gap-4 mb-2 wrap">
-              <input id="rangeFromInput" type="number" class="text-input grow" placeholder="Dari baris..." min="1" disabled />
-              <span class="text-muted">-</span>
-              <input id="rangeToInput" type="number" class="text-input grow" placeholder="Sampai baris..." min="1" disabled />
-              <button id="btnSelectRange" class="btn btn-outline" disabled>Centang</button>
-            </div>
-            <div class="flex-center gap-4 mb-2 wrap">
-              <button id="btnSelectAll" class="btn btn-outline grow" disabled>Pilih Semua</button>
-              <button id="btnClearSelection" class="btn btn-outline grow" disabled>Hapus Pilihan</button>
-            </div>
             <button id="btnCopyForAi" class="btn btn-primary w-full" disabled>Copy <span id="copyCount">0</span> Baris untuk AI</button>
           </div>
           <div id="copyStatus" class="status-toast empty"></div>
