@@ -1,6 +1,7 @@
 (() => {
   "use strict";
   const DEFAULT_PROMPT_HEADER = `Rewrite entire text to Native Indonesian. Do not change prefix number. Euphemism prohibited. Use of "Bahasa Jakarta Selatan" is prohibited. Put results inside \`\`\`plaintext block.`;
+  const DEFAULT_GLOSSARY_PROMPT = `Extract all important terms, character names, locations, and unique concepts from the following text to build a glossary.\nFormat the output STRICTLY as:\nsource = target\n\nRules:\n1. Do NOT translate the text itself.\n2. Only output the glossary list.\n3. Ensure the 'source' is the original term, and 'target' is the translated/localized term in Indonesian.`;
   const APP_VERSION = 5;
   const PROJECT_EXT = ".cstl";
   
@@ -13,6 +14,7 @@
     lines: [],
     importedFiles: [],
     aiInstructionHeader: DEFAULT_PROMPT_HEADER,
+    glossaryPrompt: DEFAULT_GLOSSARY_PROMPT,
     glossaryText: "",
     contextLines: 10,
     undoSnapshot: null,
@@ -208,7 +210,7 @@
       "previewViewport", "previewContainer", "progressFill", "progressText", "btnSelectAll",
       "btnClearSelection", "copyCount", "btnCopyForAi", "copyStatus", "pasteArea", "btnApply",
       "btnUndo", "nameTableBody", "statusBar", "importFileInput", "importFolderInput",
-      "importZipInput", "settingsModal", "settingsPromptInput", "settingsEpubTagsInput",
+      "importZipInput", "settingsModal", "settingsPromptInput", "settingsGlossaryPromptInput", "settingsEpubTagsInput",
       "settingsGlossaryInput", "settingsContextLinesInput", "btnSettingsReset", "btnSettingsCancel", "btnSettingsSave", "lineEditorModal", "lineEditorTitle",
       "tabTranslate", "tabGlossary", "viewTranslate", "viewGlossary", "btnCopyForGlossaryAi", "pasteGlossaryArea", "btnSaveGlossary", "copyGlossaryCount",
       "lineOriginalView", "lineNameWrap", "lineNameInput", "lineMessageInput", "lineTranslatedCheck",
@@ -303,6 +305,7 @@
     ui.btnSettings.addEventListener("click", onOpenSettings);
     ui.btnSettingsReset.addEventListener("click", () => {
       ui.settingsPromptInput.value = DEFAULT_PROMPT_HEADER;
+      ui.settingsGlossaryPromptInput.value = DEFAULT_GLOSSARY_PROMPT;
       ui.settingsEpubTagsInput.value = "p";
     });
     ui.btnSettingsCancel.addEventListener("click", () => closeModal(ui.settingsModal));
@@ -413,6 +416,7 @@
       imported_files: [],
       lines: [],
       prompt_header: DEFAULT_PROMPT_HEADER,
+      glossary_prompt: DEFAULT_GLOSSARY_PROMPT,
       glossary_text: "",
       context_lines: 10
     };
@@ -486,6 +490,7 @@
         imported_files: state.importedFiles,
         lines: state.lines,
         prompt_header: state.aiInstructionHeader,
+        glossary_prompt: state.glossaryPrompt,
         glossary_text: state.glossaryText,
         context_lines: state.contextLines
       };
@@ -506,6 +511,7 @@
     state.lines = (data.lines || []).map(normalizeLineDict);
     state.importedFiles = data.imported_files || [];
     state.aiInstructionHeader = data.prompt_header || DEFAULT_PROMPT_HEADER;
+    state.glossaryPrompt = data.glossary_prompt || DEFAULT_GLOSSARY_PROMPT;
     state.glossaryText = data.glossary_text || "";
     state.contextLines = data.context_lines !== undefined ? data.context_lines : 10;
     state.selectedLines.clear();
@@ -526,6 +532,7 @@
         projectType: state.projectType, epubTags: state.epubTags, epubSourceId: state.epubSourceId,
         imported_files: state.importedFiles, lines: state.lines,
         prompt_header: state.aiInstructionHeader,
+        glossary_prompt: state.glossaryPrompt,
         glossary_text: state.glossaryText,
         context_lines: state.contextLines
       };
@@ -563,6 +570,7 @@
         imported_files: p.imported_files || [],
         lines: (p.lines || []).map(normalizeLineDict),
         prompt_header: p.prompt_header || DEFAULT_PROMPT_HEADER,
+        glossary_prompt: p.glossary_prompt || DEFAULT_GLOSSARY_PROMPT,
         glossary_text: p.glossary_text || "",
         context_lines: p.context_lines !== undefined ? p.context_lines : 10
       };
@@ -1018,7 +1026,7 @@
       const dN = l.name || "";
       out.push(dN ? `${l.line_num}. ${dN}: ${l.message}` : `${l.line_num}. ${l.message}`);
     }
-    const promptText = `Extract all important terms, character names, locations, and unique concepts from the following text to build a glossary.\nFormat the output STRICTLY as:\nsource = target\n\nRules:\n1. Do NOT translate the text itself.\n2. Only output the glossary list.\n3. Ensure the 'source' is the original term, and 'target' is the translated/localized term in Indonesian.\n\n${out.join("\n")}\n`;
+    const promptText = `${(state.glossaryPrompt || DEFAULT_GLOSSARY_PROMPT).trim()}\n\n${out.join("\n")}\n`;
     try {
       await navigator.clipboard.writeText(promptText);
       flashHint(`Disalin ${sel.length} baris untuk ekstraksi glossary.`);
@@ -1360,6 +1368,7 @@
 
   function onOpenSettings() {
     ui.settingsPromptInput.value = state.aiInstructionHeader;
+    ui.settingsGlossaryPromptInput.value = state.glossaryPrompt;
     ui.settingsEpubTagsInput.value = state.epubTags || "p";
     ui.settingsGlossaryInput.value = state.glossaryText || "";
     ui.settingsContextLinesInput.value = state.contextLines;
@@ -1368,6 +1377,7 @@
 
   function onSavePromptSettings() {
     state.aiInstructionHeader = ui.settingsPromptInput.value.trim();
+    state.glossaryPrompt = ui.settingsGlossaryPromptInput.value.trim();
     state.epubTags = ui.settingsEpubTagsInput.value.trim() || "p";
     state.glossaryText = ui.settingsGlossaryInput.value.trim();
     state.contextLines = parseInt(ui.settingsContextLinesInput.value) || 0;
