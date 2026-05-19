@@ -993,31 +993,56 @@
     ev.target.value = "";
   }
 
-  function getGlossaryPrompt(copiedText) {
-    if (!state.glossaryText || !state.glossaryText.trim()) return "";
-    
-    const lines = state.glossaryText.split("\n");
+  function getGlossaryPrompt(copiedText, sel = []) {
     const matched = [];
     const lowerText = copiedText.toLowerCase();
 
-    for (const line of lines) {
-      if (!line.trim()) continue;
-      let sepIdx = line.indexOf("=");
-      if (sepIdx === -1) sepIdx = line.indexOf(":");
-      
-      if (sepIdx !== -1) {
-        const source = line.substring(0, sepIdx).trim();
-        const target = line.substring(sepIdx + 1).trim();
-        if (source && target && lowerText.includes(source.toLowerCase())) {
-          matched.push(`${source} = ${target}`);
+    if (state.glossaryText && state.glossaryText.trim()) {
+      const lines = state.glossaryText.split("\n");
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        let sepIdx = line.indexOf("=");
+        if (sepIdx === -1) sepIdx = line.indexOf(":");
+        
+        if (sepIdx !== -1) {
+          const source = line.substring(0, sepIdx).trim();
+          const target = line.substring(sepIdx + 1).trim();
+          if (source && target && lowerText.includes(source.toLowerCase())) {
+            matched.push(`${source} = ${target}`);
+          }
         }
       }
     }
 
-    if (matched.length > 0) {
-      return `\n\n<Glossary>\nThese are glossary terms, do not translate them differently from what is provided here.\n${matched.join("\n")}\n</Glossary>`;
+    const namesInSelection = new Map();
+    for (const l of sel) {
+      if (l.name) namesInSelection.set(l.name, l.trans_name || null);
     }
-    return "";
+
+    const nameBlocks = [];
+    if (namesInSelection.size > 0) {
+      nameBlocks.push(`\n[Auto-Detected Character Names]\nDo NOT translate these literally. Transliterate to Romaji if needed:`);
+      for (const [n, tn] of namesInSelection.entries()) {
+        if (tn) {
+          nameBlocks.push(`${n} = ${tn}`);
+        } else {
+          nameBlocks.push(`- ${n}`);
+        }
+      }
+    }
+
+    let result = "";
+    if (matched.length > 0 || nameBlocks.length > 0) {
+      result = `\n\n<Glossary>`;
+      if (matched.length > 0) {
+        result += `\nThese are glossary terms, do not translate them differently from what is provided here.\n${matched.join("\n")}`;
+      }
+      if (nameBlocks.length > 0) {
+        result += `\n${nameBlocks.join("\n")}`;
+      }
+      result += `\n</Glossary>`;
+    }
+    return result;
   }
 
   async function onCopyForGlossaryAi() {
@@ -1080,7 +1105,7 @@
       out.push(dN ? `${l.line_num}. ${dN}: ${l.message}` : `${l.line_num}. ${l.message}`);
     }
     const joinedText = out.join("\n");
-    const glossaryBlock = getGlossaryPrompt(joinedText);
+    const glossaryBlock = getGlossaryPrompt(joinedText, sel);
     const p = `${(state.aiInstructionHeader || DEFAULT_PROMPT_HEADER).trim()}${glossaryBlock}${contextBlock}\n\n${joinedText}\n`;
     try {
       await navigator.clipboard.writeText(p);
