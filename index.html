@@ -62,39 +62,59 @@
         </div>
       </section>
       <section class="panel panel-right">
-        <h2 class="panel-title">Area Kerja Terjemahan</h2>
-        <div class="card-box mb-2">
-          <label class="section-label mt-0">Pilih Berdasarkan Range (Baris)</label>
-          <div class="flex-center gap-4 mb-2 wrap">
-            <input id="rangeFromInput" type="number" class="text-input grow" placeholder="Dari baris..." min="1" disabled />
-            <span class="text-muted">-</span>
-            <input id="rangeToInput" type="number" class="text-input grow" placeholder="Sampai baris..." min="1" disabled />
-            <button id="btnSelectRange" class="btn btn-outline" disabled>Centang</button>
-          </div>
-          <div class="flex-center gap-4 mb-2 wrap">
-            <button id="btnSelectAll" class="btn btn-outline grow" disabled>Pilih Semua</button>
-            <button id="btnClearSelection" class="btn btn-outline grow" disabled>Hapus Pilihan</button>
-          </div>
-          <button id="btnCopyForAi" class="btn btn-primary w-full" disabled>Copy <span id="copyCount">0</span> Baris untuk AI</button>
+        <h2 class="panel-title">Area Kerja</h2>
+        <div class="tabs-wrap mb-2" style="display: flex; gap: 8px;">
+          <button id="tabTranslate" class="btn btn-primary grow">Translate</button>
+          <button id="tabGlossary" class="btn btn-outline grow">Glossary Extractor</button>
         </div>
-        <div id="copyStatus" class="status-toast empty"></div>
-        <label class="section-label" for="pasteArea">Paste hasil terjemahan AI di sini</label>
-        <textarea id="pasteArea" class="mono input-area" placeholder="Paste hasil dari AI di sini..." disabled></textarea>
-        <div class="inline-actions">
-          <button id="btnApply" class="btn btn-success grow" disabled>Terapkan Terjemahan</button>
-          <button id="btnUndo" class="btn btn-danger" disabled>Undo</button>
+
+        <div id="viewTranslate">
+          <div class="card-box mb-2">
+            <label class="section-label mt-0">Pilih Berdasarkan Range (Baris)</label>
+            <div class="flex-center gap-4 mb-2 wrap">
+              <input id="rangeFromInput" type="number" class="text-input grow" placeholder="Dari baris..." min="1" disabled />
+              <span class="text-muted">-</span>
+              <input id="rangeToInput" type="number" class="text-input grow" placeholder="Sampai baris..." min="1" disabled />
+              <button id="btnSelectRange" class="btn btn-outline" disabled>Centang</button>
+            </div>
+            <div class="flex-center gap-4 mb-2 wrap">
+              <button id="btnSelectAll" class="btn btn-outline grow" disabled>Pilih Semua</button>
+              <button id="btnClearSelection" class="btn btn-outline grow" disabled>Hapus Pilihan</button>
+            </div>
+            <button id="btnCopyForAi" class="btn btn-primary w-full" disabled>Copy <span id="copyCount">0</span> Baris untuk AI</button>
+          </div>
+          <div id="copyStatus" class="status-toast empty"></div>
+          <label class="section-label" for="pasteArea">Paste hasil terjemahan AI di sini</label>
+          <textarea id="pasteArea" class="mono input-area" placeholder="Paste hasil dari AI di sini..." disabled></textarea>
+          <div class="inline-actions">
+            <button id="btnApply" class="btn btn-success grow" disabled>Terapkan Terjemahan</button>
+            <button id="btnUndo" class="btn btn-danger" disabled>Undo</button>
+          </div>
+          <label class="section-label mt-3">Daftar Nama Karakter</label>
+          <p class="hint mb-2 hint-tight">Klik pada baris nama untuk langsung menyalin teks ke clipboard.</p>
+          <div id="nameTableWrap" class="name-table-wrap">
+            <table class="name-table">
+              <thead>
+                <tr>
+                  <th>Nama Karakter</th>
+                </tr>
+              </thead>
+              <tbody id="nameTableBody"></tbody>
+            </table>
+          </div>
         </div>
-        <label class="section-label mt-3">Daftar Nama Karakter</label>
-        <p class="hint mb-2 hint-tight">Klik pada baris nama untuk langsung menyalin teks ke clipboard.</p>
-        <div id="nameTableWrap" class="name-table-wrap">
-          <table class="name-table">
-            <thead>
-              <tr>
-                <th>Nama Karakter</th>
-              </tr>
-            </thead>
-            <tbody id="nameTableBody"></tbody>
-          </table>
+
+        <div id="viewGlossary" style="display: none;">
+          <div class="card-box mb-2">
+            <label class="section-label mt-0">Pilih Teks untuk Ekstrak Glossary</label>
+            <p class="hint">Teks yang dicentang akan dikirim ke AI untuk mengekstrak istilah penting.</p>
+            <button id="btnCopyForGlossaryAi" class="btn btn-primary w-full" disabled>Copy <span id="copyGlossaryCount">0</span> Baris untuk Ekstrak Glossary</button>
+          </div>
+          <label class="section-label" for="pasteGlossaryArea">Paste hasil glossary AI di sini</label>
+          <textarea id="pasteGlossaryArea" class="mono input-area" placeholder="Apel = Apple&#10;Jeruk: Orange" disabled></textarea>
+          <div class="inline-actions mt-2">
+            <button id="btnSaveGlossary" class="btn btn-success grow" disabled>Simpan ke Smart Glossary</button>
+          </div>
         </div>
       </section>
     </main>
@@ -123,6 +143,16 @@
         <label class="section-label text-white m-0">Pengaturan Tag EPUB</label>
         <p class="hint mt-1">Tag HTML target untuk diekstrak (pisahkan dengan koma). Berlaku untuk impor EPUB.</p>
         <input id="settingsEpubTagsInput" class="text-input w-full" type="text" placeholder="p, h1, h2, h3" />
+      </div>
+      <div class="mt-3">
+        <label class="section-label text-white m-0">Smart Glossary</label>
+        <p class="hint mt-1">Masukkan daftar istilah (contoh: source=target atau source:target). Hanya disertakan ke prompt jika kata muncul di teks.</p>
+        <textarea id="settingsGlossaryInput" class="mono input-area mt-1" placeholder="Apel = Apple&#10;Jeruk: Orange"></textarea>
+      </div>
+      <div class="mt-3">
+        <label class="section-label text-white m-0">Konteks Baris Sebelumnya (Context Lines)</label>
+        <p class="hint mt-1">Jumlah baris sebelum teks yang dipilih untuk dijadikan konteks AI.</p>
+        <input id="settingsContextLinesInput" class="text-input w-full" type="number" min="0" value="10" />
       </div>
       <div class="modal-actions mt-3">
         <span class="grow"></span>

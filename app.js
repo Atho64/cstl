@@ -1,6 +1,6 @@
 (() => {
   "use strict";
-  const DEFAULT_PROMPT_HEADER = `Rewrite entire text to Native Indonesian. Do not change prefix number. Euphemism prohibited. Use of "Bahasa Jakarta Selatan" is prohibited. Put results inside plaintext block.`;
+  const DEFAULT_PROMPT_HEADER = `Rewrite entire text to Native Indonesian. Do not change prefix number. Euphemism prohibited. Use of "Bahasa Jakarta Selatan" is prohibited. Put results inside \`\`\`plaintext\`\`\` block.`;
   const APP_VERSION = 5;
   const PROJECT_EXT = ".cstl";
   
@@ -13,6 +13,8 @@
     lines: [],
     importedFiles: [],
     aiInstructionHeader: DEFAULT_PROMPT_HEADER,
+    glossaryText: "",
+    contextLines: 10,
     undoSnapshot: null,
     selectedLines: new Set(),
     displayRows: [],
@@ -207,7 +209,8 @@
       "btnClearSelection", "copyCount", "btnCopyForAi", "copyStatus", "pasteArea", "btnApply",
       "btnUndo", "nameTableBody", "statusBar", "importFileInput", "importFolderInput",
       "importZipInput", "settingsModal", "settingsPromptInput", "settingsEpubTagsInput",
-      "btnSettingsReset", "btnSettingsCancel", "btnSettingsSave", "lineEditorModal", "lineEditorTitle",
+      "settingsGlossaryInput", "settingsContextLinesInput", "btnSettingsReset", "btnSettingsCancel", "btnSettingsSave", "lineEditorModal", "lineEditorTitle",
+      "tabTranslate", "tabGlossary", "viewTranslate", "viewGlossary", "btnCopyForGlossaryAi", "pasteGlossaryArea", "btnSaveGlossary", "copyGlossaryCount",
       "lineOriginalView", "lineNameWrap", "lineNameInput", "lineMessageInput", "lineTranslatedCheck",
       "btnLineCancel", "btnLineSave", "proofreadModal", "proofreadSearchInput", "proofreadScope",
       "proofreadRegexCheck", "proofreadCaseCheck", "proofreadExactCheck", "proofreadTranslatedOnlyCheck",
@@ -238,7 +241,27 @@
     ui.importZipInput.addEventListener("change", onImportZipChange);
     ui.btnExport.addEventListener("click", onExport);
     ui.btnCopyForAi.addEventListener("click", onCopyForAi);
+    ui.btnCopyForGlossaryAi.addEventListener("click", onCopyForGlossaryAi);
     ui.btnApply.addEventListener("click", onApplyTranslation);
+    ui.btnSaveGlossary.addEventListener("click", onSaveGlossary);
+
+    ui.tabTranslate.addEventListener("click", () => {
+      ui.tabTranslate.classList.add("btn-primary");
+      ui.tabTranslate.classList.remove("btn-outline");
+      ui.tabGlossary.classList.remove("btn-primary");
+      ui.tabGlossary.classList.add("btn-outline");
+      ui.viewTranslate.style.display = "block";
+      ui.viewGlossary.style.display = "none";
+    });
+    
+    ui.tabGlossary.addEventListener("click", () => {
+      ui.tabGlossary.classList.add("btn-primary");
+      ui.tabGlossary.classList.remove("btn-outline");
+      ui.tabTranslate.classList.remove("btn-primary");
+      ui.tabTranslate.classList.add("btn-outline");
+      ui.viewGlossary.style.display = "block";
+      ui.viewTranslate.style.display = "none";
+    });
     ui.btnUndo.addEventListener("click", onUndoLastApply);
     ui.btnProofread.addEventListener("click", onOpenProofread);
     ui.btnSelectAll.addEventListener("click", () => {
@@ -389,7 +412,9 @@
       updatedAt: Date.now(),
       imported_files: [],
       lines: [],
-      prompt_header: DEFAULT_PROMPT_HEADER
+      prompt_header: DEFAULT_PROMPT_HEADER,
+      glossary_text: "",
+      context_lines: 10
     };
     try {
       const root = await getOpfsRoot();
@@ -460,7 +485,9 @@
         epubSourceId: state.epubSourceId,
         imported_files: state.importedFiles,
         lines: state.lines,
-        prompt_header: state.aiInstructionHeader
+        prompt_header: state.aiInstructionHeader,
+        glossary_text: state.glossaryText,
+        context_lines: state.contextLines
       };
       await saveProjectToOpfs(state.currentProjectId, data);
       ui.statusBar.textContent = ui.statusBar.textContent.replace(" | Tersimpan!", "") + " | Tersimpan!";
@@ -479,6 +506,8 @@
     state.lines = (data.lines || []).map(normalizeLineDict);
     state.importedFiles = data.imported_files || [];
     state.aiInstructionHeader = data.prompt_header || DEFAULT_PROMPT_HEADER;
+    state.glossaryText = data.glossary_text || "";
+    state.contextLines = data.context_lines !== undefined ? data.context_lines : 10;
     state.selectedLines.clear();
     state.undoSnapshot = null;
     ui.projectNameDisplay.textContent = state.projectName;
@@ -496,7 +525,9 @@
         version: APP_VERSION, projectName: state.projectName,
         projectType: state.projectType, epubTags: state.epubTags, epubSourceId: state.epubSourceId,
         imported_files: state.importedFiles, lines: state.lines,
-        prompt_header: state.aiInstructionHeader
+        prompt_header: state.aiInstructionHeader,
+        glossary_text: state.glossaryText,
+        context_lines: state.contextLines
       };
       saveProjectToOpfs(state.currentProjectId, data).then(() => {
         finishClose();
@@ -531,7 +562,9 @@
         updatedAt: Date.now(),
         imported_files: p.imported_files || [],
         lines: (p.lines || []).map(normalizeLineDict),
-        prompt_header: p.prompt_header || DEFAULT_PROMPT_HEADER
+        prompt_header: p.prompt_header || DEFAULT_PROMPT_HEADER,
+        glossary_text: p.glossary_text || "",
+        context_lines: p.context_lines !== undefined ? p.context_lines : 10
       };
       await saveProjectToOpfs(id, safeData);
       loadDashboardProjects();
@@ -549,12 +582,16 @@
     ui.btnSelectAll.disabled = !hasData;
     ui.btnClearSelection.disabled = !hasSelection;
     ui.btnCopyForAi.disabled = !hasSelection;
+    ui.btnCopyForGlossaryAi.disabled = !hasSelection;
     ui.pasteArea.disabled = !hasData;
+    ui.pasteGlossaryArea.disabled = !hasData;
     ui.btnApply.disabled = !hasData;
+    ui.btnSaveGlossary.disabled = !hasData;
     ui.rangeFromInput.disabled = !hasData;
     ui.rangeToInput.disabled = !hasData;
     ui.btnSelectRange.disabled = !hasData;
     ui.copyCount.textContent = state.selectedLines.size;
+    ui.copyGlossaryCount.textContent = state.selectedLines.size;
   }
 
   function isTranslated(line) {
@@ -946,14 +983,95 @@
     ev.target.value = "";
   }
 
-  async function onCopyForAi() {
+  function getGlossaryPrompt(copiedText) {
+    if (!state.glossaryText || !state.glossaryText.trim()) return "";
+    
+    const lines = state.glossaryText.split("\n");
+    const matched = [];
+    const lowerText = copiedText.toLowerCase();
+
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      let sepIdx = line.indexOf("=");
+      if (sepIdx === -1) sepIdx = line.indexOf(":");
+      
+      if (sepIdx !== -1) {
+        const source = line.substring(0, sepIdx).trim();
+        const target = line.substring(sepIdx + 1).trim();
+        if (source && target && lowerText.includes(source.toLowerCase())) {
+          matched.push(`${source} = ${target}`);
+        }
+      }
+    }
+
+    if (matched.length > 0) {
+      return `\n\n<Glossary>\nThese are glossary terms, do not translate them differently from what is provided here.\n${matched.join("\n")}\n</Glossary>`;
+    }
+    return "";
+  }
+
+  async function onCopyForGlossaryAi() {
     const sel = state.lines.filter(l => state.selectedLines.has(l.line_num));
+    if (!sel.length) return;
     const out = [];
     for (const l of sel) {
       const dN = l.name || "";
       out.push(dN ? `${l.line_num}. ${dN}: ${l.message}` : `${l.line_num}. ${l.message}`);
     }
-    const p = `${(state.aiInstructionHeader || DEFAULT_PROMPT_HEADER).trim()}\n\n${out.join("\n")}\n`;
+    const promptText = `Extract all important terms, character names, locations, and unique concepts from the following text to build a glossary.\nFormat the output STRICTLY as:\nsource = target\n\nRules:\n1. Do NOT translate the text itself.\n2. Only output the glossary list.\n3. Ensure the 'source' is the original term, and 'target' is the translated/localized term in Indonesian.\n\n${out.join("\n")}\n`;
+    try {
+      await navigator.clipboard.writeText(promptText);
+      flashHint(`Disalin ${sel.length} baris untuk ekstraksi glossary.`);
+    } catch (_) {
+      ui.pasteGlossaryArea.value = promptText;
+    }
+  }
+
+  function onSaveGlossary() {
+    const val = ui.pasteGlossaryArea.value.trim();
+    if (!val) return;
+    
+    if (state.glossaryText) {
+      state.glossaryText += "\n" + val;
+    } else {
+      state.glossaryText = val;
+    }
+    
+    ui.pasteGlossaryArea.value = "";
+    queueAutoSave();
+    flashHint("Glossary berhasil disimpan!");
+  }
+
+  async function onCopyForAi() {
+    const sel = state.lines.filter(l => state.selectedLines.has(l.line_num));
+    if (!sel.length) return;
+
+    let contextBlock = "";
+    if (state.contextLines > 0) {
+      const firstSelLineNum = sel[0].line_num;
+      const firstSelIdx = state.lines.findIndex(l => l.line_num === firstSelLineNum);
+      if (firstSelIdx > 0) {
+        const startIdx = Math.max(0, firstSelIdx - state.contextLines);
+        const ctxLines = state.lines.slice(startIdx, firstSelIdx);
+        const ctxOut = [];
+        for (const l of ctxLines) {
+          const dN = l.name || "";
+          ctxOut.push(dN ? `${dN}: ${l.message}` : `${l.message}`);
+        }
+        if (ctxOut.length > 0) {
+          contextBlock = `\n\n<Context>\nThese lines are for context only. Do NOT translate them.\n${ctxOut.join("\n")}\n</Context>`;
+        }
+      }
+    }
+
+    const out = [];
+    for (const l of sel) {
+      const dN = l.name || "";
+      out.push(dN ? `${l.line_num}. ${dN}: ${l.message}` : `${l.line_num}. ${l.message}`);
+    }
+    const joinedText = out.join("\n");
+    const glossaryBlock = getGlossaryPrompt(joinedText);
+    const p = `${(state.aiInstructionHeader || DEFAULT_PROMPT_HEADER).trim()}${glossaryBlock}${contextBlock}\n\n${joinedText}\n`;
     try {
       await navigator.clipboard.writeText(p);
       flashHint(`Disalin ${sel.length} baris.`);
@@ -1243,12 +1361,16 @@
   function onOpenSettings() {
     ui.settingsPromptInput.value = state.aiInstructionHeader;
     ui.settingsEpubTagsInput.value = state.epubTags || "p";
+    ui.settingsGlossaryInput.value = state.glossaryText || "";
+    ui.settingsContextLinesInput.value = state.contextLines;
     openModal(ui.settingsModal);
   }
 
   function onSavePromptSettings() {
     state.aiInstructionHeader = ui.settingsPromptInput.value.trim();
     state.epubTags = ui.settingsEpubTagsInput.value.trim() || "p";
+    state.glossaryText = ui.settingsGlossaryInput.value.trim();
+    state.contextLines = parseInt(ui.settingsContextLinesInput.value) || 0;
     closeModal(ui.settingsModal);
     queueAutoSave();
   }
