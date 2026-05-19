@@ -1,7 +1,8 @@
 # CSTL
 Original by Atho64
+forked by LuKazuu
 
-Fork by Me
+Fork again by atho64
 
 Link:
-https://lukazuu.github.io/cstl/
+https://atho64.github.io/cstl/
