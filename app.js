@@ -1041,11 +1041,36 @@
     const val = ui.pasteGlossaryArea.value.trim();
     if (!val) return;
     
-    if (state.glossaryText) {
-      state.glossaryText += "\n" + val;
-    } else {
-      state.glossaryText = val;
+    function parseToMap(text) {
+      const m = new Map();
+      if (!text) return m;
+      const lines = text.split(/\r?\n/);
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        let sepIdx = line.indexOf("=");
+        if (sepIdx === -1) sepIdx = line.indexOf(":");
+        if (sepIdx !== -1) {
+          const source = line.substring(0, sepIdx).trim();
+          const target = line.substring(sepIdx + 1).trim();
+          if (source) m.set(source, target);
+        }
+      }
+      return m;
     }
+    
+    const currentMap = parseToMap(state.glossaryText);
+    const newMap = parseToMap(val);
+    
+    for (const [k, v] of newMap.entries()) {
+      currentMap.set(k, v);
+    }
+    
+    const out = [];
+    for (const [k, v] of currentMap.entries()) {
+      out.push(`${k} = ${v}`);
+    }
+    
+    state.glossaryText = out.join("\n");
     
     ui.pasteGlossaryArea.value = "";
     queueAutoSave();
