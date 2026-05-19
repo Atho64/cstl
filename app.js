@@ -1446,7 +1446,7 @@
 
         const a = document.createElement("a");
         a.href = URL.createObjectURL(blob);
-        const safeName = state.projectName.replace(/[^a-z0-9]/gi, '_').toLowerCase() || 'export';
+        const safeName = state.projectName.replace(/[<>:"\/\\|?*]/g, '_').trim() || 'export';
         a.download = `${safeName}_tl.epub`;
         a.click();
         flashHint("Berhasil mengekspor EPUB!");
@@ -1467,7 +1467,11 @@
           const e = {};
           e.name = isTranslated(l) ? (l.trans_name || l.name) : l.name;
           e.message = isTranslated(l) ? l.trans_message : l.message;
-          if (e.name) e.name = e.name.replace(/\\n/g, "\n");
+          if (e.name) {
+            e.name = e.name.replace(/\\n/g, "\n");
+          } else {
+            delete e.name;
+          }
           if (e.message) e.message = e.message.replace(/\\n/g, "\n");
           return e;
         }), null, 2)
@@ -1478,7 +1482,7 @@
         const b = await zip.generateAsync({ type: "blob" });
         const a = document.createElement("a");
         a.href = URL.createObjectURL(b);
-        const safeName = state.projectName.replace(/[^a-z0-9]/gi, '_').toLowerCase() || 'export';
+        const safeName = state.projectName.replace(/[<>:"\/\\|?*]/g, '_').trim() || 'export';
         a.download = `${safeName}_export.zip`;
         a.click();
       } else {
