@@ -211,7 +211,7 @@
       "btnClearSelection", "copyCount", "btnCopyForAi", "copyStatus", "pasteArea", "btnApply",
       "btnUndo", "nameTableBody", "statusBar", "importFileInput", "importFolderInput",
       "importZipInput", "settingsModal", "settingsPromptInput", "settingsGlossaryPromptInput", "settingsEpubTagsInput",
-      "settingsGlossaryInput", "settingsContextLinesInput", "btnSettingsReset", "btnSettingsCancel", "btnSettingsSave", "lineEditorModal", "lineEditorTitle",
+      "settingsGlossaryInput", "settingsContextLinesInput", "btnSettingsReset", "btnSettingsGlossaryReset", "btnSettingsCancel", "btnSettingsSave", "lineEditorModal", "lineEditorTitle",
       "tabTranslate", "tabGlossary", "viewTranslate", "viewGlossary", "btnCopyForGlossaryAi", "pasteGlossaryArea", "btnSaveGlossary", "copyGlossaryCount",
       "lineOriginalView", "lineNameWrap", "lineNameInput", "lineMessageInput", "lineTranslatedCheck",
       "btnLineCancel", "btnLineSave", "proofreadModal", "proofreadSearchInput", "proofreadScope",
@@ -305,8 +305,10 @@
     ui.btnSettings.addEventListener("click", onOpenSettings);
     ui.btnSettingsReset.addEventListener("click", () => {
       ui.settingsPromptInput.value = DEFAULT_PROMPT_HEADER;
-      ui.settingsGlossaryPromptInput.value = DEFAULT_GLOSSARY_PROMPT;
       ui.settingsEpubTagsInput.value = "p";
+    });
+    ui.btnSettingsGlossaryReset.addEventListener("click", () => {
+      ui.settingsGlossaryPromptInput.value = DEFAULT_GLOSSARY_PROMPT;
     });
     ui.btnSettingsCancel.addEventListener("click", () => closeModal(ui.settingsModal));
     ui.btnSettingsSave.addEventListener("click", onSavePromptSettings);
