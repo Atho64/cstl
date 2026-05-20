@@ -1,7 +1,7 @@
 (() => {
   "use strict";
   const DEFAULT_PROMPT_HEADER = `Rewrite entire text to Native Indonesian. Do not change prefix number. Euphemism prohibited. Use of "Bahasa Jakarta Selatan" is prohibited. Put results inside \`\`\`plaintext block.`;
-  const DEFAULT_GLOSSARY_PROMPT = `Extract all important terms, character names, locations, and unique concepts from the following text to build a glossary.\nFormat the output STRICTLY as:\n[source term] = [target term]\n\nExample:\nりんご = Apel\nみかん = Jeruk\n\nRules:\n1. Do NOT translate the text itself.\n2. Only output the glossary list.\n3. Put results inside \`\`\`plaintext block.`;
+  const DEFAULT_GLOSSARY_PROMPT = `Extract all important terms, character names, locations, and unique concepts from the following text to build a glossary.\nFormat the output STRICTLY as:\n[Japanese term] = [Indonesian term]\n\nExample:\nりんご = Apel\nみかん = Jeruk\n\nRules:\n1. Do NOT translate the text itself.\n2. Only output the glossary list.\n3. Put results inside \`\`\`plaintext block.`;
   const APP_VERSION = 5;
   const PROJECT_EXT = ".cstl";
   
