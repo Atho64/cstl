@@ -118,6 +118,22 @@ html, body {
   width: 100%; 
 }
 
+.dashboard-filter-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.dashboard-filter-row .section-label {
+  margin-bottom: 0;
+}
+
+.dashboard-filter {
+  width: min(360px, 100%);
+}
+
 .project-grid { 
   display: grid; 
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); 
@@ -517,6 +533,23 @@ html, body {
   overflow: hidden; 
 }
 
+.glossary-preview {
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  border-radius: 8px;
+  background: rgba(16, 185, 129, 0.08);
+  padding: 12px;
+  margin-bottom: 12px;
+}
+
+.glossary-preview-text {
+  max-height: 120px;
+  overflow: auto;
+  margin: 0;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .name-table-wrap, .proofread-results-wrap { 
   border: 1px solid var(--line); 
   border-radius: 8px; 
@@ -622,6 +655,8 @@ html, body {
 @media (max-width: 768px) {
   .desktop-only { display: none; }
   .dashboard-hero { flex-direction: column; gap: 20px; align-items: flex-start; }
+  .dashboard-filter-row { flex-direction: column; align-items: stretch; }
+  .dashboard-filter { width: 100%; }
   .modal { padding: 16px; }
   .split-layout { grid-template-rows: 1fr 1fr; }
   .panel-left { flex: none; height: 45vh; }

@@ -3,6 +3,7 @@
   const DEFAULT_PROMPT_HEADER = `Rewrite entire text to Native Indonesian. Do not change prefix number. Euphemism prohibited. Use of "Bahasa Jakarta Selatan" is prohibited. Put results inside \`\`\`plaintext block.`;
   const DEFAULT_GLOSSARY_PROMPT = `Extract all important terms, character names, locations, and unique concepts from the following text to build a glossary.\nFormat the output STRICTLY as:\n[Japanese term] = [Indonesian term]\n\nExample:\nりんご = Apel\nみかん = Jeruk\n\nRules:\n1. Do NOT translate the text itself.\n2. Only output the glossary list.\n3. Put results inside \`\`\`plaintext block.`;
   const APP_VERSION = 5;
+  const MAX_UNDO_STEPS = 10;
   const PROJECT_EXT = ".cstl";
   
   const state = {
@@ -17,11 +18,12 @@
     glossaryPrompt: DEFAULT_GLOSSARY_PROMPT,
     glossaryText: "",
     contextLines: 10,
-    undoSnapshot: null,
+    undoStack: [],
     selectedLines: new Set(),
     displayRows: [],
     lineByNum: new Map(),
     proofreadMatches: [],
+    dashboardProjects: [],
   };
   
   const ui = {};
@@ -204,12 +206,13 @@
 
   function cacheElements() {
     const ids = [
-      "dashboardView", "workspaceView", "projectList", "btnNewProject", "btnRestoreProject",
+      "dashboardView", "workspaceView", "projectList", "projectFilterInput", "btnNewProject", "btnRestoreProject",
       "btnBackToDashboard", "projectNameDisplay", "restoreProjectInput", "btnImportFile",
       "btnImportFolder", "btnImportZip", "btnExport", "btnProofread", "btnSettings",
       "previewViewport", "previewContainer", "progressFill", "progressText", "btnSelectAll",
       "btnClearSelection", "copyCount", "btnCopyForAi", "copyStatus", "pasteArea", "btnApply",
       "btnUndo", "nameTableBody", "statusBar", "importFileInput", "importFolderInput",
+      "glossaryPreviewWrap", "glossaryPreviewText",
       "importZipInput", "settingsModal", "settingsPromptInput", "settingsGlossaryPromptInput", "settingsEpubTagsInput",
       "settingsGlossaryInput", "settingsContextLinesInput", "btnSettingsReset", "btnSettingsGlossaryReset", "btnSettingsCancel", "btnSettingsSave", "lineEditorModal", "lineEditorTitle",
       "tabTranslate", "tabGlossary", "viewTranslate", "viewGlossary", "btnCopyForGlossaryAi", "pasteGlossaryArea", "btnSaveGlossary", "copyGlossaryCount",
@@ -232,6 +235,7 @@
 
   function bindEvents() {
     ui.btnNewProject.addEventListener("click", createNewProject);
+    ui.projectFilterInput.addEventListener("input", () => renderDashboardProjects());
     ui.btnBackToDashboard.addEventListener("click", closeProject);
     ui.btnRestoreProject.addEventListener("click", () => ui.restoreProjectInput.click());
     ui.restoreProjectInput.addEventListener("change", onRestoreProject);
@@ -339,7 +343,8 @@
   }
 
   async function loadDashboardProjects() {
-    ui.projectList.innerHTML = "";
+    state.dashboardProjects = [];
+    ui.projectList.textContent = "";
     try {
       const root = await getOpfsRoot();
       const projects = [];
@@ -361,47 +366,89 @@
         }
       }
       projects.sort((a, b) => b.updatedAt - a.updatedAt);
-      if (projects.length === 0) {
-        ui.projectList.innerHTML = `<p class="hint" style="grid-column: 1/-1;">Belum ada proyek. Klik "Buat Proyek Baru" untuk memulai.</p>`;
-        return;
-      }
-      
-      for (const p of projects) {
-        const card = document.createElement("div");
-        card.className = "project-card";
-        
-        let typeBadge = '';
-        if (p.fileCount > 0 || p.lineCount > 0) {
-          typeBadge = p.data.projectType === 'epub' 
-            ? `<span class="badge badge-epub">EPUB</span>` 
-            : `<span class="badge badge-json">JSON VNTP</span>`;
-        }
-
-        card.innerHTML = `
-          <div>
-            <h3>${p.name}</h3>
-            <div class="project-meta mt-2">
-              ${typeBadge ? `<div style="margin-bottom: 8px;">${typeBadge}</div>` : ''}
-              Terakhir diubah: ${new Date(p.updatedAt).toLocaleString('id-ID')}<br>
-              File: ${p.fileCount} | Baris: ${p.lineCount}
-            </div>
-          </div>
-          <div class="project-actions">
-            <button class="btn btn-primary btn-sm btn-open" data-id="${p.id}">Buka</button>
-            <button class="btn btn-outline btn-sm btn-rename" data-id="${p.id}">Ubah Nama</button>
-            <button class="btn btn-outline btn-sm btn-backup" data-id="${p.id}">Backup</button>
-            <button class="btn btn-danger btn-sm btn-delete" data-id="${p.id}">Hapus</button>
-          </div>
-        `;
-        card.querySelector(".btn-open").addEventListener("click", () => openProject(p.id, p.data));
-        card.querySelector(".btn-rename").addEventListener("click", () => renameDashboardProject(p.id, p.name, p.data));
-        card.querySelector(".btn-backup").addEventListener("click", () => backupDashboardProject(p.name, p.data));
-        card.querySelector(".btn-delete").addEventListener("click", () => deleteProject(p.id, p.data));
-        ui.projectList.appendChild(card);
-      }
+      state.dashboardProjects = projects;
+      renderDashboardProjects();
     } catch (err) {
-      ui.projectList.innerHTML = `<p class="hint" style="color: var(--danger);">Gagal mengakses storage browser.</p>`;
+      renderDashboardMessage("Gagal mengakses storage browser.", true);
     }
+  }
+
+  function renderDashboardMessage(message, isError = false) {
+    ui.projectList.textContent = "";
+    const p = document.createElement("p");
+    p.className = "hint";
+    p.style.gridColumn = "1/-1";
+    if (isError) p.style.color = "var(--danger)";
+    p.textContent = message;
+    ui.projectList.appendChild(p);
+  }
+
+  function createProjectButton(label, className, onClick) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = className;
+    btn.textContent = label;
+    btn.addEventListener("click", onClick);
+    return btn;
+  }
+
+  function renderDashboardProjects() {
+    const query = (ui.projectFilterInput.value || "").trim().toLowerCase();
+    const projects = query
+      ? state.dashboardProjects.filter(p => p.name.toLowerCase().includes(query))
+      : state.dashboardProjects;
+
+    ui.projectList.textContent = "";
+    if (state.dashboardProjects.length === 0) {
+      renderDashboardMessage('Belum ada proyek. Klik "Buat Proyek Baru" untuk memulai.');
+      return;
+    }
+    if (projects.length === 0) {
+      renderDashboardMessage("Tidak ada proyek yang cocok dengan filter.");
+      return;
+    }
+
+    const frag = document.createDocumentFragment();
+    for (const p of projects) {
+      const card = document.createElement("div");
+      card.className = "project-card";
+
+      const info = document.createElement("div");
+      const title = document.createElement("h3");
+      title.textContent = p.name;
+      info.appendChild(title);
+
+      const meta = document.createElement("div");
+      meta.className = "project-meta mt-2";
+      if (p.fileCount > 0 || p.lineCount > 0) {
+        const badgeWrap = document.createElement("div");
+        badgeWrap.style.marginBottom = "8px";
+        const badge = document.createElement("span");
+        badge.className = p.data.projectType === "epub" ? "badge badge-epub" : "badge badge-json";
+        badge.textContent = p.data.projectType === "epub" ? "EPUB" : "JSON VNTP";
+        badgeWrap.appendChild(badge);
+        meta.appendChild(badgeWrap);
+      }
+      meta.append(
+        document.createTextNode(`Terakhir diubah: ${new Date(p.updatedAt).toLocaleString("id-ID")}`),
+        document.createElement("br"),
+        document.createTextNode(`File: ${p.fileCount} | Baris: ${p.lineCount}`)
+      );
+      info.appendChild(meta);
+
+      const actions = document.createElement("div");
+      actions.className = "project-actions";
+      actions.append(
+        createProjectButton("Buka", "btn btn-primary btn-sm", () => openProject(p.id, p.data)),
+        createProjectButton("Ubah Nama", "btn btn-outline btn-sm", () => renameDashboardProject(p.id, p.name, p.data)),
+        createProjectButton("Backup", "btn btn-outline btn-sm", () => backupDashboardProject(p.name, p.data)),
+        createProjectButton("Hapus", "btn btn-danger btn-sm", () => deleteProject(p.id, p.data))
+      );
+
+      card.append(info, actions);
+      frag.appendChild(card);
+    }
+    ui.projectList.appendChild(frag);
   }
 
   async function createNewProject() {
@@ -517,7 +564,7 @@
     state.glossaryText = data.glossary_text || "";
     state.contextLines = data.context_lines !== undefined ? data.context_lines : 10;
     state.selectedLines.clear();
-    state.undoSnapshot = null;
+    state.undoStack = [];
     ui.projectNameDisplay.textContent = state.projectName;
     
     ui.dashboardView.classList.remove("open");
@@ -602,6 +649,7 @@
     ui.btnSelectRange.disabled = !hasData;
     ui.copyCount.textContent = state.selectedLines.size;
     ui.copyGlossaryCount.textContent = state.selectedLines.size;
+    renderGlossaryPreview();
   }
 
   function isTranslated(line) {
@@ -811,7 +859,13 @@
     renderPreviewRows();
     renderNameTable();
     updateStatusBar();
-    ui.btnUndo.disabled = !state.undoSnapshot;
+    ui.btnUndo.disabled = state.undoStack.length === 0;
+  }
+
+  function pushUndoSnapshot() {
+    state.undoStack.push({ lines: JSON.parse(JSON.stringify(state.lines)) });
+    if (state.undoStack.length > MAX_UNDO_STEPS) state.undoStack.shift();
+    ui.btnUndo.disabled = false;
   }
 
   function flashHint(msg, keepAlive = false) {
@@ -993,8 +1047,8 @@
     ev.target.value = "";
   }
 
-  function getGlossaryPrompt(copiedText) {
-    if (!state.glossaryText || !state.glossaryText.trim()) return "";
+  function getGlossaryMatches(copiedText) {
+    if (!state.glossaryText || !state.glossaryText.trim()) return [];
     
     const lines = state.glossaryText.split("\n");
     const matched = [];
@@ -1014,20 +1068,41 @@
       }
     }
 
+    return matched;
+  }
+
+  function getGlossaryPrompt(copiedText) {
+    const matched = getGlossaryMatches(copiedText);
     if (matched.length > 0) {
       return `\n\n<Glossary>\nThese are glossary terms, do not translate them differently from what is provided here.\n${matched.join("\n")}\n</Glossary>`;
     }
     return "";
   }
 
+  function getSelectedTranslationText() {
+    const sel = state.lines.filter(l => state.selectedLines.has(l.line_num));
+    return sel.map(l => {
+      const dN = l.name || "";
+      return dN ? `${l.line_num}. ${dN}: ${l.message}` : `${l.line_num}. ${l.message}`;
+    }).join("\n");
+  }
+
+  function renderGlossaryPreview() {
+    const selectedText = getSelectedTranslationText();
+    const matches = selectedText ? getGlossaryMatches(selectedText) : [];
+    if (!matches.length) {
+      ui.glossaryPreviewWrap.hidden = true;
+      ui.glossaryPreviewText.textContent = "";
+      return;
+    }
+    ui.glossaryPreviewText.textContent = matches.join("\n");
+    ui.glossaryPreviewWrap.hidden = false;
+  }
+
   async function onCopyForGlossaryAi() {
     const sel = state.lines.filter(l => state.selectedLines.has(l.line_num));
     if (!sel.length) return;
-    const out = [];
-    for (const l of sel) {
-      const dN = l.name || "";
-      out.push(dN ? `${l.line_num}. ${dN}: ${l.message}` : `${l.line_num}. ${l.message}`);
-    }
+    const out = getSelectedTranslationText().split("\n").filter(Boolean);
     const promptText = `${(state.glossaryPrompt || DEFAULT_GLOSSARY_PROMPT).trim()}\n\n${out.join("\n")}\n`;
     try {
       await navigator.clipboard.writeText(promptText);
@@ -1073,6 +1148,7 @@
     state.glossaryText = out.join("\n");
     
     ui.pasteGlossaryArea.value = "";
+    renderGlossaryPreview();
     queueAutoSave();
     flashHint("Glossary berhasil disimpan!");
   }
@@ -1099,12 +1175,7 @@
       }
     }
 
-    const out = [];
-    for (const l of sel) {
-      const dN = l.name || "";
-      out.push(dN ? `${l.line_num}. ${dN}: ${l.message}` : `${l.line_num}. ${l.message}`);
-    }
-    const joinedText = out.join("\n");
+    const joinedText = getSelectedTranslationText();
     const glossaryBlock = getGlossaryPrompt(joinedText);
     const p = `${(state.aiInstructionHeader || DEFAULT_PROMPT_HEADER).trim()}${glossaryBlock}${contextBlock}\n\n${joinedText}\n`;
     try {
@@ -1173,7 +1244,7 @@
     if (errors.length) {
       return alert("TRANSLASI DITOLAK:\n\n" + errors.slice(0, 10).join("\n") + (errors.length > 10 ? `\n\n... (+${errors.length-10} error lain)` : ""));
     }
-    state.undoSnapshot = { lines: JSON.parse(JSON.stringify(state.lines)) };
+    pushUndoSnapshot();
     for (const {l, it} of updates) {
       l.trans_message = it.msg;
       l.is_translated = true;
@@ -1187,9 +1258,9 @@
   }
 
   function onUndoLastApply() {
-    if (!state.undoSnapshot) return;
-    state.lines = state.undoSnapshot.lines.map(normalizeLineDict);
-    state.undoSnapshot = null;
+    const snapshot = state.undoStack.pop();
+    if (!snapshot) return;
+    state.lines = snapshot.lines.map(normalizeLineDict);
     refreshAll();
     queueAutoSave();
   }
@@ -1215,6 +1286,7 @@
     if (ui.lineTranslatedCheck.checked && !m) return alert("Gagal: Pesan terjemahan kosong.");
     let n = null;
     if (l.name) n = ui.lineNameInput.value.trim().replace(/\r?\n/g, "\\n");
+    pushUndoSnapshot();
     l.trans_message = m || null;
     l.is_translated = !!(ui.lineTranslatedCheck.checked && m);
     if (l.name) l.trans_name = n || null;
@@ -1233,13 +1305,26 @@
     renderProofreadResults();
   }
 
+  function escapeRegex(text) {
+    return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  }
+
+  function containsJapanese(text) {
+    return /[\u3040-\u30ff\u3400-\u9fff]/.test(text);
+  }
+
+  function buildSearchRegex(query, isRegex, isCase, isExact, capture = false) {
+    let regexStr = isRegex ? query : escapeRegex(query);
+    if (isExact && !containsJapanese(query)) regexStr = `\\b(?:${regexStr})\\b`;
+    if (capture) regexStr = `(${regexStr})`;
+    return new RegExp(regexStr, isCase ? "gu" : "giu");
+  }
+
   function createHighlightedNodes(text, query, isRegex, isCase, isExact) {
     if (!query) return document.createTextNode(text);
     let regex;
     try {
-      let regexStr = isRegex ? query : query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      if (isExact) regexStr = `\\b(?:${regexStr})\\b`;
-      regex = new RegExp(`(${regexStr})`, isCase ? 'g' : 'gi');
+      regex = buildSearchRegex(query, isRegex, isCase, isExact, true);
     } catch(e) { return document.createTextNode(text); }
     const frag = document.createDocumentFragment();
     const parts = text.split(regex);
@@ -1266,9 +1351,7 @@
     let regex = null;
     if (query) {
       try {
-        let regexStr = isRegex ? query : query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        if (isExact) regexStr = `\\b(?:${regexStr})\\b`;
-        regex = new RegExp(regexStr, isCase ? "g" : "gi");
+        regex = buildSearchRegex(query, isRegex, isCase, isExact);
       }
       catch (e) { return; }
     }
@@ -1355,12 +1438,10 @@
     const scope = ui.proofreadScope.value;
     let regex;
     try {
-      let regexStr = isRegex ? query : query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      if (isExact) regexStr = `\\b(?:${regexStr})\\b`;
-      regex = new RegExp(regexStr, isCase ? 'g' : 'gi');
+      regex = buildSearchRegex(query, isRegex, isCase, isExact);
     } catch(e) { return alert("Format Regex tidak valid."); }
     let count = 0;
-    state.undoSnapshot = { lines: JSON.parse(JSON.stringify(state.lines)) };
+    const undoSnapshot = { lines: JSON.parse(JSON.stringify(state.lines)) };
     for (const line of state.lines) {
       if (onlyTrans) {
         if (!isTranslated(line)) continue;
@@ -1388,6 +1469,8 @@
       }
     }
     if (count > 0) {
+      state.undoStack.push(undoSnapshot);
+      if (state.undoStack.length > MAX_UNDO_STEPS) state.undoStack.shift();
       refreshAll(); renderProofreadResults(); queueAutoSave();
       alert(`Berhasil melakukan Replace All pada ${count} baris teks.`);
     } else alert(`Tidak ada kata yang cocok dengan pencarian.`);
@@ -1409,11 +1492,28 @@
     state.glossaryText = ui.settingsGlossaryInput.value.trim();
     state.contextLines = parseInt(ui.settingsContextLinesInput.value) || 0;
     closeModal(ui.settingsModal);
+    renderGlossaryPreview();
     queueAutoSave();
+  }
+
+  function confirmExportWithUntranslatedReport() {
+    const untranslated = state.lines.filter(l => !isTranslated(l));
+    if (!untranslated.length) return true;
+
+    const preview = untranslated.slice(0, 12).map(l => {
+      const text = l.name ? `${l.name}: ${l.message}` : l.message;
+      const shortText = text.length > 70 ? `${text.slice(0, 67)}...` : text;
+      return `#${l.line_num} (${l.file}) ${shortText}`;
+    }).join("\n");
+    const rest = untranslated.length > 12 ? `\n...dan ${untranslated.length - 12} baris lainnya.` : "";
+    return confirm(
+      `Masih ada ${untranslated.length} baris yang belum diterjemahkan.\n\n${preview}${rest}\n\nLanjut ekspor tetap?`
+    );
   }
 
   async function onExport() {
     if (!state.lines.length) return;
+    if (!confirmExportWithUntranslatedReport()) return;
     
     if (state.projectType === "epub" && state.epubSourceId) {
       try {

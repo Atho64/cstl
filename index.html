@@ -25,7 +25,10 @@
       </div>
     </header>
     <main class="dashboard-content">
-      <div class="section-label section-label-lg">Proyek Tersimpan</div>
+      <div class="dashboard-filter-row">
+        <div class="section-label section-label-lg">Proyek Tersimpan</div>
+        <input id="projectFilterInput" class="text-input dashboard-filter" type="search" placeholder="Cari proyek..." />
+      </div>
       <div id="projectList" class="project-grid"></div>
     </main>
   </div>
@@ -88,6 +91,10 @@
             <button id="btnCopyForAi" class="btn btn-primary w-full" disabled>Copy <span id="copyCount">0</span> Baris untuk AI</button>
           </div>
           <div id="copyStatus" class="status-toast empty"></div>
+          <div id="glossaryPreviewWrap" class="glossary-preview" hidden>
+            <div class="section-label mt-0">Glossary yang ikut terkirim</div>
+            <pre id="glossaryPreviewText" class="mono glossary-preview-text"></pre>
+          </div>
           <label class="section-label" for="pasteArea">Paste hasil terjemahan AI di sini</label>
           <textarea id="pasteArea" class="mono input-area" placeholder="Paste hasil dari AI di sini..." disabled></textarea>
           <div class="inline-actions">
@@ -115,7 +122,7 @@
             <button id="btnCopyForGlossaryAi" class="btn btn-primary w-full" disabled>Copy <span id="copyGlossaryCount">0</span> Baris untuk Ekstrak Glossary</button>
           </div>
           <label class="section-label" for="pasteGlossaryArea">Paste hasil glossary AI di sini</label>
-          <textarea id="pasteGlossaryArea" class="mono input-area" placeholder="Apel = Apple&#10;Jeruk: Orange" disabled></textarea>
+          <textarea id="pasteGlossaryArea" class="mono input-area" placeholder="りんご = Apel&#10;みかん = Jeruk" disabled></textarea>
           <div class="inline-actions mt-2">
             <button id="btnSaveGlossary" class="btn btn-success grow" disabled>Simpan ke Smart Glossary</button>
           </div>
@@ -158,8 +165,8 @@
       </div>
       <div class="mt-3">
         <label class="section-label text-white m-0">Smart Glossary</label>
-        <p class="hint mt-1">Masukkan daftar istilah (contoh: source=target atau source:target). Hanya disertakan ke prompt jika kata muncul di teks.</p>
-        <textarea id="settingsGlossaryInput" class="mono input-area mt-1" placeholder="Apel = Apple&#10;Jeruk: Orange"></textarea>
+        <p class="hint mt-1">Masukkan daftar istilah (contoh: Japanese=Indonesian atau Japanese:Indonesian). Hanya disertakan ke prompt jika kata muncul di teks.</p>
+        <textarea id="settingsGlossaryInput" class="mono input-area mt-1" placeholder="りんご = Apel&#10;みかん = Jeruk"></textarea>
       </div>
       <div class="mt-3">
         <label class="section-label text-white m-0">Konteks Baris Sebelumnya (Context Lines)</label>
