@@ -84,6 +84,7 @@
         <div class="tabs-wrap mb-2" style="display: flex; gap: 8px;">
           <button id="tabTranslate" class="btn btn-primary grow">Translate</button>
           <button id="tabGlossary" class="btn btn-outline grow">Glossary Extractor</button>
+          <button id="tabAiCheck" class="btn btn-outline grow">AI Check</button>
         </div>
 
         <div id="viewTranslate">
@@ -153,6 +154,23 @@
             <p id="anilistStatus" class="hint mt-2 m-0"></p>
           </div>
         </div>
+
+        <div id="viewAiCheck" style="display: none;">
+          <div class="card-box mb-2">
+            <label class="section-label mt-0">Double Check Terjemahan AI</label>
+            <p class="hint">Pilih baris yang sudah diterjemahkan, lalu salin ke AI untuk dicek. AI hanya perlu mengembalikan koreksi.</p>
+            <button id="btnCopyForAiCheck" class="btn btn-primary w-full" disabled>Copy <span id="copyAiCheckCount">0</span> Baris untuk AI Check</button>
+          </div>
+          <div id="aiCheckStatus" class="status-toast empty"></div>
+          <label class="section-label" for="pasteAiCheckArea">Paste hasil koreksi AI di sini</label>
+          <textarea id="pasteAiCheckArea" class="mono input-area" placeholder="[line 12]&#10;reason: alasan koreksi&#10;name: Nama jika perlu diubah&#10;text: Teks terjemahan yang sudah dikoreksi" disabled></textarea>
+          <div class="inline-actions">
+            <button id="btnParseAiCheck" class="btn btn-outline grow" disabled>Parse AI Check Result</button>
+            <button id="btnApplyAiCheck" class="btn btn-success grow" disabled>Apply Checked Corrections</button>
+            <button id="btnClearAiCheck" class="btn btn-danger" disabled>Clear AI Check</button>
+          </div>
+          <div id="aiCheckResults" class="ai-check-results mt-2"></div>
+        </div>
       </section>
     </main>
     <footer id="statusBar" class="status-bar">
@@ -184,6 +202,14 @@
         </div>
         <p class="hint m-0">Teks instruksi ini digunakan saat menyalin teks untuk ekstraksi glossary.</p>
         <textarea id="settingsGlossaryPromptInput" class="mono input-area mt-1"></textarea>
+      </div>
+      <div class="mt-3">
+        <div class="flex-between mb-1">
+          <label class="section-label text-white m-0">Pengaturan Prompt AI Check</label>
+          <button id="btnSettingsAiCheckReset" class="btn btn-outline btn-xs">Reset Default</button>
+        </div>
+        <p class="hint m-0">Teks instruksi ini digunakan saat menyalin terjemahan untuk dicek ulang oleh AI.</p>
+        <textarea id="settingsAiCheckPromptInput" class="mono input-area mt-1"></textarea>
       </div>
       <div class="mt-3">
         <label class="section-label text-white m-0">Pengaturan Tag EPUB</label>

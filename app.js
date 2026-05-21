@@ -2,6 +2,7 @@
   "use strict";
   const DEFAULT_PROMPT_HEADER = `Rewrite entire text to Native Indonesian. Do not change prefix number. Euphemism prohibited. Use of "Bahasa Jakarta Selatan" is prohibited. Put results inside \`\`\`plaintext block.`;
   const DEFAULT_GLOSSARY_PROMPT = `Extract important names and story-specific terminology from the following text to build a typed glossary.\nFormat the output STRICTLY as:\n[type] [Japanese term] = [Indonesian term] {short description}\n\nAllowed types:\n[character], [place], [organization], [item], [ability], [title], [concept], [term]\n\nDescription examples:\n{male name}, {female name}, {family name}, {given name}, {place name}, {school}, {food}, {honorific}, {concept}\n\nExample:\n[character] 浅村 悠太 = Asamura Yuuta {male name}\n[character] 綾瀬 沙季 = Ayase Saki {female name}\n[place] 渋谷 = Shibuya {place name}\n[item] 炬燵 = Kotatsu {household item}\n[term] 義妹 = adik tiri perempuan {family term}\n\nRules:\n1. Do NOT translate the text itself.\n2. Only output the typed glossary list.\n3. Do NOT include common everyday words, ordinary verbs, generic adjectives, or basic nouns unless they are proper nouns, recurring key terms, culturally specific terms, or story-specific concepts.\n4. Prefer character names, family names, given names, place names, organization names, titles, unique items, abilities, honorifics, relationship terms, and recurring setting-specific terminology.\n5. Prefer specific types over [term].\n6. Include gender for character names when inferable from context; otherwise use {character name}.\n7. Put results inside \`\`\`plaintext block.`;
+  const DEFAULT_AI_CHECK_PROMPT = `Check the existing Indonesian translation against the original Japanese text.\nOnly return lines that need correction. Do not return lines that are already good.\n\nUse this STRICT format for each correction:\n[line 12]\nreason: why this line needs correction\nname: corrected character name, or blank if unchanged/not applicable\ntext: corrected Indonesian translation without the speaker name prefix\n\nRules:\n1. Keep the original line number exactly.\n2. Give a short, concrete reason.\n3. Use name only for corrected character names; leave it blank when unchanged.\n4. Put only the corrected message in text. Do NOT repeat the speaker name in text.\n5. Correct only the Indonesian translation, not the Japanese original.\n6. Respect provided glossary entries.\n7. Put results inside \`\`\`plaintext block.`;
   const APP_VERSION = 5;
   const MAX_UNDO_STEPS = 10;
   const PROJECT_EXT = ".cstl";
@@ -16,13 +17,16 @@
     importedFiles: [],
     aiInstructionHeader: DEFAULT_PROMPT_HEADER,
     glossaryPrompt: DEFAULT_GLOSSARY_PROMPT,
+    aiCheckPrompt: DEFAULT_AI_CHECK_PROMPT,
     glossaryText: "",
     contextLines: 10,
     undoStack: [],
     selectedLines: new Set(),
+    activeWorkspaceTab: "translate",
     displayRows: [],
     lineByNum: new Map(),
     proofreadMatches: [],
+    aiCheckCorrections: [],
     dashboardProjects: [],
   };
   
@@ -213,9 +217,10 @@
       "btnClearSelection", "copyCount", "btnCopyForAi", "copyStatus", "pasteArea", "btnApply",
       "btnUndo", "nameTableBody", "statusBar", "importFileInput", "importFolderInput",
       "glossaryPreviewWrap", "glossaryPreviewText",
-      "importZipInput", "glossaryFileInput", "settingsModal", "settingsPromptInput", "settingsGlossaryPromptInput", "settingsEpubTagsInput",
-      "settingsGlossaryInput", "settingsContextLinesInput", "btnSettingsReset", "btnSettingsGlossaryReset", "btnSettingsCancel", "btnSettingsSave", "lineEditorModal", "lineEditorTitle",
+      "importZipInput", "glossaryFileInput", "settingsModal", "settingsPromptInput", "settingsGlossaryPromptInput", "settingsAiCheckPromptInput", "settingsEpubTagsInput",
+      "settingsGlossaryInput", "settingsContextLinesInput", "btnSettingsReset", "btnSettingsGlossaryReset", "btnSettingsAiCheckReset", "btnSettingsCancel", "btnSettingsSave", "lineEditorModal", "lineEditorTitle",
       "tabTranslate", "tabGlossary", "viewTranslate", "viewGlossary", "btnCopyForGlossaryAi", "pasteGlossaryArea", "btnSaveGlossary", "btnImportGlossaryFile", "btnExportGlossaryFile", "copyGlossaryCount",
+      "tabAiCheck", "viewAiCheck", "btnCopyForAiCheck", "copyAiCheckCount", "aiCheckStatus", "pasteAiCheckArea", "btnParseAiCheck", "btnApplyAiCheck", "btnClearAiCheck", "aiCheckResults",
       "vndbInput", "btnImportVndbNames", "vndbStatus",
       "btnExtractEpubRubyNames", "epubRubyStatus", "anilistInput", "btnImportAnilistNames", "anilistStatus",
       "lineOriginalView", "lineNameWrap", "lineNameInput", "lineMessageInput", "lineTranslatedCheck",
@@ -259,28 +264,21 @@
     ui.btnExtractEpubRubyNames.addEventListener("click", onExtractEpubRubyNames);
     ui.btnImportAnilistNames.addEventListener("click", onImportAnilistNames);
 
-    ui.tabTranslate.addEventListener("click", () => {
-      ui.tabTranslate.classList.add("btn-primary");
-      ui.tabTranslate.classList.remove("btn-outline");
-      ui.tabGlossary.classList.remove("btn-primary");
-      ui.tabGlossary.classList.add("btn-outline");
-      ui.viewTranslate.style.display = "block";
-      ui.viewGlossary.style.display = "none";
-    });
+    ui.tabTranslate.addEventListener("click", () => switchWorkspaceTab("translate"));
     
-    ui.tabGlossary.addEventListener("click", () => {
-      ui.tabGlossary.classList.add("btn-primary");
-      ui.tabGlossary.classList.remove("btn-outline");
-      ui.tabTranslate.classList.remove("btn-primary");
-      ui.tabTranslate.classList.add("btn-outline");
-      ui.viewGlossary.style.display = "block";
-      ui.viewTranslate.style.display = "none";
-    });
+    ui.tabGlossary.addEventListener("click", () => switchWorkspaceTab("glossary"));
+    ui.tabAiCheck.addEventListener("click", () => switchWorkspaceTab("aiCheck"));
+    ui.btnCopyForAiCheck.addEventListener("click", onCopyForAiCheck);
+    ui.btnParseAiCheck.addEventListener("click", onParseAiCheck);
+    ui.btnApplyAiCheck.addEventListener("click", onApplyAiCheckCorrections);
+    ui.btnClearAiCheck.addEventListener("click", onClearAiCheck);
+    ui.pasteAiCheckArea.addEventListener("input", updateButtonStates);
     ui.btnUndo.addEventListener("click", onUndoLastApply);
     ui.btnProofread.addEventListener("click", onOpenProofread);
     ui.btnSelectAll.addEventListener("click", () => {
+      state.selectedLines.clear();
       state.lines.forEach(l => {
-        if (!isTranslated(l)) state.selectedLines.add(l.line_num);
+        if (isSelectableForActiveTab(l)) state.selectedLines.add(l.line_num);
       });
       syncCheckboxUI();
     });
@@ -295,7 +293,7 @@
       state.selectedLines.clear();
       for (let i = f; i <= t; i++) {
         const l = state.lineByNum.get(i);
-        if (l && !isTranslated(l)) state.selectedLines.add(i);
+        if (l && isSelectableForActiveTab(l)) state.selectedLines.add(i);
       }
       syncCheckboxUI();
       const targetIndex = state.displayRows.findIndex(row => row.type === "line" && row.line.line_num === f);
@@ -322,6 +320,9 @@
     ui.btnSettingsGlossaryReset.addEventListener("click", () => {
       ui.settingsGlossaryPromptInput.value = DEFAULT_GLOSSARY_PROMPT;
     });
+    ui.btnSettingsAiCheckReset.addEventListener("click", () => {
+      ui.settingsAiCheckPromptInput.value = DEFAULT_AI_CHECK_PROMPT;
+    });
     ui.btnSettingsCancel.addEventListener("click", () => closeModal(ui.settingsModal));
     ui.btnSettingsSave.addEventListener("click", onSavePromptSettings);
     ui.btnLineCancel.addEventListener("click", () => closeModal(ui.lineEditorModal));
@@ -336,6 +337,31 @@
     ui.proofreadCaseCheck.addEventListener("change", renderProofreadResults);
     ui.proofreadExactCheck.addEventListener("change", renderProofreadResults);
     ui.proofreadTranslatedOnlyCheck.addEventListener("change", renderProofreadResults);
+  }
+
+  function switchWorkspaceTab(tabName) {
+    state.activeWorkspaceTab = tabName;
+    pruneSelectionForActiveTab();
+    const tabs = [
+      { name: "translate", tab: ui.tabTranslate, view: ui.viewTranslate },
+      { name: "glossary", tab: ui.tabGlossary, view: ui.viewGlossary },
+      { name: "aiCheck", tab: ui.tabAiCheck, view: ui.viewAiCheck },
+    ];
+    for (const item of tabs) {
+      const active = item.name === tabName;
+      item.tab.classList.toggle("btn-primary", active);
+      item.tab.classList.toggle("btn-outline", !active);
+      item.view.style.display = active ? "block" : "none";
+    }
+    renderPreviewRows();
+    updateButtonStates();
+  }
+
+  function pruneSelectionForActiveTab() {
+    for (const num of Array.from(state.selectedLines)) {
+      const line = state.lineByNum.get(num);
+      if (!isSelectableForActiveTab(line)) state.selectedLines.delete(num);
+    }
   }
 
   function debounce(func, wait) {
@@ -474,6 +500,7 @@
       lines: [],
       prompt_header: DEFAULT_PROMPT_HEADER,
       glossary_prompt: DEFAULT_GLOSSARY_PROMPT,
+      ai_check_prompt: DEFAULT_AI_CHECK_PROMPT,
       glossary_text: "",
       context_lines: 10
     };
@@ -548,6 +575,7 @@
         lines: state.lines,
         prompt_header: state.aiInstructionHeader,
         glossary_prompt: state.glossaryPrompt,
+        ai_check_prompt: state.aiCheckPrompt,
         glossary_text: state.glossaryText,
         context_lines: state.contextLines
       };
@@ -569,16 +597,22 @@
     state.importedFiles = data.imported_files || [];
     state.aiInstructionHeader = data.prompt_header || DEFAULT_PROMPT_HEADER;
     state.glossaryPrompt = data.glossary_prompt || DEFAULT_GLOSSARY_PROMPT;
+    state.aiCheckPrompt = data.ai_check_prompt || DEFAULT_AI_CHECK_PROMPT;
     state.glossaryText = data.glossary_text || "";
     state.contextLines = data.context_lines !== undefined ? data.context_lines : 10;
     state.selectedLines.clear();
     state.undoStack = [];
+    state.aiCheckCorrections = [];
+    state.activeWorkspaceTab = "translate";
+    if (ui.pasteAiCheckArea) ui.pasteAiCheckArea.value = "";
+    if (ui.aiCheckResults) ui.aiCheckResults.textContent = "";
     ui.projectNameDisplay.textContent = state.projectName;
     
     ui.dashboardView.classList.remove("open");
     ui.workspaceView.style.display = "flex";
     
     refreshAll();
+    switchWorkspaceTab("translate");
   }
 
   function closeProject() {
@@ -590,6 +624,7 @@
         imported_files: state.importedFiles, lines: state.lines,
         prompt_header: state.aiInstructionHeader,
         glossary_prompt: state.glossaryPrompt,
+        ai_check_prompt: state.aiCheckPrompt,
         glossary_text: state.glossaryText,
         context_lines: state.contextLines
       };
@@ -628,6 +663,7 @@
         lines: (p.lines || []).map(normalizeLineDict),
         prompt_header: p.prompt_header || DEFAULT_PROMPT_HEADER,
         glossary_prompt: p.glossary_prompt || DEFAULT_GLOSSARY_PROMPT,
+        ai_check_prompt: p.ai_check_prompt || DEFAULT_AI_CHECK_PROMPT,
         glossary_text: p.glossary_text || "",
         context_lines: p.context_lines !== undefined ? p.context_lines : 10
       };
@@ -642,29 +678,44 @@
   function updateButtonStates() {
     const hasData = state.lines.length > 0;
     const hasSelection = state.selectedLines.size > 0;
+    const untranslatedSelectionCount = state.lines.filter(l => state.selectedLines.has(l.line_num) && !isTranslated(l)).length;
+    const translatedSelectionCount = state.lines.filter(l => state.selectedLines.has(l.line_num) && isTranslated(l)).length;
     ui.btnExport.disabled = !hasData;
     ui.btnProofread.disabled = !hasData;
     ui.btnSelectAll.disabled = !hasData;
     ui.btnClearSelection.disabled = !hasSelection;
-    ui.btnCopyForAi.disabled = !hasSelection;
+    ui.btnCopyForAi.disabled = untranslatedSelectionCount === 0;
     ui.btnCopyForGlossaryAi.disabled = !hasSelection;
+    ui.btnCopyForAiCheck.disabled = translatedSelectionCount === 0;
     ui.btnExtractEpubRubyNames.disabled = !(state.projectType === "epub" && state.epubSourceId);
     ui.pasteArea.disabled = !hasData;
     ui.pasteGlossaryArea.disabled = !hasData;
     ui.btnApply.disabled = !hasData;
     ui.btnSaveGlossary.disabled = !hasData;
+    ui.btnParseAiCheck.disabled = !hasData;
+    ui.pasteAiCheckArea.disabled = !hasData;
+    ui.btnApplyAiCheck.disabled = state.aiCheckCorrections.filter(c => c.checked).length === 0;
+    ui.btnClearAiCheck.disabled = !ui.pasteAiCheckArea.value.trim() && state.aiCheckCorrections.length === 0;
     ui.btnImportGlossaryFile.disabled = !state.currentProjectId;
     ui.btnExportGlossaryFile.disabled = !state.glossaryText.trim();
     ui.rangeFromInput.disabled = !hasData;
     ui.rangeToInput.disabled = !hasData;
     ui.btnSelectRange.disabled = !hasData;
-    ui.copyCount.textContent = state.selectedLines.size;
+    ui.copyCount.textContent = untranslatedSelectionCount;
     ui.copyGlossaryCount.textContent = state.selectedLines.size;
+    ui.copyAiCheckCount.textContent = translatedSelectionCount;
     renderGlossaryPreview();
   }
 
   function isTranslated(line) {
     return !!line.is_translated && !!String(line.trans_message).trim();
+  }
+
+  function isSelectableForActiveTab(line) {
+    if (!line) return false;
+    if (state.activeWorkspaceTab === "aiCheck") return isTranslated(line);
+    if (state.activeWorkspaceTab === "translate") return !isTranslated(line);
+    return true;
   }
 
   function normalizeLineDict(line) {
@@ -749,7 +800,7 @@
     row.className = "preview-row";
     if (rowData.type === "separator") {
       row.classList.add("separator");
-      const fileLines = state.lines.filter(l => l.file === rowData.file && !isTranslated(l));
+      const fileLines = state.lines.filter(l => l.file === rowData.file && isSelectableForActiveTab(l));
       const isAllSelected = fileLines.length > 0 && fileLines.every(l => state.selectedLines.has(l.line_num));
       const cb = document.createElement("input");
       cb.type = "checkbox";
@@ -780,7 +831,7 @@
       cb.type = "checkbox";
       cb.dataset.num = line.line_num;
       cb.checked = isChecked;
-      if (isTranslated(line)) cb.disabled = true;
+      cb.disabled = !isSelectableForActiveTab(line);
       cb.addEventListener("change", (e) => {
         if (e.target.checked) state.selectedLines.add(line.line_num);
         else state.selectedLines.delete(line.line_num);
@@ -812,7 +863,7 @@
 
   function syncCheckboxUI() {
     document.querySelectorAll('.preview-row.separator input[type="checkbox"]').forEach(cb => {
-      const fileLines = state.lines.filter(l => l.file === cb.dataset.file && !isTranslated(l));
+      const fileLines = state.lines.filter(l => l.file === cb.dataset.file && isSelectableForActiveTab(l));
       cb.checked = fileLines.length > 0 && fileLines.every(l => state.selectedLines.has(l.line_num));
     });
     document.querySelectorAll('.preview-row:not(.separator) input[type="checkbox"]').forEach(cb => {
@@ -1075,7 +1126,7 @@
   function getGlossaryPrompt(copiedText) {
     const matched = getGlossaryMatches(copiedText);
     if (matched.length > 0) {
-      return `\n\n<Glossary>\nThese are typed glossary entries. Use the provided target term consistently and respect each entry type.\n${matched.join("\n")}\n</Glossary>`;
+      return `\n\n<Glossary>\n${matched.join("\n")}\n</Glossary>`;
     }
     return "";
   }
@@ -1208,8 +1259,8 @@
     return /^[\u3400-\u9fff]{2,4}(?:[\s　・･][\u3400-\u9fff]{1,4})?$/.test(base.trim());
   }
 
-  function getSelectedTranslationText() {
-    const sel = state.lines.filter(l => state.selectedLines.has(l.line_num));
+  function getSelectedTranslationText(includeTranslated = true) {
+    const sel = state.lines.filter(l => state.selectedLines.has(l.line_num) && (includeTranslated || !isTranslated(l)));
     return sel.map(l => {
       const dN = l.name || "";
       return dN ? `${l.line_num}. ${dN}: ${l.message}` : `${l.line_num}. ${l.message}`;
@@ -1565,7 +1616,7 @@
   }
 
   async function onCopyForAi() {
-    const sel = state.lines.filter(l => state.selectedLines.has(l.line_num));
+    const sel = state.lines.filter(l => state.selectedLines.has(l.line_num) && !isTranslated(l));
     if (!sel.length) return;
 
     let contextBlock = "";
@@ -1586,7 +1637,7 @@
       }
     }
 
-    const joinedText = getSelectedTranslationText();
+    const joinedText = getSelectedTranslationText(false);
     const glossaryBlock = getGlossaryPrompt(joinedText);
     const p = `${(state.aiInstructionHeader || DEFAULT_PROMPT_HEADER).trim()}${glossaryBlock}${contextBlock}\n\n${joinedText}\n`;
     try {
@@ -1597,11 +1648,200 @@
     }
   }
 
+  function getSelectedTranslatedLines() {
+    return state.lines.filter(l => state.selectedLines.has(l.line_num) && isTranslated(l));
+  }
+
+  function getLineForAiCheck(line) {
+    const originalName = line.name || "";
+    const translatedName = (line.trans_name || "").trim() || originalName;
+    const originalText = originalName ? `${originalName}: ${line.message}` : line.message;
+    const translatedText = translatedName ? `${translatedName}: ${line.trans_message}` : line.trans_message;
+    const glossary = getGlossaryPrompt(`${originalText}\n${translatedText}`).trim();
+    return [
+      `[line ${line.line_num}]`,
+      `original: ${originalText}`,
+      `translation: ${translatedText}`,
+      glossary ? glossary : "",
+    ].filter(Boolean).join("\n");
+  }
+
+  function setAiCheckStatus(message, keepAlive = false) {
+    ui.aiCheckStatus.textContent = message;
+    ui.aiCheckStatus.classList.remove("empty");
+    if (!keepAlive) {
+      setTimeout(() => {
+        if (ui.aiCheckStatus.textContent === message) ui.aiCheckStatus.classList.add("empty");
+      }, 4000);
+    }
+  }
+
+  async function onCopyForAiCheck() {
+    const sel = getSelectedTranslatedLines();
+    if (!sel.length) {
+      setAiCheckStatus("Tidak ada baris terjemahan yang dipilih.");
+      return;
+    }
+    const promptText = `${(state.aiCheckPrompt || DEFAULT_AI_CHECK_PROMPT).trim()}\n\n${sel.map(getLineForAiCheck).join("\n\n")}\n`;
+    try {
+      await navigator.clipboard.writeText(promptText);
+      setAiCheckStatus(`Disalin ${sel.length} baris untuk AI Check.`);
+    } catch (_) {
+      ui.pasteAiCheckArea.value = promptText;
+      setAiCheckStatus("Clipboard gagal, prompt dimasukkan ke kotak paste.");
+    }
+    updateButtonStates();
+  }
+
+  function parseAiCheckBlocks(text) {
+    const lines = text.split(/\r?\n/);
+    const blocks = [];
+    let current = null;
+    for (const rawLine of lines) {
+      const line = rawLine.trim();
+      if (!line || line === "```" || line === "```plaintext" || line === "```text") continue;
+      const header = line.match(/^\[line\s+(\d+)\]$/i);
+      if (header) {
+        if (current) blocks.push(current);
+        current = { num: Number(header[1]), reason: "", name: "", text: "" };
+        continue;
+      }
+      if (!current) throw new Error(`Baris tanpa header [line N]: "${line.slice(0, 50)}"`);
+      const field = line.match(/^(reason|name|text)\s*:\s*(.*)$/i);
+      if (!field) throw new Error(`Format field rusak pada line ${current.num}: "${line.slice(0, 50)}"`);
+      const key = field[1].toLowerCase();
+      current[key] = field[2].trim();
+    }
+    if (current) blocks.push(current);
+    if (!blocks.length) throw new Error("Tidak ada blok [line N] yang valid.");
+    return blocks;
+  }
+
+  function onParseAiCheck() {
+    try {
+      const parsed = parseAiCheckBlocks(ui.pasteAiCheckArea.value.trim());
+      const selectedTranslated = new Set(getSelectedTranslatedLines().map(l => l.line_num));
+      const corrections = [];
+      const errors = [];
+      const seen = new Set();
+      for (const item of parsed) {
+        const line = state.lineByNum.get(item.num);
+        if (seen.has(item.num)) errors.push(`[#${item.num}] Duplikat koreksi.`);
+        seen.add(item.num);
+        if (!line) errors.push(`[#${item.num}] Tidak ada di proyek.`);
+        else if (!selectedTranslated.has(item.num)) errors.push(`[#${item.num}] Tidak termasuk baris terjemahan yang dipilih.`);
+        else if (!isTranslated(line)) errors.push(`[#${item.num}] Baris belum diterjemahkan.`);
+        if (!item.reason) errors.push(`[#${item.num}] Reason kosong.`);
+        if (!item.text) errors.push(`[#${item.num}] Text koreksi kosong.`);
+        if (line && item.text && item.reason && selectedTranslated.has(item.num)) {
+          corrections.push({ ...item, checked: true });
+        }
+      }
+      if (errors.length) {
+        state.aiCheckCorrections = [];
+        renderAiCheckCorrections();
+        return alert("AI CHECK DITOLAK:\n\n" + errors.slice(0, 12).join("\n") + (errors.length > 12 ? `\n\n... (+${errors.length - 12} error lain)` : ""));
+      }
+      state.aiCheckCorrections = corrections;
+      renderAiCheckCorrections();
+      setAiCheckStatus(`Parsed ${corrections.length} koreksi.`);
+    } catch (err) {
+      state.aiCheckCorrections = [];
+      renderAiCheckCorrections();
+      alert("Gagal parse AI Check:\n\n" + err.message);
+    }
+  }
+
+  function renderAiCheckCorrections() {
+    ui.aiCheckResults.textContent = "";
+    const frag = document.createDocumentFragment();
+    for (const correction of state.aiCheckCorrections) {
+      const line = state.lineByNum.get(correction.num);
+      if (!line) continue;
+      const row = document.createElement("div");
+      row.className = "ai-check-row";
+
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.checked = correction.checked;
+      checkbox.addEventListener("change", () => {
+        correction.checked = checkbox.checked;
+        updateButtonStates();
+      });
+
+      const body = document.createElement("div");
+      body.className = "ai-check-body";
+      const title = document.createElement("div");
+      title.className = "mono ai-check-title";
+      title.textContent = `Line ${correction.num}`;
+      const reason = document.createElement("div");
+      reason.className = "ai-check-reason";
+      reason.textContent = `Reason: ${correction.reason}`;
+      const current = document.createElement("div");
+      current.className = "original";
+      const currentName = (line.trans_name || "").trim() || line.name || "";
+      current.textContent = `Current: ${currentName ? `${currentName}: ` : ""}${line.trans_message}`;
+      const proposed = document.createElement("div");
+      proposed.className = "translated";
+      proposed.textContent = `Proposed: ${correction.name ? `${correction.name}: ` : ""}${correction.text}`;
+      body.append(title, reason, current, proposed);
+      row.append(checkbox, body);
+      frag.appendChild(row);
+    }
+    ui.aiCheckResults.appendChild(frag);
+    updateButtonStates();
+  }
+
+  function stripDuplicateSpeakerPrefix(text, name) {
+    const cleanName = String(name || "").trim();
+    let cleanText = String(text || "").trim();
+    if (!cleanName || !cleanText) return cleanText;
+    const separators = [":", "："];
+    for (const sep of separators) {
+      const prefix = `${cleanName}${sep}`;
+      if (cleanText.toLowerCase().startsWith(prefix.toLowerCase())) {
+        cleanText = cleanText.slice(prefix.length).trim();
+        break;
+      }
+    }
+    return cleanText;
+  }
+
+  function onApplyAiCheckCorrections() {
+    const corrections = state.aiCheckCorrections.filter(c => c.checked);
+    if (!corrections.length) return;
+    pushUndoSnapshot();
+    let applied = 0;
+    for (const correction of corrections) {
+      const line = state.lineByNum.get(correction.num);
+      if (!line || !isTranslated(line)) continue;
+      const effectiveName = line.name && correction.name ? correction.name : ((line.trans_name || "").trim() || line.name || "");
+      if (line.name && correction.name) line.trans_name = correction.name;
+      line.trans_message = line.name ? stripDuplicateSpeakerPrefix(correction.text, effectiveName) : correction.text;
+      line.is_translated = true;
+      applied++;
+    }
+    state.aiCheckCorrections = state.aiCheckCorrections.filter(c => !c.checked);
+    renderAiCheckCorrections();
+    refreshAll();
+    queueAutoSave();
+    setAiCheckStatus(`Diterapkan ${applied} koreksi.`);
+  }
+
+  function onClearAiCheck() {
+    state.aiCheckCorrections = [];
+    ui.pasteAiCheckArea.value = "";
+    ui.aiCheckResults.textContent = "";
+    setAiCheckStatus("AI Check dibersihkan.");
+    updateButtonStates();
+  }
+
   function onApplyTranslation() {
     if (!state.lines.length) return;
     const rawLines = ui.pasteArea.value.split(/\r?\n/);
     const parsed = [], errors = [], seen = new Set();
-    const expectedCount = state.selectedLines.size;
+    const selectedUntranslated = new Set(state.lines.filter(l => state.selectedLines.has(l.line_num) && !isTranslated(l)).map(l => l.line_num));
+    const expectedCount = selectedUntranslated.size;
     for (let i = 0; i < rawLines.length; i++) {
       const txt = rawLines[i].trim();
       if (!txt) continue;
@@ -1633,11 +1873,11 @@
       if (parsed.length !== expectedCount) {
         errors.push(`[Validasi Checkbox] Copy ${expectedCount} baris, tapi yang di-paste ${parsed.length} baris.`);
       }
-      for (const num of state.selectedLines) {
+      for (const num of selectedUntranslated) {
         if (!seen.has(num) && state.lineByNum.has(num)) errors.push(`[#${num}] Hilang dari hasil paste.`);
       }
       for (const num of seen) {
-        if (!state.selectedLines.has(num)) errors.push(`[#${num}] Nyasar, baris ini tidak kamu centang sebelumnya.`);
+        if (!selectedUntranslated.has(num)) errors.push(`[#${num}] Nyasar, baris ini tidak kamu centang sebelumnya.`);
       }
     }
     const updates = [];
@@ -1944,6 +2184,7 @@
   function onOpenSettings() {
     ui.settingsPromptInput.value = state.aiInstructionHeader;
     ui.settingsGlossaryPromptInput.value = state.glossaryPrompt;
+    ui.settingsAiCheckPromptInput.value = state.aiCheckPrompt;
     ui.settingsEpubTagsInput.value = state.epubTags || "p";
     ui.settingsGlossaryInput.value = state.glossaryText || "";
     ui.settingsContextLinesInput.value = state.contextLines;
@@ -1953,6 +2194,7 @@
   function onSavePromptSettings() {
     state.aiInstructionHeader = ui.settingsPromptInput.value.trim();
     state.glossaryPrompt = ui.settingsGlossaryPromptInput.value.trim();
+    state.aiCheckPrompt = ui.settingsAiCheckPromptInput.value.trim();
     state.epubTags = ui.settingsEpubTagsInput.value.trim() || "p";
     state.glossaryText = ui.settingsGlossaryInput.value.trim();
     state.contextLines = parseInt(ui.settingsContextLinesInput.value) || 0;
