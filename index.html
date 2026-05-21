@@ -122,9 +122,35 @@
             <button id="btnCopyForGlossaryAi" class="btn btn-primary w-full" disabled>Copy <span id="copyGlossaryCount">0</span> Baris untuk Ekstrak Glossary</button>
           </div>
           <label class="section-label" for="pasteGlossaryArea">Paste hasil glossary AI di sini</label>
-          <textarea id="pasteGlossaryArea" class="mono input-area" placeholder="りんご = Apel&#10;みかん = Jeruk" disabled></textarea>
+          <textarea id="pasteGlossaryArea" class="mono input-area" placeholder="[character] 浅村 悠太 = Asamura Yuuta {male name}&#10;[place] 渋谷 = Shibuya {place name}" disabled></textarea>
           <div class="inline-actions mt-2">
             <button id="btnSaveGlossary" class="btn btn-success grow" disabled>Simpan ke Smart Glossary</button>
+            <button id="btnImportGlossaryFile" class="btn btn-outline" disabled>Import File</button>
+            <button id="btnExportGlossaryFile" class="btn btn-outline" disabled>Export File</button>
+          </div>
+          <div class="card-box mt-3">
+            <label class="section-label mt-0" for="vndbInput">Import Nama dari VNDB</label>
+            <p class="hint">Masukkan VNDB ID atau URL visual novel. Nama Jepang akan ditambahkan ke Smart Glossary dengan nama romanisasi VNDB.</p>
+            <div class="inline-actions">
+              <input id="vndbInput" class="text-input grow" type="text" placeholder="v17 atau https://vndb.org/v17" />
+              <button id="btnImportVndbNames" class="btn btn-outline">Import</button>
+            </div>
+            <p id="vndbStatus" class="hint mt-2 m-0"></p>
+          </div>
+          <div class="card-box mt-3">
+            <label class="section-label mt-0">Extract Nama Ruby dari EPUB</label>
+            <p class="hint">Cocokkan ruby EPUB dengan nama yang sudah ada di Smart Glossary atau daftar nama, lalu kirim kandidat lain ke kotak review.</p>
+            <button id="btnExtractEpubRubyNames" class="btn btn-outline w-full" disabled>Extract Ruby Candidates</button>
+            <p id="epubRubyStatus" class="hint mt-2 m-0"></p>
+          </div>
+          <div class="card-box mt-3">
+            <label class="section-label mt-0" for="anilistInput">Import Nama dari AniList</label>
+            <p class="hint">Masukkan link lengkap AniList manga/novel atau ID-nya. Nama Jepang dari karakter akan ditambahkan ke Smart Glossary.</p>
+            <div class="inline-actions">
+              <input id="anilistInput" class="text-input grow" type="text" placeholder="https://anilist.co/manga/126268/Gimai-Seikatsu/" />
+              <button id="btnImportAnilistNames" class="btn btn-outline">Import</button>
+            </div>
+            <p id="anilistStatus" class="hint mt-2 m-0"></p>
           </div>
         </div>
       </section>
@@ -138,6 +164,7 @@
   <input id="importFolderInput" type="file" accept=".json,.epub" webkitdirectory directory multiple hidden />
   <input id="importZipInput" type="file" accept=".zip" hidden />
   <input id="restoreProjectInput" type="file" accept=".cstl" hidden />
+  <input id="glossaryFileInput" type="file" accept=".txt,.glossary,.md" hidden />
 
   <div id="settingsModal" class="modal-backdrop">
     <div class="modal modal-wide">
@@ -165,8 +192,8 @@
       </div>
       <div class="mt-3">
         <label class="section-label text-white m-0">Smart Glossary</label>
-        <p class="hint mt-1">Masukkan daftar istilah (contoh: Japanese=Indonesian atau Japanese:Indonesian). Hanya disertakan ke prompt jika kata muncul di teks.</p>
-        <textarea id="settingsGlossaryInput" class="mono input-area mt-1" placeholder="りんご = Apel&#10;みかん = Jeruk"></textarea>
+        <p class="hint mt-1">Masukkan daftar istilah bertipe (contoh: [character] Japanese=Indonesian {female name}). Format lama tanpa tipe/deskripsi tetap didukung.</p>
+        <textarea id="settingsGlossaryInput" class="mono input-area mt-1" placeholder="[character] 浅村 悠太 = Asamura Yuuta {male name}&#10;[place] 渋谷 = Shibuya {place name}"></textarea>
       </div>
       <div class="mt-3">
         <label class="section-label text-white m-0">Konteks Baris Sebelumnya (Context Lines)</label>

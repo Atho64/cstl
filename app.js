@@ -1,7 +1,7 @@
 (() => {
   "use strict";
   const DEFAULT_PROMPT_HEADER = `Rewrite entire text to Native Indonesian. Do not change prefix number. Euphemism prohibited. Use of "Bahasa Jakarta Selatan" is prohibited. Put results inside \`\`\`plaintext block.`;
-  const DEFAULT_GLOSSARY_PROMPT = `Extract all important terms, character names, locations, and unique concepts from the following text to build a glossary.\nFormat the output STRICTLY as:\n[Japanese term] = [Indonesian term]\n\nExample:\nりんご = Apel\nみかん = Jeruk\n\nRules:\n1. Do NOT translate the text itself.\n2. Only output the glossary list.\n3. Put results inside \`\`\`plaintext block.`;
+  const DEFAULT_GLOSSARY_PROMPT = `Extract important names and story-specific terminology from the following text to build a typed glossary.\nFormat the output STRICTLY as:\n[type] [Japanese term] = [Indonesian term] {short description}\n\nAllowed types:\n[character], [place], [organization], [item], [ability], [title], [concept], [term]\n\nDescription examples:\n{male name}, {female name}, {family name}, {given name}, {place name}, {school}, {food}, {honorific}, {concept}\n\nExample:\n[character] 浅村 悠太 = Asamura Yuuta {male name}\n[character] 綾瀬 沙季 = Ayase Saki {female name}\n[place] 渋谷 = Shibuya {place name}\n[item] 炬燵 = Kotatsu {household item}\n[term] 義妹 = adik tiri perempuan {family term}\n\nRules:\n1. Do NOT translate the text itself.\n2. Only output the typed glossary list.\n3. Do NOT include common everyday words, ordinary verbs, generic adjectives, or basic nouns unless they are proper nouns, recurring key terms, culturally specific terms, or story-specific concepts.\n4. Prefer character names, family names, given names, place names, organization names, titles, unique items, abilities, honorifics, relationship terms, and recurring setting-specific terminology.\n5. Prefer specific types over [term].\n6. Include gender for character names when inferable from context; otherwise use {character name}.\n7. Put results inside \`\`\`plaintext block.`;
   const APP_VERSION = 5;
   const MAX_UNDO_STEPS = 10;
   const PROJECT_EXT = ".cstl";
@@ -213,9 +213,11 @@
       "btnClearSelection", "copyCount", "btnCopyForAi", "copyStatus", "pasteArea", "btnApply",
       "btnUndo", "nameTableBody", "statusBar", "importFileInput", "importFolderInput",
       "glossaryPreviewWrap", "glossaryPreviewText",
-      "importZipInput", "settingsModal", "settingsPromptInput", "settingsGlossaryPromptInput", "settingsEpubTagsInput",
+      "importZipInput", "glossaryFileInput", "settingsModal", "settingsPromptInput", "settingsGlossaryPromptInput", "settingsEpubTagsInput",
       "settingsGlossaryInput", "settingsContextLinesInput", "btnSettingsReset", "btnSettingsGlossaryReset", "btnSettingsCancel", "btnSettingsSave", "lineEditorModal", "lineEditorTitle",
-      "tabTranslate", "tabGlossary", "viewTranslate", "viewGlossary", "btnCopyForGlossaryAi", "pasteGlossaryArea", "btnSaveGlossary", "copyGlossaryCount",
+      "tabTranslate", "tabGlossary", "viewTranslate", "viewGlossary", "btnCopyForGlossaryAi", "pasteGlossaryArea", "btnSaveGlossary", "btnImportGlossaryFile", "btnExportGlossaryFile", "copyGlossaryCount",
+      "vndbInput", "btnImportVndbNames", "vndbStatus",
+      "btnExtractEpubRubyNames", "epubRubyStatus", "anilistInput", "btnImportAnilistNames", "anilistStatus",
       "lineOriginalView", "lineNameWrap", "lineNameInput", "lineMessageInput", "lineTranslatedCheck",
       "btnLineCancel", "btnLineSave", "proofreadModal", "proofreadSearchInput", "proofreadScope",
       "proofreadRegexCheck", "proofreadCaseCheck", "proofreadExactCheck", "proofreadTranslatedOnlyCheck",
@@ -245,11 +247,17 @@
     ui.importFileInput.addEventListener("change", onImportFileChange);
     ui.importFolderInput.addEventListener("change", onImportFolderChange);
     ui.importZipInput.addEventListener("change", onImportZipChange);
+    ui.glossaryFileInput.addEventListener("change", onImportGlossaryFile);
     ui.btnExport.addEventListener("click", onExport);
     ui.btnCopyForAi.addEventListener("click", onCopyForAi);
     ui.btnCopyForGlossaryAi.addEventListener("click", onCopyForGlossaryAi);
     ui.btnApply.addEventListener("click", onApplyTranslation);
     ui.btnSaveGlossary.addEventListener("click", onSaveGlossary);
+    ui.btnImportGlossaryFile.addEventListener("click", () => ui.glossaryFileInput.click());
+    ui.btnExportGlossaryFile.addEventListener("click", onExportGlossaryFile);
+    ui.btnImportVndbNames.addEventListener("click", onImportVndbNames);
+    ui.btnExtractEpubRubyNames.addEventListener("click", onExtractEpubRubyNames);
+    ui.btnImportAnilistNames.addEventListener("click", onImportAnilistNames);
 
     ui.tabTranslate.addEventListener("click", () => {
       ui.tabTranslate.classList.add("btn-primary");
@@ -640,10 +648,13 @@
     ui.btnClearSelection.disabled = !hasSelection;
     ui.btnCopyForAi.disabled = !hasSelection;
     ui.btnCopyForGlossaryAi.disabled = !hasSelection;
+    ui.btnExtractEpubRubyNames.disabled = !(state.projectType === "epub" && state.epubSourceId);
     ui.pasteArea.disabled = !hasData;
     ui.pasteGlossaryArea.disabled = !hasData;
     ui.btnApply.disabled = !hasData;
     ui.btnSaveGlossary.disabled = !hasData;
+    ui.btnImportGlossaryFile.disabled = !state.currentProjectId;
+    ui.btnExportGlossaryFile.disabled = !state.glossaryText.trim();
     ui.rangeFromInput.disabled = !hasData;
     ui.rangeToInput.disabled = !hasData;
     ui.btnSelectRange.disabled = !hasData;
@@ -1048,23 +1059,13 @@
   }
 
   function getGlossaryMatches(copiedText) {
-    if (!state.glossaryText || !state.glossaryText.trim()) return [];
-    
-    const lines = state.glossaryText.split("\n");
+    const glossary = parseGlossaryToMap(state.glossaryText);
     const matched = [];
     const lowerText = copiedText.toLowerCase();
 
-    for (const line of lines) {
-      if (!line.trim()) continue;
-      let sepIdx = line.indexOf("=");
-      if (sepIdx === -1) sepIdx = line.indexOf(":");
-      
-      if (sepIdx !== -1) {
-        const source = line.substring(0, sepIdx).trim();
-        const target = line.substring(sepIdx + 1).trim();
-        if (source && target && lowerText.includes(source.toLowerCase())) {
-          matched.push(`${source} = ${target}`);
-        }
+    for (const [source, entry] of glossary.entries()) {
+      if (source && entry.target && lowerText.includes(source.toLowerCase())) {
+        matched.push(formatGlossaryEntry(source, entry));
       }
     }
 
@@ -1074,9 +1075,137 @@
   function getGlossaryPrompt(copiedText) {
     const matched = getGlossaryMatches(copiedText);
     if (matched.length > 0) {
-      return `\n\n<Glossary>\nThese are glossary terms, do not translate them differently from what is provided here.\n${matched.join("\n")}\n</Glossary>`;
+      return `\n\n<Glossary>\nThese are typed glossary entries. Use the provided target term consistently and respect each entry type.\n${matched.join("\n")}\n</Glossary>`;
     }
     return "";
+  }
+
+  function parseGlossaryToMap(text) {
+    const m = new Map();
+    if (!text) return m;
+    const lines = text.split(/\r?\n/);
+    for (const line of lines) {
+      let raw = line.trim();
+      if (!raw) continue;
+      let type = "term";
+      const typeMatch = raw.match(/^\[([a-z ]+)\]\s*/i);
+      if (typeMatch) {
+        type = normalizeGlossaryType(typeMatch[1]);
+        raw = raw.slice(typeMatch[0].length).trim();
+      }
+      let sepIdx = raw.indexOf("=");
+      if (sepIdx === -1) sepIdx = raw.indexOf(":");
+      if (sepIdx !== -1) {
+        const source = raw.substring(0, sepIdx).trim();
+        let target = raw.substring(sepIdx + 1).trim();
+        let desc = "";
+        const descMatch = target.match(/\s*\{([^{}]+)\}\s*$/);
+        if (descMatch) {
+          desc = descMatch[1].trim();
+          target = target.slice(0, descMatch.index).trim();
+        }
+        if (source) m.set(source, { target, type, desc });
+      }
+    }
+    return m;
+  }
+
+  function normalizeGlossaryType(type) {
+    const clean = String(type || "").trim().toLowerCase().replace(/\s+/g, "-");
+    const aliases = {
+      char: "character",
+      chars: "character",
+      name: "character",
+      names: "character",
+      character: "character",
+      characters: "character",
+      place: "place",
+      location: "place",
+      locations: "place",
+      organization: "organization",
+      organisation: "organization",
+      org: "organization",
+      item: "item",
+      object: "item",
+      ability: "ability",
+      skill: "ability",
+      title: "title",
+      concept: "concept",
+      term: "term",
+      other: "term",
+    };
+    return aliases[clean] || "term";
+  }
+
+  function formatGlossaryEntry(source, entry) {
+    const type = normalizeGlossaryType(entry?.type || "term");
+    const target = typeof entry === "string" ? entry : entry.target;
+    const desc = typeof entry === "string" ? "" : String(entry.desc || "").trim();
+    return `[${type}] ${source} = ${target}${desc ? ` {${desc}}` : ""}`;
+  }
+
+  function serializeGlossaryMap(map) {
+    return Array.from(map.entries()).map(([k, v]) => formatGlossaryEntry(k, v)).join("\n");
+  }
+
+  function mergeGlossaryEntries(entries) {
+    const current = parseGlossaryToMap(state.glossaryText);
+    let added = 0;
+    let updated = 0;
+    for (const [source, value] of entries.entries()) {
+      const entry = typeof value === "string" ? { target: value, type: "term" } : value;
+      const target = entry.target;
+      if (!source || !target) continue;
+      if (current.has(source)) updated++;
+      else added++;
+      current.set(source, { target, type: normalizeGlossaryType(entry.type), desc: String(entry.desc || "").trim() });
+    }
+    state.glossaryText = serializeGlossaryMap(current);
+    renderGlossaryPreview();
+    queueAutoSave();
+    return { added, updated };
+  }
+
+  function addNameGlossaryEntry(entries, source, target, type = "character", desc = "character name") {
+    const cleanSource = String(source || "").replace(/\s+/g, " ").trim();
+    const cleanTarget = String(target || "").replace(/\s+/g, " ").trim();
+    if (!cleanSource || !cleanTarget || cleanSource === cleanTarget) return;
+
+    entries.set(cleanSource, { target: cleanTarget, type, desc });
+
+    const sourceParts = cleanSource.split(/[\s・･=＝]+/).filter(Boolean);
+    const targetParts = cleanTarget.split(/\s+/).filter(Boolean);
+    if (sourceParts.length >= 2 && sourceParts.length === targetParts.length) {
+      for (let i = 0; i < sourceParts.length; i++) {
+        if (sourceParts[i] && targetParts[i] && sourceParts[i] !== targetParts[i]) {
+          entries.set(sourceParts[i], { target: targetParts[i], type, desc: i === 0 ? `family name${desc.includes("female") ? ", female" : desc.includes("male") ? ", male" : ""}` : `given name${desc.includes("female") ? ", female" : desc.includes("male") ? ", male" : ""}` });
+        }
+      }
+    }
+  }
+
+  function genderToDescription(gender) {
+    const raw = Array.isArray(gender) ? gender.find(Boolean) : gender;
+    const clean = String(raw || "").trim().toLowerCase();
+    if (["f", "female", "woman", "girl"].includes(clean)) return "female name";
+    if (["m", "male", "man", "boy"].includes(clean)) return "male name";
+    if (["n", "non-binary", "nonbinary"].includes(clean)) return "non-binary character name";
+    return "character name";
+  }
+
+  function hasKanji(text) {
+    return /[\u3400-\u9fff]/.test(text);
+  }
+
+  function isLikelyRubyNameCandidate(base, reading) {
+    const cleanBase = String(base || "").replace(/\s+/g, "").trim();
+    const cleanReading = normalizeKana(reading);
+    if (!hasKanji(cleanBase) || !cleanReading) return false;
+    if (cleanBase.length < 2 || cleanBase.length > 8) return false;
+    if (cleanReading.length < 2 || cleanReading.length > 12) return false;
+    if (/[\u3040-\u30ff]/.test(cleanBase)) return false;
+    if (/[々〆ヶ]/.test(cleanBase)) return true;
+    return /^[\u3400-\u9fff]{2,4}(?:[\s　・･][\u3400-\u9fff]{1,4})?$/.test(base.trim());
   }
 
   function getSelectedTranslationText() {
@@ -1116,41 +1245,323 @@
     const val = ui.pasteGlossaryArea.value.trim();
     if (!val) return;
     
-    function parseToMap(text) {
-      const m = new Map();
-      if (!text) return m;
-      const lines = text.split(/\r?\n/);
-      for (const line of lines) {
-        if (!line.trim()) continue;
-        let sepIdx = line.indexOf("=");
-        if (sepIdx === -1) sepIdx = line.indexOf(":");
-        if (sepIdx !== -1) {
-          const source = line.substring(0, sepIdx).trim();
-          const target = line.substring(sepIdx + 1).trim();
-          if (source) m.set(source, target);
-        }
-      }
-      return m;
-    }
-    
-    const currentMap = parseToMap(state.glossaryText);
-    const newMap = parseToMap(val);
+    const currentMap = parseGlossaryToMap(state.glossaryText);
+    const newMap = parseGlossaryToMap(val);
     
     for (const [k, v] of newMap.entries()) {
       currentMap.set(k, v);
     }
     
-    const out = [];
-    for (const [k, v] of currentMap.entries()) {
-      out.push(`${k} = ${v}`);
-    }
-    
-    state.glossaryText = out.join("\n");
+    state.glossaryText = serializeGlossaryMap(currentMap);
     
     ui.pasteGlossaryArea.value = "";
     renderGlossaryPreview();
     queueAutoSave();
     flashHint("Glossary berhasil disimpan!");
+  }
+
+  function buildSafeFileName(name) {
+    return String(name || "glossary").replace(/[<>:"\/\\|?*]/g, "_").trim() || "glossary";
+  }
+
+  function onExportGlossaryFile() {
+    const glossary = serializeGlossaryMap(parseGlossaryToMap(state.glossaryText));
+    if (!glossary.trim()) return alert("Smart Glossary masih kosong.");
+    const blob = new Blob([glossary + "\n"], { type: "text/plain;charset=utf-8" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `${buildSafeFileName(state.projectName)}_glossary.txt`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    flashHint("Glossary diekspor ke file.");
+  }
+
+  async function onImportGlossaryFile(ev) {
+    const f = ev.target.files?.[0];
+    ev.target.value = "";
+    if (!f) return;
+    try {
+      const text = await f.text();
+      const imported = parseGlossaryToMap(text);
+      if (!imported.size) return alert("File glossary kosong atau formatnya tidak valid.");
+      const current = parseGlossaryToMap(state.glossaryText);
+      let added = 0;
+      let updated = 0;
+      for (const [source, entry] of imported.entries()) {
+        if (current.has(source)) updated++;
+        else added++;
+        current.set(source, entry);
+      }
+      state.glossaryText = serializeGlossaryMap(current);
+      renderGlossaryPreview();
+      updateButtonStates();
+      queueAutoSave();
+      flashHint(`Glossary file diimpor: ${added} baru, ${updated} diperbarui.`);
+    } catch (err) {
+      alert("Gagal impor file glossary: " + err.message);
+    }
+  }
+
+  function extractVndbId(input) {
+    const match = String(input || "").trim().match(/(?:^|\/)(v\d+)(?:[/?#].*)?$/i);
+    return match ? match[1].toLowerCase() : null;
+  }
+
+  function collectVndbGlossaryEntries(characters) {
+    const entries = new Map();
+    for (const ch of characters) {
+      const target = String(ch.name || "").trim();
+      if (!target) continue;
+      const desc = genderToDescription(ch.gender);
+      const sources = [ch.original, ...(Array.isArray(ch.aliases) ? ch.aliases : [])]
+        .map(v => String(v || "").trim())
+        .filter(v => v && v !== target && containsJapanese(v));
+      for (const source of sources) addNameGlossaryEntry(entries, source, target, "character", desc);
+    }
+    return entries;
+  }
+
+  async function fetchVndbCharacters(vnId) {
+    const all = [];
+    let page = 1;
+    let more = true;
+    while (more) {
+      const res = await fetch("https://api.vndb.org/kana/character", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          filters: ["vn", "=", ["id", "=", vnId]],
+          fields: "id,name,original,aliases,gender",
+          sort: "id",
+          results: 100,
+          page,
+        }),
+      });
+      if (!res.ok) {
+        const detail = await res.text().catch(() => "");
+        throw new Error(`VNDB API error ${res.status}${detail ? `: ${detail.slice(0, 120)}` : ""}`);
+      }
+      const data = await res.json();
+      all.push(...(Array.isArray(data.results) ? data.results : []));
+      more = !!data.more;
+      page++;
+      if (page > 20) throw new Error("VNDB mengembalikan terlalu banyak halaman.");
+    }
+    return all;
+  }
+
+  async function onImportVndbNames() {
+    const vnId = extractVndbId(ui.vndbInput.value);
+    if (!vnId) {
+      ui.vndbStatus.textContent = "Masukkan VNDB ID/URL yang valid, contoh: v17.";
+      return;
+    }
+
+    ui.btnImportVndbNames.disabled = true;
+    ui.vndbStatus.textContent = `Mengambil nama karakter dari VNDB ${vnId}...`;
+    try {
+      const characters = await fetchVndbCharacters(vnId);
+      const imported = collectVndbGlossaryEntries(characters);
+      if (!imported.size) {
+        ui.vndbStatus.textContent = "Tidak ada nama Jepang yang bisa diimpor dari VNDB.";
+        return;
+      }
+
+      const { added, updated } = mergeGlossaryEntries(imported);
+      ui.vndbStatus.textContent = `Import selesai: ${added} nama baru, ${updated} diperbarui dari ${characters.length} karakter.`;
+    } catch (err) {
+      ui.vndbStatus.textContent = `Gagal import VNDB: ${err.message}`;
+    } finally {
+      ui.btnImportVndbNames.disabled = false;
+    }
+  }
+
+  function getRubyBaseText(rubyEl) {
+    const clone = rubyEl.cloneNode(true);
+    clone.querySelectorAll("rt, rp, rtc").forEach(el => el.remove());
+    return clone.textContent.replace(/\s+/g, "").trim();
+  }
+
+  function collectKnownNameKeys() {
+    const keys = new Set();
+    for (const line of state.lines) {
+      if (line.name) keys.add(line.name.replace(/\s+/g, "").trim());
+      if (line.trans_name) keys.add(line.trans_name.replace(/\s+/g, "").trim());
+    }
+    for (const [source, entry] of parseGlossaryToMap(state.glossaryText).entries()) {
+      keys.add(source.replace(/\s+/g, "").trim());
+      keys.add(entry.target.replace(/\s+/g, "").trim());
+    }
+    return keys;
+  }
+
+  function collectRubyGlossaryEntriesFromHtml(html, href, knownNameKeys) {
+    const doc = new DOMParser().parseFromString(html, href.endsWith(".xhtml") ? "application/xhtml+xml" : "text/html");
+    const autoEntries = new Map();
+    const candidateEntries = new Map();
+    for (const ruby of Array.from(doc.querySelectorAll("ruby"))) {
+      const base = getRubyBaseText(ruby);
+      const reading = Array.from(ruby.querySelectorAll("rt")).map(rt => rt.textContent.trim()).join("");
+      const normalizedReading = normalizeKana(reading);
+      if (!base || !normalizedReading || base === normalizedReading) continue;
+      if (!isLikelyRubyNameCandidate(base, normalizedReading)) continue;
+      const romaji = kanaToRomaji(normalizedReading);
+      if (!romaji || romaji === normalizedReading) continue;
+      const targetMap = knownNameKeys.has(base.replace(/\s+/g, "").trim()) || knownNameKeys.has(romaji.replace(/\s+/g, "").trim())
+        ? autoEntries
+        : candidateEntries;
+      addNameGlossaryEntry(targetMap, base, romaji);
+    }
+    return { autoEntries, candidateEntries };
+  }
+
+  async function onExtractEpubRubyNames() {
+    if (state.projectType !== "epub" || !state.epubSourceId) {
+      ui.epubRubyStatus.textContent = "Fitur ini hanya tersedia untuk proyek EPUB.";
+      return;
+    }
+
+    ui.btnExtractEpubRubyNames.disabled = true;
+    ui.epubRubyStatus.textContent = "Membaca ruby text dari EPUB...";
+    try {
+      const root = await getOpfsRoot();
+      const fh = await root.getFileHandle(state.epubSourceId);
+      const f = await fh.getFile();
+      const zip = await window.JSZip.loadAsync(f);
+      const files = state.importedFiles.length
+        ? state.importedFiles
+        : Object.keys(zip.files).filter(name => /\.(xhtml|html?)$/i.test(name));
+      const knownNameKeys = collectKnownNameKeys();
+      const entries = new Map();
+      const candidates = new Map();
+      for (const href of files) {
+        const zf = zip.file(href);
+        if (!zf) continue;
+        const html = await zf.async("text");
+        const extracted = collectRubyGlossaryEntriesFromHtml(html, href, knownNameKeys);
+        for (const [source, target] of extracted.autoEntries.entries()) {
+          if (!entries.has(source)) entries.set(source, target);
+        }
+        for (const [source, target] of extracted.candidateEntries.entries()) {
+          if (!candidates.has(source)) candidates.set(source, target);
+        }
+        await new Promise(r => setTimeout(r, 0));
+      }
+      if (!entries.size && !candidates.size) {
+        ui.epubRubyStatus.textContent = "Tidak ada kandidat ruby name yang ditemukan.";
+        return;
+      }
+      let status = "";
+      if (entries.size) {
+        const { added, updated } = mergeGlossaryEntries(entries);
+        status = `${added} entri cocok otomatis, ${updated} diperbarui.`;
+      } else {
+        status = "0 entri cocok otomatis.";
+      }
+      if (candidates.size) {
+        ui.pasteGlossaryArea.value = serializeGlossaryMap(candidates);
+        status += ` ${candidates.size} kandidat lain dikirim ke kotak review.`;
+      }
+      ui.epubRubyStatus.textContent = status;
+    } catch (err) {
+      ui.epubRubyStatus.textContent = `Gagal extract ruby EPUB: ${err.message}`;
+    } finally {
+      updateButtonStates();
+    }
+  }
+
+  function extractAnilistId(input) {
+    const trimmed = String(input || "").trim();
+    const urlMatch = trimmed.match(/anilist\.co\/manga\/(\d+)(?:\/|$)/i);
+    if (urlMatch) return Number(urlMatch[1]);
+    if (/^\d+$/.test(trimmed)) return Number(trimmed);
+    return null;
+  }
+
+  function collectAnilistGlossaryEntries(media) {
+    const entries = new Map();
+    const edges = media?.characters?.edges || [];
+    for (const edge of edges) {
+      const name = edge?.node?.name || {};
+      const target = String(name.full || "").trim();
+      if (!target) continue;
+      const desc = genderToDescription(edge?.node?.gender);
+      const sources = [name.native, ...(Array.isArray(name.alternative) ? name.alternative : [])]
+        .map(v => String(v || "").trim())
+        .filter(v => v && v !== target && containsJapanese(v));
+      for (const source of sources) addNameGlossaryEntry(entries, source, target, "character", desc);
+    }
+    return entries;
+  }
+
+  async function fetchAnilistMediaCharacters(input) {
+    const id = extractAnilistId(input);
+    if (!id) throw new Error("Masukkan link lengkap AniList manga/novel atau ID angka.");
+    const allEdges = [];
+    let mediaInfo = null;
+    let page = 1;
+    let hasNextPage = true;
+    const query = `
+      query ($id: Int, $page: Int) {
+        Media(id: $id, type: MANGA) {
+          id
+          title { romaji english native }
+          format
+          characters(page: $page, perPage: 50, sort: [ROLE, ID]) {
+            pageInfo { hasNextPage }
+            edges { node { gender name { full native alternative } } }
+          }
+        }
+      }
+    `;
+    while (hasNextPage) {
+      const res = await fetch("https://graphql.anilist.co", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ query, variables: { id, page } }),
+      });
+      if (!res.ok) {
+        const detail = await res.text().catch(() => "");
+        throw new Error(`AniList API error ${res.status}${detail ? `: ${detail.slice(0, 120)}` : ""}`);
+      }
+      const json = await res.json();
+      if (json.errors?.length) throw new Error(json.errors[0].message || "AniList query gagal.");
+      const media = json.data?.Media;
+      if (!media) throw new Error("Judul tidak ditemukan di AniList.");
+      if (!mediaInfo) mediaInfo = media;
+      allEdges.push(...(media.characters?.edges || []));
+      hasNextPage = !!media.characters?.pageInfo?.hasNextPage;
+      page++;
+      if (page > 20) throw new Error("AniList mengembalikan terlalu banyak halaman.");
+    }
+    mediaInfo.characters = { edges: allEdges };
+    return mediaInfo;
+  }
+
+  async function onImportAnilistNames() {
+    const input = ui.anilistInput.value.trim();
+    if (!input) {
+      ui.anilistStatus.textContent = "Masukkan link lengkap AniList manga/novel atau ID angka.";
+      return;
+    }
+
+    ui.btnImportAnilistNames.disabled = true;
+    ui.anilistStatus.textContent = "Mengambil nama karakter dari AniList...";
+    try {
+      const media = await fetchAnilistMediaCharacters(input);
+      const imported = collectAnilistGlossaryEntries(media);
+      const title = media.title?.romaji || media.title?.english || media.title?.native || `AniList ${media.id}`;
+      if (!imported.size) {
+        ui.anilistStatus.textContent = `Tidak ada nama Jepang yang bisa diimpor dari ${title}.`;
+        return;
+      }
+      const { added, updated } = mergeGlossaryEntries(imported);
+      ui.anilistStatus.textContent = `Import selesai dari ${title}: ${added} nama baru, ${updated} diperbarui.`;
+    } catch (err) {
+      ui.anilistStatus.textContent = `Gagal import AniList: ${err.message}`;
+    } finally {
+      ui.btnImportAnilistNames.disabled = false;
+    }
   }
 
   async function onCopyForAi() {
@@ -1311,6 +1722,60 @@
 
   function containsJapanese(text) {
     return /[\u3040-\u30ff\u3400-\u9fff]/.test(text);
+  }
+
+  function normalizeKana(text) {
+    return String(text || "")
+      .normalize("NFKC")
+      .replace(/[\s・･=＝~〜～、，,]/g, "")
+      .replace(/[\u30a1-\u30f6]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0x60));
+  }
+
+  function kanaToRomaji(text) {
+    const kana = normalizeKana(text);
+    const digraphs = {
+      きゃ: "kya", きゅ: "kyu", きょ: "kyo", しゃ: "sha", しゅ: "shu", しょ: "sho",
+      ちゃ: "cha", ちゅ: "chu", ちょ: "cho", にゃ: "nya", にゅ: "nyu", にょ: "nyo",
+      ひゃ: "hya", ひゅ: "hyu", ひょ: "hyo", みゃ: "mya", みゅ: "myu", みょ: "myo",
+      りゃ: "rya", りゅ: "ryu", りょ: "ryo", ぎゃ: "gya", ぎゅ: "gyu", ぎょ: "gyo",
+      じゃ: "ja", じゅ: "ju", じょ: "jo", びゃ: "bya", びゅ: "byu", びょ: "byo",
+      ぴゃ: "pya", ぴゅ: "pyu", ぴょ: "pyo", ふぁ: "fa", ふぃ: "fi", ふぇ: "fe", ふぉ: "fo",
+      てぃ: "ti", でぃ: "di", うぃ: "wi", うぇ: "we", うぉ: "wo", ゔぁ: "va", ゔぃ: "vi", ゔぇ: "ve", ゔぉ: "vo",
+    };
+    const singles = {
+      あ: "a", い: "i", う: "u", え: "e", お: "o", か: "ka", き: "ki", く: "ku", け: "ke", こ: "ko",
+      さ: "sa", し: "shi", す: "su", せ: "se", そ: "so", た: "ta", ち: "chi", つ: "tsu", て: "te", と: "to",
+      な: "na", に: "ni", ぬ: "nu", ね: "ne", の: "no", は: "ha", ひ: "hi", ふ: "fu", へ: "he", ほ: "ho",
+      ま: "ma", み: "mi", む: "mu", め: "me", も: "mo", や: "ya", ゆ: "yu", よ: "yo",
+      ら: "ra", り: "ri", る: "ru", れ: "re", ろ: "ro", わ: "wa", を: "o", ん: "n",
+      が: "ga", ぎ: "gi", ぐ: "gu", げ: "ge", ご: "go", ざ: "za", じ: "ji", ず: "zu", ぜ: "ze", ぞ: "zo",
+      だ: "da", ぢ: "ji", づ: "zu", で: "de", ど: "do", ば: "ba", び: "bi", ぶ: "bu", べ: "be", ぼ: "bo",
+      ぱ: "pa", ぴ: "pi", ぷ: "pu", ぺ: "pe", ぽ: "po", ゔ: "vu", ぁ: "a", ぃ: "i", ぅ: "u", ぇ: "e", ぉ: "o",
+    };
+    let out = "";
+    let doubleNext = false;
+    for (let i = 0; i < kana.length; i++) {
+      const ch = kana[i];
+      if (ch === "っ") {
+        doubleNext = true;
+        continue;
+      }
+      if (ch === "ー") {
+        const vowel = out.match(/[aeiou]$/)?.[0] || "";
+        out += vowel;
+        continue;
+      }
+      const pair = kana.slice(i, i + 2);
+      let romaji = digraphs[pair];
+      if (romaji) i++;
+      else romaji = singles[ch] || ch;
+      if (doubleNext && /^[bcdfghjklmnpqrstvwxyz]/.test(romaji)) {
+        out += romaji[0];
+      }
+      out += romaji;
+      doubleNext = false;
+    }
+    return out.replace(/n([bmp])/g, "m$1").replace(/\b\w/g, ch => ch.toUpperCase());
   }
 
   function buildSearchRegex(query, isRegex, isCase, isExact, capture = false) {
