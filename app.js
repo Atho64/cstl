@@ -988,6 +988,10 @@
     return formatShortcut(parseShortcutString(value)) || fallback;
   }
 
+  function isReservedShortcut(shortcutString) {
+    return ["Ctrl+ArrowUp", "Ctrl+ArrowDown"].includes(normalizeShortcutString(shortcutString, ""));
+  }
+
   function shortcutFromEvent(event) {
     if (["Control", "Alt", "Shift", "Meta"].includes(event.key)) return null;
     if (!(event.ctrlKey || event.altKey || event.shiftKey || event.metaKey)) return null;
@@ -2761,25 +2765,39 @@
   }
 
   function onSavePromptSettings() {
-    state.aiInstructionHeader = ui.settingsPromptInput.value.trim();
-    state.glossaryPrompt = ui.settingsGlossaryPromptInput.value.trim();
-    state.aiCheckPrompt = ui.settingsAiCheckPromptInput.value.trim();
-    state.epubTags = ui.settingsEpubTagsInput.value.trim() || "p";
-    state.glossaryText = ui.settingsGlossaryInput.value.trim();
-    state.contextLines = parseInt(ui.settingsContextLinesInput.value) || 0;
-    state.selectionBatchSize = normalizeSelectionBatchSize(ui.settingsSelectionBatchSizeInput.value);
-    state.glossaryBatchSize = normalizeSelectionBatchSize(ui.settingsGlossaryBatchSizeInput.value, DEFAULT_GLOSSARY_BATCH_SIZE);
-    state.aiCheckBatchSize = normalizeSelectionBatchSize(ui.settingsAiCheckBatchSizeInput.value, DEFAULT_AI_CHECK_BATCH_SIZE);
+    const aiInstructionHeader = ui.settingsPromptInput.value.trim();
+    const glossaryPrompt = ui.settingsGlossaryPromptInput.value.trim();
+    const aiCheckPrompt = ui.settingsAiCheckPromptInput.value.trim();
+    const epubTags = ui.settingsEpubTagsInput.value.trim() || "p";
+    const glossaryText = ui.settingsGlossaryInput.value.trim();
+    const contextLines = parseInt(ui.settingsContextLinesInput.value) || 0;
+    const selectionBatchSize = normalizeSelectionBatchSize(ui.settingsSelectionBatchSizeInput.value);
+    const glossaryBatchSize = normalizeSelectionBatchSize(ui.settingsGlossaryBatchSizeInput.value, DEFAULT_GLOSSARY_BATCH_SIZE);
+    const aiCheckBatchSize = normalizeSelectionBatchSize(ui.settingsAiCheckBatchSizeInput.value, DEFAULT_AI_CHECK_BATCH_SIZE);
     const prevShortcut = normalizeShortcutString(ui.settingsSelectionPrevShortcutInput.value, DEFAULT_SELECTION_BATCH_PREV_SHORTCUT);
     const nextShortcut = normalizeShortcutString(ui.settingsSelectionNextShortcutInput.value, DEFAULT_SELECTION_BATCH_NEXT_SHORTCUT);
     if (prevShortcut === nextShortcut) return alert("Shortcut batch sebelumnya dan berikutnya tidak boleh sama.");
+    if (isReservedShortcut(prevShortcut) || isReservedShortcut(nextShortcut)) {
+      return alert("Ctrl+ArrowUp dan Ctrl+ArrowDown sudah dipakai untuk riwayat pilihan.");
+    }
+
+    state.aiInstructionHeader = aiInstructionHeader;
+    state.glossaryPrompt = glossaryPrompt;
+    state.aiCheckPrompt = aiCheckPrompt;
+    state.epubTags = epubTags;
+    state.glossaryText = glossaryText;
+    state.contextLines = contextLines;
+    state.selectionBatchSize = selectionBatchSize;
+    state.glossaryBatchSize = glossaryBatchSize;
+    state.aiCheckBatchSize = aiCheckBatchSize;
     state.selectionBatchPrevShortcut = prevShortcut;
     state.selectionBatchNextShortcut = nextShortcut;
-    ui.settingsSelectionBatchSizeInput.value = state.selectionBatchSize;
-    ui.settingsGlossaryBatchSizeInput.value = state.glossaryBatchSize;
-    ui.settingsAiCheckBatchSizeInput.value = state.aiCheckBatchSize;
-    ui.settingsSelectionPrevShortcutInput.value = state.selectionBatchPrevShortcut;
-    ui.settingsSelectionNextShortcutInput.value = state.selectionBatchNextShortcut;
+
+    ui.settingsSelectionBatchSizeInput.value = selectionBatchSize;
+    ui.settingsGlossaryBatchSizeInput.value = glossaryBatchSize;
+    ui.settingsAiCheckBatchSizeInput.value = aiCheckBatchSize;
+    ui.settingsSelectionPrevShortcutInput.value = prevShortcut;
+    ui.settingsSelectionNextShortcutInput.value = nextShortcut;
     closeModal(ui.settingsModal);
     renderGlossaryPreview();
     queueAutoSave();
