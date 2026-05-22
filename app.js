@@ -730,8 +730,67 @@
     loadDashboardProjects();
   }
 
+  function arrayBufferToBase64(buffer) {
+    const bytes = new Uint8Array(buffer);
+    const chunkSize = 0x8000;
+    let binary = "";
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+    }
+    return btoa(binary);
+  }
+
+  function base64ToUint8Array(base64) {
+    const binary = atob(String(base64 || ""));
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return bytes;
+  }
+
+  async function readEpubSourceForBackup(epubSourceId) {
+    const root = await getOpfsRoot();
+    const fileHandle = await root.getFileHandle(epubSourceId);
+    const file = await fileHandle.getFile();
+    return {
+      name: file.name || epubSourceId,
+      type: file.type || "application/epub+zip",
+      data: arrayBufferToBase64(await file.arrayBuffer()),
+    };
+  }
+
+  async function writeEpubSourceFromBackup(epubSource) {
+    const id = `epub_${Date.now()}_${Math.random().toString(36).slice(2)}.epub`;
+    const root = await getOpfsRoot();
+    const fileHandle = await root.getFileHandle(id, { create: true });
+    const writable = await fileHandle.createWritable();
+    const bytes = base64ToUint8Array(epubSource.data);
+    await writable.write(new Blob([bytes], { type: epubSource.type || "application/epub+zip" }));
+    await writable.close();
+    return id;
+  }
+
+  async function cloneExistingEpubSource(epubSourceId) {
+    const root = await getOpfsRoot();
+    const sourceHandle = await root.getFileHandle(epubSourceId);
+    const sourceFile = await sourceHandle.getFile();
+    const id = `epub_${Date.now()}_${Math.random().toString(36).slice(2)}.epub`;
+    const targetHandle = await root.getFileHandle(id, { create: true });
+    const writable = await targetHandle.createWritable();
+    await writable.write(sourceFile);
+    await writable.close();
+    return id;
+  }
+
   async function backupDashboardProject(name, data) {
-    const strData = JSON.stringify(data);
+    const backupData = JSON.parse(JSON.stringify(data));
+    if (backupData.projectType === "epub" && backupData.epubSourceId) {
+      try {
+        backupData.epub_source = await readEpubSourceForBackup(backupData.epubSourceId);
+      } catch (err) {
+        alert(`Backup dibuat tanpa file EPUB asli karena sumber EPUB tidak bisa dibaca.\n\n${err.message}`);
+      }
+    }
+    const strData = JSON.stringify(backupData);
     const b = new Blob([strData], { type: "application/json" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(b);
@@ -862,12 +921,26 @@
       const p = JSON.parse(await f.text());
       const name = p.projectName || f.name.replace(PROJECT_EXT, '');
       const id = "proj_" + Date.now() + PROJECT_EXT;
+      let restoredEpubSourceId = p.epubSourceId || null;
+      let restoreNote = "";
+      if ((p.projectType || "json") === "epub") {
+        if (p.epub_source?.data) {
+          restoredEpubSourceId = await writeEpubSourceFromBackup(p.epub_source);
+        } else if (p.epubSourceId) {
+          try {
+            restoredEpubSourceId = await cloneExistingEpubSource(p.epubSourceId);
+          } catch (_) {
+            restoredEpubSourceId = null;
+            restoreNote = "\n\nCatatan: backup lama ini tidak menyimpan file EPUB asli, dan sumber EPUB lama tidak ditemukan. Teks proyek tetap dipulihkan, tapi export EPUB/ruby extraction butuh backup baru yang menyertakan EPUB.";
+          }
+        }
+      }
       const safeData = {
         version: APP_VERSION,
         projectName: name,
         projectType: p.projectType || "json",
         epubTags: p.epubTags || "p",
-        epubSourceId: p.epubSourceId || null,
+        epubSourceId: restoredEpubSourceId,
         updatedAt: Date.now(),
         imported_files: p.imported_files || [],
         lines: (p.lines || []).map(normalizeLineDict),
@@ -884,7 +957,7 @@
       };
       await saveProjectToOpfs(id, safeData);
       loadDashboardProjects();
-      alert(`Proyek "${name}" berhasil dipulihkan!`);
+      alert(`Proyek "${name}" berhasil dipulihkan!${restoreNote}`);
     } catch (e) {
       alert("File backup korup atau tidak valid: " + e.message);
     }
