@@ -3,8 +3,13 @@
   const DEFAULT_PROMPT_HEADER = `Rewrite entire text to Native Indonesian. Do not change prefix number. Euphemism prohibited. Use of "Bahasa Jakarta Selatan" is prohibited. Put results inside \`\`\`plaintext block.`;
   const DEFAULT_GLOSSARY_PROMPT = `Extract important names and story-specific terminology from the following text to build a typed glossary.\nFormat the output STRICTLY as:\n[type] [Japanese term] = [Indonesian term] {short description}\n\nAllowed types:\n[character], [place], [organization], [item], [ability], [title], [concept], [term]\n\nDescription examples:\n{male name}, {female name}, {family name}, {given name}, {place name}, {school}, {food}, {honorific}, {concept}\n\nExample:\n[character] 浅村 悠太 = Asamura Yuuta {male name}\n[character] 綾瀬 沙季 = Ayase Saki {female name}\n[place] 渋谷 = Shibuya {place name}\n[item] 炬燵 = Kotatsu {household item}\n[term] 義妹 = adik tiri perempuan {family term}\n\nRules:\n1. Do NOT translate the text itself.\n2. Only output the typed glossary list.\n3. Do NOT include common everyday words, ordinary verbs, generic adjectives, or basic nouns unless they are proper nouns, recurring key terms, culturally specific terms, or story-specific concepts.\n4. Prefer character names, family names, given names, place names, organization names, titles, unique items, abilities, honorifics, relationship terms, and recurring setting-specific terminology.\n5. Prefer specific types over [term].\n6. Include gender for character names when inferable from context; otherwise use {character name}.\n7. Put results inside \`\`\`plaintext block.`;
   const DEFAULT_AI_CHECK_PROMPT = `Check the existing Indonesian translation against the original Japanese text.\nOnly return lines that need correction. Do not return lines that are already good.\n\nUse this STRICT format for each correction:\n[line 12]\nreason: why this line needs correction\nname: corrected character name, or blank if unchanged/not applicable\ntext: corrected Indonesian translation without the speaker name prefix\n\nRules:\n1. Keep the original line number exactly.\n2. Give a short, concrete reason.\n3. Use name only for corrected character names; leave it blank when unchanged.\n4. Put only the corrected message in text. Do NOT repeat the speaker name in text.\n5. Correct only the Indonesian translation, not the Japanese original.\n6. Respect provided glossary entries.\n7. Put results inside \`\`\`plaintext block.`;
-  const APP_VERSION = "vM2";
+  const APP_VERSION = "vM3";
   const MAX_UNDO_STEPS = 10;
+  const DEFAULT_SELECTION_BATCH_SIZE = 100;
+  const DEFAULT_GLOSSARY_BATCH_SIZE = 500;
+  const DEFAULT_AI_CHECK_BATCH_SIZE = 250;
+  const DEFAULT_SELECTION_BATCH_PREV_SHORTCUT = "Alt+W";
+  const DEFAULT_SELECTION_BATCH_NEXT_SHORTCUT = "Alt+S";
   const PROJECT_EXT = ".cstl";
   const WINDOWS_FILE_ORDER_COLLATOR = new Intl.Collator(undefined, {
     numeric: true,
@@ -24,6 +29,11 @@
     aiCheckPrompt: DEFAULT_AI_CHECK_PROMPT,
     glossaryText: "",
     contextLines: 10,
+    selectionBatchSize: DEFAULT_SELECTION_BATCH_SIZE,
+    glossaryBatchSize: DEFAULT_GLOSSARY_BATCH_SIZE,
+    aiCheckBatchSize: DEFAULT_AI_CHECK_BATCH_SIZE,
+    selectionBatchPrevShortcut: DEFAULT_SELECTION_BATCH_PREV_SHORTCUT,
+    selectionBatchNextShortcut: DEFAULT_SELECTION_BATCH_NEXT_SHORTCUT,
     undoStack: [],
     selectedLines: new Set(),
     selectionHistory: [],
@@ -224,7 +234,7 @@
       "btnUndo", "nameTableBody", "statusBar", "importFileInput", "importFolderInput", "importTranslatedFileInput", "importTranslatedFolderInput",
       "glossaryPreviewWrap", "glossaryPreviewText",
       "importZipInput", "glossaryFileInput", "settingsModal", "settingsPromptInput", "settingsGlossaryPromptInput", "settingsAiCheckPromptInput", "settingsEpubTagsInput",
-      "settingsGlossaryInput", "settingsContextLinesInput", "btnSettingsReset", "btnSettingsGlossaryReset", "btnSettingsAiCheckReset", "btnSettingsCancel", "btnSettingsSave", "lineEditorModal", "lineEditorTitle",
+      "settingsGlossaryInput", "settingsContextLinesInput", "settingsSelectionBatchSizeInput", "settingsGlossaryBatchSizeInput", "settingsAiCheckBatchSizeInput", "settingsSelectionPrevShortcutInput", "settingsSelectionNextShortcutInput", "btnSettingsReset", "btnSettingsGlossaryReset", "btnSettingsAiCheckReset", "btnSettingsCancel", "btnSettingsSave", "lineEditorModal", "lineEditorTitle",
       "tabTranslate", "tabGlossary", "viewTranslate", "viewGlossary", "btnCopyForGlossaryAi", "pasteGlossaryArea", "btnSaveGlossary", "btnImportGlossaryFile", "btnExportGlossaryFile", "copyGlossaryCount",
       "tabAiCheck", "viewAiCheck", "btnCopyForAiCheck", "copyAiCheckCount", "aiCheckStatus", "pasteAiCheckArea", "btnParseAiCheck", "btnApplyAiCheck", "btnClearAiCheck", "aiCheckResults",
       "vndbInput", "btnImportVndbNames", "vndbStatus",
@@ -351,6 +361,8 @@
     ui.proofreadCaseCheck.addEventListener("change", renderProofreadResults);
     ui.proofreadExactCheck.addEventListener("change", renderProofreadResults);
     ui.proofreadTranslatedOnlyCheck.addEventListener("change", renderProofreadResults);
+    bindShortcutCaptureInput(ui.settingsSelectionPrevShortcutInput);
+    bindShortcutCaptureInput(ui.settingsSelectionNextShortcutInput);
   }
 
   function switchWorkspaceTab(tabName) {
@@ -449,11 +461,92 @@
     return !["button", "checkbox", "radio", "submit", "reset"].includes(type);
   }
 
+  function getActiveBatchConfig() {
+    if (state.activeWorkspaceTab === "glossary") {
+      return {
+        lines: state.lines.slice(),
+        batchSize: normalizeSelectionBatchSize(state.glossaryBatchSize, DEFAULT_GLOSSARY_BATCH_SIZE),
+        emptyMessage: "Tidak ada baris untuk Glossary Extractor.",
+        tabLabel: "Glossary Extractor",
+      };
+    }
+    if (state.activeWorkspaceTab === "aiCheck") {
+      return {
+        lines: state.lines.filter(isTranslated),
+        batchSize: normalizeSelectionBatchSize(state.aiCheckBatchSize, DEFAULT_AI_CHECK_BATCH_SIZE),
+        emptyMessage: "Tidak ada baris terjemahan untuk AI Check.",
+        tabLabel: "AI Check",
+      };
+    }
+    return {
+      lines: state.lines.filter(l => !isTranslated(l)),
+      batchSize: normalizeSelectionBatchSize(state.selectionBatchSize),
+      emptyMessage: "Tidak ada baris belum diterjemahkan.",
+      tabLabel: "Translate",
+    };
+  }
+
+  function selectActiveWorkspaceBatch(direction) {
+    if (!state.currentProjectId || !state.lines.length) return false;
+    const config = getActiveBatchConfig();
+    const selectableLines = config.lines;
+    if (!selectableLines.length) {
+      flashHint(config.emptyMessage, false);
+      return true;
+    }
+
+    const selectedInScope = selectableLines.filter(l => state.selectedLines.has(l.line_num));
+    let startIndex = 0;
+
+    if (direction > 0) {
+      if (selectedInScope.length) {
+        const maxSelected = Math.max(...selectedInScope.map(l => l.line_num));
+        startIndex = selectableLines.findIndex(l => l.line_num > maxSelected);
+        if (startIndex === -1) {
+          flashHint("Sudah di batch terakhir.", false);
+          return true;
+        }
+      }
+    } else {
+      if (!selectedInScope.length) {
+        flashHint("Belum ada batch sebelumnya.", false);
+        return true;
+      }
+      const minSelected = Math.min(...selectedInScope.map(l => l.line_num));
+      const currentIndex = selectableLines.findIndex(l => l.line_num >= minSelected);
+      if (currentIndex <= 0) {
+        flashHint("Sudah di batch pertama.", false);
+        return true;
+      }
+      startIndex = Math.max(0, currentIndex - config.batchSize);
+    }
+
+    const batch = selectableLines.slice(startIndex, startIndex + config.batchSize);
+    if (!batch.length) return true;
+
+    state.selectedLines.clear();
+    for (const line of batch) state.selectedLines.add(line.line_num);
+    recordSelectionHistory();
+    syncCheckboxUI();
+    scrollPreviewToLine(batch[0].line_num);
+    flashHint(`Dipilih ${batch.length} baris untuk ${config.tabLabel}.`);
+    return true;
+  }
+
   function onSelectionHistoryKeydown(event) {
-    if (!event.ctrlKey || event.altKey || event.metaKey) return;
-    if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
     if (isEditableShortcutTarget(event.target)) return;
 
+    const isPrevBatchShortcut = eventMatchesShortcut(event, state.selectionBatchPrevShortcut);
+    const isNextBatchShortcut = eventMatchesShortcut(event, state.selectionBatchNextShortcut);
+    if (isPrevBatchShortcut || isNextBatchShortcut) {
+      event.preventDefault();
+      if (event.repeat) return;
+      selectActiveWorkspaceBatch(isNextBatchShortcut ? 1 : -1);
+      return;
+    }
+
+    if (!event.ctrlKey || event.altKey || event.metaKey) return;
+    if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
     const direction = event.key === "ArrowUp" ? -1 : 1;
     if (restoreSelectionHistory(direction)) event.preventDefault();
   }
@@ -596,7 +689,12 @@
       glossary_prompt: DEFAULT_GLOSSARY_PROMPT,
       ai_check_prompt: DEFAULT_AI_CHECK_PROMPT,
       glossary_text: "",
-      context_lines: 10
+      context_lines: 10,
+      selection_batch_size: DEFAULT_SELECTION_BATCH_SIZE,
+      glossary_batch_size: DEFAULT_GLOSSARY_BATCH_SIZE,
+      ai_check_batch_size: DEFAULT_AI_CHECK_BATCH_SIZE,
+      selection_batch_prev_shortcut: DEFAULT_SELECTION_BATCH_PREV_SHORTCUT,
+      selection_batch_next_shortcut: DEFAULT_SELECTION_BATCH_NEXT_SHORTCUT
     };
     try {
       const root = await getOpfsRoot();
@@ -671,7 +769,12 @@
         glossary_prompt: state.glossaryPrompt,
         ai_check_prompt: state.aiCheckPrompt,
         glossary_text: state.glossaryText,
-        context_lines: state.contextLines
+        context_lines: state.contextLines,
+        selection_batch_size: state.selectionBatchSize,
+        glossary_batch_size: state.glossaryBatchSize,
+        ai_check_batch_size: state.aiCheckBatchSize,
+        selection_batch_prev_shortcut: state.selectionBatchPrevShortcut,
+        selection_batch_next_shortcut: state.selectionBatchNextShortcut
       };
       await saveProjectToOpfs(state.currentProjectId, data);
       ui.statusBar.textContent = ui.statusBar.textContent.replace(" | Tersimpan!", "") + " | Tersimpan!";
@@ -694,6 +797,11 @@
     state.aiCheckPrompt = data.ai_check_prompt || DEFAULT_AI_CHECK_PROMPT;
     state.glossaryText = data.glossary_text || "";
     state.contextLines = data.context_lines !== undefined ? data.context_lines : 10;
+    state.selectionBatchSize = normalizeSelectionBatchSize(data.selection_batch_size);
+    state.glossaryBatchSize = normalizeSelectionBatchSize(data.glossary_batch_size, DEFAULT_GLOSSARY_BATCH_SIZE);
+    state.aiCheckBatchSize = normalizeSelectionBatchSize(data.ai_check_batch_size, DEFAULT_AI_CHECK_BATCH_SIZE);
+    state.selectionBatchPrevShortcut = normalizeShortcutString(data.selection_batch_prev_shortcut, DEFAULT_SELECTION_BATCH_PREV_SHORTCUT);
+    state.selectionBatchNextShortcut = normalizeShortcutString(data.selection_batch_next_shortcut, DEFAULT_SELECTION_BATCH_NEXT_SHORTCUT);
     state.selectedLines.clear();
     state.undoStack = [];
     state.aiCheckCorrections = [];
@@ -721,7 +829,12 @@
         glossary_prompt: state.glossaryPrompt,
         ai_check_prompt: state.aiCheckPrompt,
         glossary_text: state.glossaryText,
-        context_lines: state.contextLines
+        context_lines: state.contextLines,
+        selection_batch_size: state.selectionBatchSize,
+        glossary_batch_size: state.glossaryBatchSize,
+        ai_check_batch_size: state.aiCheckBatchSize,
+        selection_batch_prev_shortcut: state.selectionBatchPrevShortcut,
+        selection_batch_next_shortcut: state.selectionBatchNextShortcut
       };
       saveProjectToOpfs(state.currentProjectId, data).then(() => {
         finishClose();
@@ -762,7 +875,12 @@
         glossary_prompt: p.glossary_prompt || DEFAULT_GLOSSARY_PROMPT,
         ai_check_prompt: p.ai_check_prompt || DEFAULT_AI_CHECK_PROMPT,
         glossary_text: p.glossary_text || "",
-        context_lines: p.context_lines !== undefined ? p.context_lines : 10
+        context_lines: p.context_lines !== undefined ? p.context_lines : 10,
+        selection_batch_size: normalizeSelectionBatchSize(p.selection_batch_size),
+        glossary_batch_size: normalizeSelectionBatchSize(p.glossary_batch_size, DEFAULT_GLOSSARY_BATCH_SIZE),
+        ai_check_batch_size: normalizeSelectionBatchSize(p.ai_check_batch_size, DEFAULT_AI_CHECK_BATCH_SIZE),
+        selection_batch_prev_shortcut: normalizeShortcutString(p.selection_batch_prev_shortcut, DEFAULT_SELECTION_BATCH_PREV_SHORTCUT),
+        selection_batch_next_shortcut: normalizeShortcutString(p.selection_batch_next_shortcut, DEFAULT_SELECTION_BATCH_NEXT_SHORTCUT)
       };
       await saveProjectToOpfs(id, safeData);
       loadDashboardProjects();
@@ -808,6 +926,106 @@
 
   function isTranslated(line) {
     return !!line.is_translated && !!String(line.trans_message).trim();
+  }
+
+  function normalizeSelectionBatchSize(value, fallback = DEFAULT_SELECTION_BATCH_SIZE) {
+    const parsed = parseInt(value, 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+  }
+
+  function normalizeShortcutKeyName(key) {
+    const raw = String(key || "").trim();
+    const lower = raw.toLowerCase();
+    const aliases = {
+      " ": "Space",
+      space: "Space",
+      esc: "Escape",
+      escape: "Escape",
+      up: "ArrowUp",
+      arrowup: "ArrowUp",
+      down: "ArrowDown",
+      arrowdown: "ArrowDown",
+      left: "ArrowLeft",
+      arrowleft: "ArrowLeft",
+      right: "ArrowRight",
+      arrowright: "ArrowRight",
+    };
+    if (aliases[lower]) return aliases[lower];
+    if (/^f\d{1,2}$/i.test(raw)) return raw.toUpperCase();
+    if (raw.length === 1) return raw.toUpperCase();
+    return raw;
+  }
+
+  function parseShortcutString(value) {
+    const parts = String(value || "").split("+").map(p => p.trim()).filter(Boolean);
+    if (!parts.length) return null;
+    const parsed = { ctrl: false, alt: false, shift: false, meta: false, key: "" };
+    for (const part of parts) {
+      const lower = part.toLowerCase();
+      if (lower === "ctrl" || lower === "control") parsed.ctrl = true;
+      else if (lower === "alt" || lower === "option") parsed.alt = true;
+      else if (lower === "shift") parsed.shift = true;
+      else if (["meta", "cmd", "command", "win", "windows"].includes(lower)) parsed.meta = true;
+      else if (!parsed.key) parsed.key = normalizeShortcutKeyName(part);
+      else return null;
+    }
+    if (!parsed.key || !(parsed.ctrl || parsed.alt || parsed.shift || parsed.meta)) return null;
+    return parsed;
+  }
+
+  function formatShortcut(shortcut) {
+    if (!shortcut) return "";
+    const parts = [];
+    if (shortcut.ctrl) parts.push("Ctrl");
+    if (shortcut.alt) parts.push("Alt");
+    if (shortcut.shift) parts.push("Shift");
+    if (shortcut.meta) parts.push("Meta");
+    parts.push(normalizeShortcutKeyName(shortcut.key));
+    return parts.join("+");
+  }
+
+  function normalizeShortcutString(value, fallback) {
+    return formatShortcut(parseShortcutString(value)) || fallback;
+  }
+
+  function shortcutFromEvent(event) {
+    if (["Control", "Alt", "Shift", "Meta"].includes(event.key)) return null;
+    if (!(event.ctrlKey || event.altKey || event.shiftKey || event.metaKey)) return null;
+    return {
+      ctrl: event.ctrlKey,
+      alt: event.altKey,
+      shift: event.shiftKey,
+      meta: event.metaKey,
+      key: normalizeShortcutKeyName(event.key),
+    };
+  }
+
+  function eventMatchesShortcut(event, shortcutString) {
+    const expected = parseShortcutString(shortcutString);
+    const actual = shortcutFromEvent(event);
+    return !!expected && !!actual &&
+      expected.ctrl === actual.ctrl &&
+      expected.alt === actual.alt &&
+      expected.shift === actual.shift &&
+      expected.meta === actual.meta &&
+      expected.key === actual.key;
+  }
+
+  function bindShortcutCaptureInput(input) {
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Tab") return;
+      event.preventDefault();
+      if (event.key === "Backspace" || event.key === "Delete") {
+        input.value = "";
+        return;
+      }
+      const shortcut = shortcutFromEvent(event);
+      if (!shortcut) {
+        flashHint("Shortcut harus memakai Ctrl, Alt, Shift, atau Meta.", false);
+        return;
+      }
+      input.value = formatShortcut(shortcut);
+    });
   }
 
   function isSelectableForActiveTab(line) {
@@ -2534,6 +2752,11 @@
     ui.settingsEpubTagsInput.value = state.epubTags || "p";
     ui.settingsGlossaryInput.value = state.glossaryText || "";
     ui.settingsContextLinesInput.value = state.contextLines;
+    ui.settingsSelectionBatchSizeInput.value = state.selectionBatchSize;
+    ui.settingsGlossaryBatchSizeInput.value = state.glossaryBatchSize;
+    ui.settingsAiCheckBatchSizeInput.value = state.aiCheckBatchSize;
+    ui.settingsSelectionPrevShortcutInput.value = state.selectionBatchPrevShortcut;
+    ui.settingsSelectionNextShortcutInput.value = state.selectionBatchNextShortcut;
     openModal(ui.settingsModal);
   }
 
@@ -2544,6 +2767,19 @@
     state.epubTags = ui.settingsEpubTagsInput.value.trim() || "p";
     state.glossaryText = ui.settingsGlossaryInput.value.trim();
     state.contextLines = parseInt(ui.settingsContextLinesInput.value) || 0;
+    state.selectionBatchSize = normalizeSelectionBatchSize(ui.settingsSelectionBatchSizeInput.value);
+    state.glossaryBatchSize = normalizeSelectionBatchSize(ui.settingsGlossaryBatchSizeInput.value, DEFAULT_GLOSSARY_BATCH_SIZE);
+    state.aiCheckBatchSize = normalizeSelectionBatchSize(ui.settingsAiCheckBatchSizeInput.value, DEFAULT_AI_CHECK_BATCH_SIZE);
+    const prevShortcut = normalizeShortcutString(ui.settingsSelectionPrevShortcutInput.value, DEFAULT_SELECTION_BATCH_PREV_SHORTCUT);
+    const nextShortcut = normalizeShortcutString(ui.settingsSelectionNextShortcutInput.value, DEFAULT_SELECTION_BATCH_NEXT_SHORTCUT);
+    if (prevShortcut === nextShortcut) return alert("Shortcut batch sebelumnya dan berikutnya tidak boleh sama.");
+    state.selectionBatchPrevShortcut = prevShortcut;
+    state.selectionBatchNextShortcut = nextShortcut;
+    ui.settingsSelectionBatchSizeInput.value = state.selectionBatchSize;
+    ui.settingsGlossaryBatchSizeInput.value = state.glossaryBatchSize;
+    ui.settingsAiCheckBatchSizeInput.value = state.aiCheckBatchSize;
+    ui.settingsSelectionPrevShortcutInput.value = state.selectionBatchPrevShortcut;
+    ui.settingsSelectionNextShortcutInput.value = state.selectionBatchNextShortcut;
     closeModal(ui.settingsModal);
     renderGlossaryPreview();
     queueAutoSave();

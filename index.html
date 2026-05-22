@@ -17,7 +17,7 @@
     <header class="dashboard-hero">
       <div class="hero-left">
         <h1 class="hero-title">Copas Tool</h1>
-        <span class="hero-badge">vM2</span>
+        <span class="hero-badge">vM3</span>
       </div>
       <div class="actions">
         <button id="btnNewProject" class="btn btn-primary">Buat Proyek Baru</button>
@@ -229,6 +229,38 @@
         <label class="section-label text-white m-0">Konteks Baris Sebelumnya (Context Lines)</label>
         <p class="hint mt-1">Jumlah baris sebelum teks yang dipilih untuk dijadikan konteks AI.</p>
         <input id="settingsContextLinesInput" class="text-input w-full" type="number" min="0" value="10" />
+      </div>
+      <div class="mt-3">
+        <label class="section-label text-white m-0">Ukuran Batch Shortcut</label>
+        <p class="hint mt-1">Jumlah baris yang dipilih oleh shortcut batch di tiap tab.</p>
+        <div class="flex-center gap-4 wrap mt-1">
+          <div class="flex-col grow">
+            <label class="hint m-0" for="settingsSelectionBatchSizeInput">Translate</label>
+            <input id="settingsSelectionBatchSizeInput" class="text-input w-full" type="number" min="1" value="100" />
+          </div>
+          <div class="flex-col grow">
+            <label class="hint m-0" for="settingsGlossaryBatchSizeInput">Glossary</label>
+            <input id="settingsGlossaryBatchSizeInput" class="text-input w-full" type="number" min="1" value="500" />
+          </div>
+          <div class="flex-col grow">
+            <label class="hint m-0" for="settingsAiCheckBatchSizeInput">AI Check</label>
+            <input id="settingsAiCheckBatchSizeInput" class="text-input w-full" type="number" min="1" value="250" />
+          </div>
+        </div>
+      </div>
+      <div class="mt-3">
+        <label class="section-label text-white m-0">Shortcut Batch Selection</label>
+        <p class="hint mt-1">Klik kolom lalu tekan kombinasi tombol. Default: Alt+W sebelumnya, Alt+S berikutnya.</p>
+        <div class="flex-center gap-4 wrap mt-1">
+          <div class="flex-col grow">
+            <label class="hint m-0" for="settingsSelectionPrevShortcutInput">Sebelumnya</label>
+            <input id="settingsSelectionPrevShortcutInput" class="text-input w-full" type="text" value="Alt+W" readonly aria-label="Shortcut batch sebelumnya" />
+          </div>
+          <div class="flex-col grow">
+            <label class="hint m-0" for="settingsSelectionNextShortcutInput">Berikutnya</label>
+            <input id="settingsSelectionNextShortcutInput" class="text-input w-full" type="text" value="Alt+S" readonly aria-label="Shortcut batch berikutnya" />
+          </div>
+        </div>
       </div>
       <div class="modal-actions mt-3">
         <span class="grow"></span>
