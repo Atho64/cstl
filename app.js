@@ -3,7 +3,7 @@
   const DEFAULT_PROMPT_HEADER = `Rewrite entire text to Native Indonesian. Do not change prefix number. Euphemism prohibited. Use of "Bahasa Jakarta Selatan" is prohibited. Put results inside \`\`\`plaintext block.`;
   const DEFAULT_GLOSSARY_PROMPT = `Extract important names and story-specific terminology from the following text to build a typed glossary.\nFormat the output STRICTLY as:\n[type] [Japanese term] = [Indonesian term] {short description}\n\nAllowed types:\n[character], [place], [organization], [item], [ability], [title], [concept], [term]\n\nDescription examples:\n{male name}, {female name}, {family name}, {given name}, {place name}, {school}, {food}, {honorific}, {concept}\n\nExample:\n[character] 浅村 悠太 = Asamura Yuuta {male name}\n[character] 綾瀬 沙季 = Ayase Saki {female name}\n[place] 渋谷 = Shibuya {place name}\n[item] 炬燵 = Kotatsu {household item}\n[term] 義妹 = adik tiri perempuan {family term}\n\nRules:\n1. Do NOT translate the text itself.\n2. Only output the typed glossary list.\n3. Do NOT include common everyday words, ordinary verbs, generic adjectives, or basic nouns unless they are proper nouns, recurring key terms, culturally specific terms, or story-specific concepts.\n4. Prefer character names, family names, given names, place names, organization names, titles, unique items, abilities, honorifics, relationship terms, and recurring setting-specific terminology.\n5. Prefer specific types over [term].\n6. Include gender for character names when inferable from context; otherwise use {character name}.\n7. Put results inside \`\`\`plaintext block.`;
   const DEFAULT_AI_CHECK_PROMPT = `Check the existing Indonesian translation against the original Japanese text.\nOnly return lines that need correction. Do not return lines that are already good.\n\nUse this STRICT format for each correction:\n[line 12]\nreason: why this line needs correction\nname: corrected character name, or blank if unchanged/not applicable\ntext: corrected Indonesian translation without the speaker name prefix\n\nRules:\n1. Keep the original line number exactly.\n2. Give a short, concrete reason.\n3. Use name only for corrected character names; leave it blank when unchanged.\n4. Put only the corrected message in text. Do NOT repeat the speaker name in text.\n5. Correct only the Indonesian translation, not the Japanese original.\n6. Respect provided glossary entries.\n7. Put results inside \`\`\`plaintext block.`;
-  const APP_VERSION = "vM1";
+  const APP_VERSION = "vM2";
   const MAX_UNDO_STEPS = 10;
   const PROJECT_EXT = ".cstl";
   
@@ -22,6 +22,8 @@
     contextLines: 10,
     undoStack: [],
     selectedLines: new Set(),
+    selectionHistory: [],
+    selectionHistoryIndex: -1,
     activeWorkspaceTab: "translate",
     displayRows: [],
     lineByNum: new Map(),
@@ -212,10 +214,10 @@
     const ids = [
       "dashboardView", "workspaceView", "projectList", "projectFilterInput", "btnNewProject", "btnRestoreProject",
       "btnBackToDashboard", "projectNameDisplay", "restoreProjectInput", "btnImportFile",
-      "btnImportFolder", "btnImportZip", "btnExport", "btnProofread", "btnSettings",
+      "btnImportFolder", "btnImportZip", "btnImportTranslatedFile", "btnImportTranslatedFolder", "btnExport", "btnProofread", "btnSettings",
       "previewViewport", "previewContainer", "progressFill", "progressText", "btnSelectAll",
       "btnClearSelection", "copyCount", "btnCopyForAi", "copyStatus", "pasteArea", "btnApply",
-      "btnUndo", "nameTableBody", "statusBar", "importFileInput", "importFolderInput",
+      "btnUndo", "nameTableBody", "statusBar", "importFileInput", "importFolderInput", "importTranslatedFileInput", "importTranslatedFolderInput",
       "glossaryPreviewWrap", "glossaryPreviewText",
       "importZipInput", "glossaryFileInput", "settingsModal", "settingsPromptInput", "settingsGlossaryPromptInput", "settingsAiCheckPromptInput", "settingsEpubTagsInput",
       "settingsGlossaryInput", "settingsContextLinesInput", "btnSettingsReset", "btnSettingsGlossaryReset", "btnSettingsAiCheckReset", "btnSettingsCancel", "btnSettingsSave", "lineEditorModal", "lineEditorTitle",
@@ -241,6 +243,7 @@
   }
 
   function bindEvents() {
+    document.addEventListener("keydown", onSelectionHistoryKeydown);
     ui.btnNewProject.addEventListener("click", createNewProject);
     ui.projectFilterInput.addEventListener("input", () => renderDashboardProjects());
     ui.btnBackToDashboard.addEventListener("click", closeProject);
@@ -249,9 +252,13 @@
     ui.btnImportFile.addEventListener("click", () => ui.importFileInput.click());
     ui.btnImportFolder.addEventListener("click", () => ui.importFolderInput.click());
     ui.btnImportZip.addEventListener("click", () => ui.importZipInput.click());
+    ui.btnImportTranslatedFile.addEventListener("click", () => ui.importTranslatedFileInput.click());
+    ui.btnImportTranslatedFolder.addEventListener("click", () => ui.importTranslatedFolderInput.click());
     ui.importFileInput.addEventListener("change", onImportFileChange);
     ui.importFolderInput.addEventListener("change", onImportFolderChange);
     ui.importZipInput.addEventListener("change", onImportZipChange);
+    ui.importTranslatedFileInput.addEventListener("change", onImportTranslatedFileChange);
+    ui.importTranslatedFolderInput.addEventListener("change", onImportTranslatedFolderChange);
     ui.glossaryFileInput.addEventListener("change", onImportGlossaryFile);
     ui.btnExport.addEventListener("click", onExport);
     ui.btnCopyForAi.addEventListener("click", onCopyForAi);
@@ -280,10 +287,12 @@
       state.lines.forEach(l => {
         if (isSelectableForActiveTab(l)) state.selectedLines.add(l.line_num);
       });
+      recordSelectionHistory();
       syncCheckboxUI();
     });
     ui.btnClearSelection.addEventListener("click", () => {
       state.selectedLines.clear();
+      recordSelectionHistory();
       syncCheckboxUI();
     });
     ui.btnSelectRange.addEventListener("click", () => {
@@ -295,6 +304,7 @@
         const l = state.lineByNum.get(i);
         if (l && isSelectableForActiveTab(l)) state.selectedLines.add(i);
       }
+      recordSelectionHistory();
       syncCheckboxUI();
       const targetIndex = state.displayRows.findIndex(row => row.type === "line" && row.line.line_num === f);
       if (targetIndex !== -1) {
@@ -362,6 +372,86 @@
       const line = state.lineByNum.get(num);
       if (!isSelectableForActiveTab(line)) state.selectedLines.delete(num);
     }
+  }
+
+  function getSelectionHistorySnapshot() {
+    return Array.from(state.selectedLines)
+      .map(Number)
+      .filter(num => Number.isFinite(num) && isSelectableForActiveTab(state.lineByNum.get(num)))
+      .sort((a, b) => a - b);
+  }
+
+  function selectionSnapshotsEqual(a, b) {
+    if (!a || !b || a.length !== b.length) return false;
+    return a.every((num, index) => num === b[index]);
+  }
+
+  function resetSelectionHistory() {
+    state.selectionHistory = [];
+    state.selectionHistoryIndex = -1;
+    recordSelectionHistory();
+  }
+
+  function recordSelectionHistory() {
+    const snapshot = getSelectionHistorySnapshot();
+    const currentSnapshot = state.selectionHistory[state.selectionHistoryIndex];
+    if (selectionSnapshotsEqual(snapshot, currentSnapshot)) return;
+    if (state.selectionHistoryIndex < state.selectionHistory.length - 1) {
+      state.selectionHistory.splice(state.selectionHistoryIndex + 1);
+    }
+    state.selectionHistory.push(snapshot);
+    state.selectionHistoryIndex = state.selectionHistory.length - 1;
+  }
+
+  function restoreSelectionHistory(direction) {
+    if (!state.currentProjectId || !state.lines.length) return false;
+    const nextIndex = state.selectionHistoryIndex + direction;
+    if (nextIndex < 0 || nextIndex >= state.selectionHistory.length) return false;
+
+    state.selectionHistoryIndex = nextIndex;
+    state.selectedLines.clear();
+    for (const num of state.selectionHistory[nextIndex]) {
+      const line = state.lineByNum.get(num);
+      if (isSelectableForActiveTab(line)) state.selectedLines.add(num);
+    }
+    syncCheckboxUI();
+
+    let firstSelected = null;
+    for (const num of state.selectedLines) {
+      if (firstSelected === null || num < firstSelected) firstSelected = num;
+    }
+    if (firstSelected !== null) scrollPreviewToLine(firstSelected);
+    return true;
+  }
+
+  function scrollPreviewToLine(lineNum) {
+    if (!mainScroller) return;
+    const targetIndex = state.displayRows.findIndex(row => row.type === "line" && row.line.line_num === lineNum);
+    if (targetIndex === -1) return;
+    mainScroller.scrollToIndex(targetIndex);
+    setTimeout(() => {
+      const targetEl = document.querySelector(`input[data-num="${lineNum}"]`);
+      const rowEl = targetEl?.closest(".preview-row");
+      if (rowEl) rowEl.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 50);
+  }
+
+  function isEditableShortcutTarget(target) {
+    if (!(target instanceof Element)) return false;
+    if (target.closest("textarea, select, [contenteditable]")) return true;
+    const input = target.closest("input");
+    if (!input) return false;
+    const type = (input.type || "text").toLowerCase();
+    return !["button", "checkbox", "radio", "submit", "reset"].includes(type);
+  }
+
+  function onSelectionHistoryKeydown(event) {
+    if (!event.ctrlKey || event.altKey || event.metaKey) return;
+    if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+    if (isEditableShortcutTarget(event.target)) return;
+
+    const direction = event.key === "ArrowUp" ? -1 : 1;
+    if (restoreSelectionHistory(direction)) event.preventDefault();
   }
 
   function debounce(func, wait) {
@@ -604,6 +694,7 @@
     state.undoStack = [];
     state.aiCheckCorrections = [];
     state.activeWorkspaceTab = "translate";
+    resetSelectionHistory();
     if (ui.pasteAiCheckArea) ui.pasteAiCheckArea.value = "";
     if (ui.aiCheckResults) ui.aiCheckResults.textContent = "";
     ui.projectNameDisplay.textContent = state.projectName;
@@ -639,6 +730,8 @@
   function finishClose() {
     state.currentProjectId = null;
     state.lines = [];
+    state.selectedLines.clear();
+    resetSelectionHistory();
     ui.workspaceView.style.display = "none";
     ui.dashboardView.classList.add("open");
     loadDashboardProjects();
@@ -682,6 +775,8 @@
     const translatedSelectionCount = state.lines.filter(l => state.selectedLines.has(l.line_num) && isTranslated(l)).length;
     ui.btnExport.disabled = !hasData;
     ui.btnProofread.disabled = !hasData;
+    ui.btnImportTranslatedFile.disabled = !hasData;
+    ui.btnImportTranslatedFolder.disabled = !hasData;
     ui.btnSelectAll.disabled = !hasData;
     ui.btnClearSelection.disabled = !hasSelection;
     ui.btnCopyForAi.disabled = untranslatedSelectionCount === 0;
@@ -812,6 +907,7 @@
           if (isChecked) state.selectedLines.add(l.line_num);
           else state.selectedLines.delete(l.line_num);
         });
+        recordSelectionHistory();
         syncCheckboxUI();
       });
       const label = document.createElement("div");
@@ -835,6 +931,7 @@
       cb.addEventListener("change", (e) => {
         if (e.target.checked) state.selectedLines.add(line.line_num);
         else state.selectedLines.delete(line.line_num);
+        recordSelectionHistory();
         syncCheckboxUI();
       });
       const contentWrap = document.createElement("div");
@@ -1068,6 +1165,8 @@
       if (lines.length > 0) {
         state.lines = [...state.lines, ...lines];
         state.importedFiles = Array.from(existingFiles);
+        state.selectedLines.clear();
+        resetSelectionHistory();
         refreshAll();
         queueAutoSave();
         let msg = `Berhasil impor ${lines.length} baris.`;
@@ -1106,6 +1205,245 @@
   async function onImportZipChange(ev) {
     if(!ev.target.files.length) return;
     await handleImportLogic(ev.target.files[0], true);
+    ev.target.value = "";
+  }
+
+  function groupCurrentLinesByFile() {
+    const grouped = new Map();
+    for (const line of state.lines) {
+      if (!grouped.has(line.file)) grouped.set(line.file, []);
+      grouped.get(line.file).push(line);
+    }
+    return grouped;
+  }
+
+  function normalizeImportPathKey(pathOrName) {
+    return String(pathOrName || "")
+      .replace(/\\/g, "/")
+      .replace(/^\/+|\/+$/g, "")
+      .toLowerCase();
+  }
+
+  function stripImportFileExt(pathOrName) {
+    return pathOrName.replace(/\.(json|xhtml|html)$/i, "");
+  }
+
+  function getImportPathBaseName(pathOrName) {
+    const parts = pathOrName.split("/").filter(Boolean);
+    return parts[parts.length - 1] || pathOrName;
+  }
+
+  function getImportPathWithoutRoot(pathOrName) {
+    const parts = pathOrName.split("/").filter(Boolean);
+    return parts.length > 1 ? parts.slice(1).join("/") : pathOrName;
+  }
+
+  function getImportFileMatchKeys(pathOrName) {
+    const normalized = normalizeImportPathKey(pathOrName);
+    const withoutRoot = getImportPathWithoutRoot(normalized);
+    const baseName = getImportPathBaseName(normalized);
+    const candidates = [
+      normalized,
+      stripImportFileExt(normalized),
+      withoutRoot,
+      stripImportFileExt(withoutRoot),
+      baseName,
+      stripImportFileExt(baseName),
+    ];
+    return Array.from(new Set(candidates.filter(Boolean)));
+  }
+
+  function buildCurrentFileMatchMap(groupedLines) {
+    const map = new Map();
+    const addKey = (key, fileName) => {
+      if (!key) return;
+      if (!map.has(key)) map.set(key, fileName);
+      else if (map.get(key) !== fileName) map.set(key, null);
+    };
+
+    for (const fileName of groupedLines.keys()) {
+      for (const key of getImportFileMatchKeys(fileName)) addKey(key, fileName);
+    }
+    return map;
+  }
+
+  function findTranslatedImportTarget(pathOrName, fileMatchMap, groupedLines) {
+    let ambiguous = false;
+    for (const key of getImportFileMatchKeys(pathOrName)) {
+      if (!fileMatchMap.has(key)) continue;
+      const fileName = fileMatchMap.get(key);
+      if (fileName) return { fileName, lines: groupedLines.get(fileName) || [] };
+      ambiguous = true;
+    }
+    return { ambiguous };
+  }
+
+  function normalizeTranslatedImportValue(value) {
+    return String(value ?? "").replace(/\r?\n/g, "\\n").trim();
+  }
+
+  function collectTranslatedJsonUpdates(pathOrName, jsonArray, fileMatchMap, groupedLines, usedFiles) {
+    if (!Array.isArray(jsonArray)) throw new Error(`${pathOrName} bukan array JSON.`);
+    const target = findTranslatedImportTarget(pathOrName, fileMatchMap, groupedLines);
+    if (target.ambiguous) return { status: "ambiguous", path: pathOrName, updates: [] };
+    if (!target.fileName) return { status: "unmatched", path: pathOrName, updates: [] };
+    if (usedFiles.has(target.fileName)) return { status: "duplicate", path: pathOrName, updates: [] };
+    usedFiles.add(target.fileName);
+
+    const limit = Math.min(jsonArray.length, target.lines.length);
+    const updates = [];
+    for (let i = 0; i < limit; i++) {
+      const entry = jsonArray[i];
+      if (!entry || typeof entry !== "object") continue;
+      const message = normalizeTranslatedImportValue(entry.message ?? entry.trans_message ?? entry.text);
+      if (!message) continue;
+      const line = target.lines[i];
+      const hasNameValue = Object.hasOwn(entry, "name") || Object.hasOwn(entry, "trans_name");
+      const name = hasNameValue ? normalizeTranslatedImportValue(entry.name ?? entry.trans_name) : null;
+      updates.push({ line, name, message, hasNameValue });
+    }
+
+    return {
+      status: "matched",
+      path: pathOrName,
+      fileName: target.fileName,
+      updates,
+      importedRows: jsonArray.length,
+      projectRows: target.lines.length,
+    };
+  }
+
+  async function collectTranslatedEpubUpdates(file) {
+    if (state.projectType !== "epub") return { status: "unsupported", path: file.name, updates: [] };
+    if (!window.JSZip) throw new Error("JSZip tidak tersedia untuk membaca EPUB.");
+
+    const zip = await window.JSZip.loadAsync(file);
+    const groupedLines = groupCurrentLinesByFile();
+    const tagsSelector = state.epubTags || "p";
+    const updates = [];
+    const missingFiles = [];
+
+    for (const [href, lines] of groupedLines.entries()) {
+      const zf = zip.file(href);
+      if (!zf) {
+        missingFiles.push(href);
+        continue;
+      }
+      const html = await zf.async("text");
+      const doc = new DOMParser().parseFromString(html, href.endsWith(".xhtml") ? "application/xhtml+xml" : "text/html");
+      const els = Array.from(doc.querySelectorAll(tagsSelector)).filter(el => el.textContent.replace(/\r?\n/g, " ").trim());
+      const limit = Math.min(els.length, lines.length);
+      for (let i = 0; i < limit; i++) {
+        const message = normalizeTranslatedImportValue(els[i].textContent.replace(/\r?\n/g, " ").trim());
+        if (message) updates.push({ line: lines[i], name: null, message, hasNameValue: false });
+      }
+    }
+
+    return { status: "matched", path: file.name, updates, missingFiles };
+  }
+
+  async function handleTranslatedImport(filesObj) {
+    if (!state.lines.length) return alert("Impor file sumber dulu sebelum impor hasil terjemahan.");
+
+    const files = Array.from(filesObj || []).sort((a, b) => {
+      const aPath = a.webkitRelativePath || a.name;
+      const bPath = b.webkitRelativePath || b.name;
+      return aPath.localeCompare(bPath);
+    });
+    if (!files.length) return;
+
+    flashHint("Memproses file terjemahan... Mohon tunggu.", true);
+    document.body.style.cursor = "wait";
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+    try {
+      const groupedLines = groupCurrentLinesByFile();
+      const fileMatchMap = buildCurrentFileMatchMap(groupedLines);
+      const usedFiles = new Set();
+      const allUpdates = [];
+      const warnings = [];
+      let matchedFiles = 0;
+
+      for (const file of files) {
+        const path = file.webkitRelativePath || file.name;
+        const lowerName = file.name.toLowerCase();
+        try {
+          if (lowerName.endsWith(".zip")) {
+            if (!window.JSZip) throw new Error("JSZip tidak tersedia untuk membaca ZIP.");
+            const zip = await window.JSZip.loadAsync(file);
+            const names = Object.keys(zip.files).filter(n => n.toLowerCase().endsWith(".json")).sort();
+            for (const name of names) {
+              const json = JSON.parse(decodeArrayBuffer(await zip.file(name).async("uint8array")));
+              const result = collectTranslatedJsonUpdates(name, json, fileMatchMap, groupedLines, usedFiles);
+              if (result.status === "matched") {
+                matchedFiles++;
+                allUpdates.push(...result.updates);
+                if (result.importedRows !== result.projectRows) warnings.push(`${name}: jumlah baris ${result.importedRows}/${result.projectRows}.`);
+              } else if (result.status === "ambiguous") warnings.push(`${name}: nama file ambigu, dilewati.`);
+              else if (result.status === "duplicate") warnings.push(`${name}: target file sudah diimpor dari file lain, dilewati.`);
+              else warnings.push(`${name}: tidak cocok dengan file proyek, dilewati.`);
+            }
+          } else if (lowerName.endsWith(".json")) {
+            const json = await parseJsonFromFileObject(file);
+            const result = collectTranslatedJsonUpdates(path, json, fileMatchMap, groupedLines, usedFiles);
+            if (result.status === "matched") {
+              matchedFiles++;
+              allUpdates.push(...result.updates);
+              if (result.importedRows !== result.projectRows) warnings.push(`${path}: jumlah baris ${result.importedRows}/${result.projectRows}.`);
+            } else if (result.status === "ambiguous") warnings.push(`${path}: nama file ambigu, dilewati.`);
+            else if (result.status === "duplicate") warnings.push(`${path}: target file sudah diimpor dari file lain, dilewati.`);
+            else warnings.push(`${path}: tidak cocok dengan file proyek, dilewati.`);
+          } else if (lowerName.endsWith(".epub")) {
+            const result = await collectTranslatedEpubUpdates(file);
+            if (result.status === "matched") {
+              matchedFiles++;
+              allUpdates.push(...result.updates);
+              if (result.missingFiles?.length) warnings.push(`${path}: ${result.missingFiles.length} file EPUB proyek tidak ditemukan di EPUB terjemahan.`);
+            } else {
+              warnings.push(`${path}: hanya bisa diimpor ke proyek EPUB.`);
+            }
+          }
+        } catch (err) {
+          warnings.push(`${path}: ${err.message}`);
+        }
+        await new Promise(r => setTimeout(r, 0));
+      }
+
+      if (!allUpdates.length) {
+        flashHint("Tidak ada baris terjemahan yang bisa diimpor.", false);
+        if (warnings.length) alert("Impor TL tidak menerapkan perubahan:\n\n" + warnings.slice(0, 12).join("\n"));
+        return;
+      }
+
+      pushUndoSnapshot();
+      for (const update of allUpdates) {
+        update.line.trans_message = update.message;
+        update.line.is_translated = true;
+        if (update.line.name && update.hasNameValue) update.line.trans_name = update.name || null;
+      }
+      pruneSelectionForActiveTab();
+      recordSelectionHistory();
+      refreshAll();
+      queueAutoSave();
+
+      let msg = `Berhasil impor ${allUpdates.length} baris TL dari ${matchedFiles} file.`;
+      if (warnings.length) msg += ` Ada ${warnings.length} catatan.`;
+      flashHint(msg);
+      if (warnings.length) alert("Catatan impor TL:\n\n" + warnings.slice(0, 12).join("\n") + (warnings.length > 12 ? `\n...dan ${warnings.length - 12} lainnya.` : ""));
+    } finally {
+      document.body.style.cursor = "default";
+    }
+  }
+
+  async function onImportTranslatedFileChange(ev) {
+    if (!ev.target.files.length) return;
+    await handleTranslatedImport(ev.target.files);
+    ev.target.value = "";
+  }
+
+  async function onImportTranslatedFolderChange(ev) {
+    if (!ev.target.files.length) return;
+    await handleTranslatedImport(ev.target.files);
     ev.target.value = "";
   }
 
