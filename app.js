@@ -6,6 +6,10 @@
   const APP_VERSION = "vM2";
   const MAX_UNDO_STEPS = 10;
   const PROJECT_EXT = ".cstl";
+  const WINDOWS_FILE_ORDER_COLLATOR = new Intl.Collator(undefined, {
+    numeric: true,
+    sensitivity: "base",
+  });
   
   const state = {
     currentProjectId: null,
@@ -830,6 +834,14 @@
     return (normalized.split("/").pop() || normalized).replace(/\.json$/i, "");
   }
 
+  function windowsFileOrderCompare(a, b) {
+    return WINDOWS_FILE_ORDER_COLLATOR.compare(String(a || ""), String(b || ""));
+  }
+
+  function getFileOrderPath(file) {
+    return file?.webkitRelativePath || file?.name || "";
+  }
+
   function decodeArrayBuffer(buffer) {
     const encodings = ["utf-8", "shift_jis", "windows-31j"];
     for (const enc of encodings) {
@@ -1053,7 +1065,7 @@
 
       if (isZip && filesObj instanceof File && window.JSZip) {
         const zip = await window.JSZip.loadAsync(filesObj);
-        const names = Object.keys(zip.files).filter(n => n.endsWith(".json")).sort();
+        const names = Object.keys(zip.files).filter(n => n.endsWith(".json")).sort(windowsFileOrderCompare);
         for (const n of names) {
           const baseName = normalizeFileBaseName(n);
           if (existingFiles.has(baseName)) {
@@ -1070,7 +1082,7 @@
           await new Promise(r => setTimeout(r, 0));
         }
       } else {
-        const files = Array.from(filesObj).sort((a,b) => a.name.localeCompare(b.name));
+        const files = Array.from(filesObj).sort((a, b) => windowsFileOrderCompare(getFileOrderPath(a), getFileOrderPath(b)));
         for (const f of files) {
           const isEpub = f.name.toLowerCase().endsWith(".epub");
           const isJson = f.name.toLowerCase().endsWith(".json");
@@ -1345,11 +1357,7 @@
   async function handleTranslatedImport(filesObj) {
     if (!state.lines.length) return alert("Impor file sumber dulu sebelum impor hasil terjemahan.");
 
-    const files = Array.from(filesObj || []).sort((a, b) => {
-      const aPath = a.webkitRelativePath || a.name;
-      const bPath = b.webkitRelativePath || b.name;
-      return aPath.localeCompare(bPath);
-    });
+    const files = Array.from(filesObj || []).sort((a, b) => windowsFileOrderCompare(getFileOrderPath(a), getFileOrderPath(b)));
     if (!files.length) return;
 
     flashHint("Memproses file terjemahan... Mohon tunggu.", true);
@@ -1371,7 +1379,7 @@
           if (lowerName.endsWith(".zip")) {
             if (!window.JSZip) throw new Error("JSZip tidak tersedia untuk membaca ZIP.");
             const zip = await window.JSZip.loadAsync(file);
-            const names = Object.keys(zip.files).filter(n => n.toLowerCase().endsWith(".json")).sort();
+            const names = Object.keys(zip.files).filter(n => n.toLowerCase().endsWith(".json")).sort(windowsFileOrderCompare);
             for (const name of names) {
               const json = JSON.parse(decodeArrayBuffer(await zip.file(name).async("uint8array")));
               const result = collectTranslatedJsonUpdates(name, json, fileMatchMap, groupedLines, usedFiles);
