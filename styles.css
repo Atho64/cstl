@@ -190,6 +190,7 @@ html, body {
 }
 .badge-epub { background: var(--primary); }
 .badge-json { background: var(--success); }
+.badge-luca { background: #f59e0b; }
 
 .app-shell { 
   display: flex; 
@@ -294,6 +295,9 @@ html, body {
 
 .btn-danger { background: var(--danger); border-color: var(--danger); color: #fff; }
 .btn-danger:hover:not(:disabled) { background: var(--danger-hover); }
+
+.btn-luca { background: #d97706; border-color: #d97706; color: #fff; }
+.btn-luca:hover:not(:disabled) { background: #b45309; }
 
 .btn-outline { background: transparent; border-color: var(--muted); }
 
@@ -502,6 +506,9 @@ html, body {
 }
 
 .input-area.small { min-height: 80px; }
+
+.luca-ref-label { font-size: 11px; font-weight: 500; color: var(--muted); }
+.luca-ref { background: rgba(30, 41, 59, 0.4) !important; color: var(--muted); border-color: transparent; }
 
 .text-input:disabled, input[type="number"]:disabled, .input-area:disabled { 
   background: rgba(30, 41, 59, 0.4); 

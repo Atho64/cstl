@@ -41,6 +41,8 @@
         <button id="btnImportFile" class="btn">Impor File</button>
         <button id="btnImportFolder" class="btn">Impor Folder</button>
         <button id="btnImportZip" class="btn">Impor ZIP</button>
+        <button id="btnImportLucaTxt" class="btn btn-luca">Impor TXT</button>
+        <button id="btnImportLucaTxtFolder" class="btn btn-luca">Impor TXT Folder</button>
         <button id="btnImportTranslatedFile" class="btn">Impor TL File</button>
         <button id="btnImportTranslatedFolder" class="btn">Impor TL Folder</button>
         <button id="btnExport" class="btn" disabled>Ekspor</button>
@@ -183,8 +185,10 @@
   <input id="importFileInput" type="file" accept=".json,.epub" multiple hidden />
   <input id="importFolderInput" type="file" accept=".json,.epub" webkitdirectory directory multiple hidden />
   <input id="importZipInput" type="file" accept=".zip" hidden />
-  <input id="importTranslatedFileInput" type="file" accept=".json,.epub,.zip" multiple hidden />
-  <input id="importTranslatedFolderInput" type="file" accept=".json,.epub" webkitdirectory directory multiple hidden />
+  <input id="importLucaTxtInput" type="file" accept=".txt" multiple hidden />
+  <input id="importLucaTxtFolderInput" type="file" accept=".txt" webkitdirectory directory multiple hidden />
+  <input id="importTranslatedFileInput" type="file" accept=".json,.epub,.zip,.txt" multiple hidden />
+  <input id="importTranslatedFolderInput" type="file" accept=".json,.epub,.txt" webkitdirectory directory multiple hidden />
   <input id="restoreProjectInput" type="file" accept=".cstl" hidden />
   <input id="glossaryFileInput" type="file" accept=".txt,.glossary,.md" hidden />
 
@@ -219,6 +223,19 @@
         <label class="section-label text-white m-0">Pengaturan Tag EPUB</label>
         <p class="hint mt-1">Tag HTML target untuk diekstrak (pisahkan dengan koma). Berlaku untuk impor EPUB.</p>
         <input id="settingsEpubTagsInput" class="text-input w-full" type="text" placeholder="p, h1, h2, h3" />
+      </div>
+      <div class="mt-3" id="settingsLucaWrap">
+        <label class="section-label text-white m-0">Pengaturan TXT LucaSystem</label>
+        <p class="hint mt-1">Slot bahasa mana dalam file .txt yang akan diganti dengan terjemahan saat ekspor.</p>
+        <div class="flex-center gap-4 wrap mt-1">
+          <div class="flex-col grow">
+            <label class="hint m-0" for="settingsLucaExportLangSelect">Slot Ekspor (ganti bahasa ini)</label>
+            <select id="settingsLucaExportLangSelect" class="text-input w-full">
+              <option value="en">English (arg 3)</option>
+              <option value="zh">Chinese / 中文 (arg 4)</option>
+            </select>
+          </div>
+        </div>
       </div>
       <div class="mt-3">
         <label class="section-label text-white m-0">Smart Glossary</label>
@@ -273,8 +290,14 @@
   <div id="lineEditorModal" class="modal-backdrop">
     <div class="modal modal-wide">
       <h3 id="lineEditorTitle">Edit Terjemahan</h3>
-      <label class="section-label">Teks Asli</label>
+      <label class="section-label">Teks Asli (Japanese)</label>
       <textarea id="lineOriginalView" class="mono input-area small" readonly></textarea>
+      <div id="lucaRefWrap" style="display:none;">
+        <label class="section-label mt-2 luca-ref-label">🇬🇧 English (Referensi)</label>
+        <textarea id="lineRefEnView" class="mono input-area small luca-ref" readonly></textarea>
+        <label class="section-label mt-2 luca-ref-label">🇨🇳 中文 (Referensi)</label>
+        <textarea id="lineRefZhView" class="mono input-area small luca-ref" readonly></textarea>
+      </div>
       <div id="lineNameWrap">
         <label class="section-label mt-2">Nama Karakter (Terjemahan)</label>
         <input id="lineNameInput" class="mono text-input w-full" type="text" />
