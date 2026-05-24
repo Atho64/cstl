@@ -1029,6 +1029,13 @@
     return raw;
   }
 
+  function normalizeShortcutEventKey(event) {
+    const code = String(event.code || "");
+    if (/^Key[A-Z]$/.test(code)) return code.slice(3);
+    if (/^Digit\d$/.test(code)) return code.slice(5);
+    return normalizeShortcutKeyName(event.key);
+  }
+
   function parseShortcutString(value) {
     const parts = String(value || "").split("+").map(p => p.trim()).filter(Boolean);
     if (!parts.length) return null;
@@ -1073,7 +1080,7 @@
       alt: event.altKey,
       shift: event.shiftKey,
       meta: event.metaKey,
-      key: normalizeShortcutKeyName(event.key),
+      key: normalizeShortcutEventKey(event),
     };
   }
 
