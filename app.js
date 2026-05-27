@@ -833,6 +833,8 @@
         projectType: state.projectType,
         epubTags: state.epubTags,
         epubSourceId: state.epubSourceId,
+        lucaExportLang: state.lucaExportLang,
+        lucaRawFiles: state.lucaRawFiles,
         imported_files: state.importedFiles,
         lines: state.lines,
         prompt_header: state.aiInstructionHeader,
@@ -1150,6 +1152,8 @@
       ...(line.luca_zh != null ? { luca_zh: String(line.luca_zh) } : {}),
       ...(line.luca_raw != null ? { luca_raw: String(line.luca_raw) } : {}),
       ...(line.luca_pre != null ? { luca_pre: String(line.luca_pre) } : {}),
+      ...(line.luca_command != null ? { luca_command: String(line.luca_command).toUpperCase() } : {}),
+      ...(line.luca_choice_index != null ? { luca_choice_index: Number(line.luca_choice_index) } : {}),
       ...(line.luca_raw_index != null ? { luca_raw_index: Number(line.luca_raw_index) } : {}),
     };
   }
@@ -1201,6 +1205,7 @@
 
   // ─── LucaSystem TXT Parser ─────────────────────────────────────────────────
   // MESSAGE (id, "JP", "EN", "ZH", voiceId, flags, 0x0)
+  // SELECT ("JP$dJP", "EN$dEN", "ZH$dZH")
   // Speaker prefix embedded as @Name@ inside JP text
   function parseLucaTxtText(raw) {
     if (raw == null) return { name: null, text: "" };
@@ -1210,45 +1215,76 @@
     return { name: null, text: s.trim() };
   }
 
+  function splitLucaChoices(raw) {
+    return String(raw || "").split("$d");
+  }
+
   function parseLucaTxt(fileText, fileName, startLineNum) {
     const lines = [];
     let cur = startLineNum;
     const rawLines = fileText.split(/\r?\n/);
-    // Regex to match: MESSAGE (args...)
-    // We extract the full argument list, supporting multi-line (though these files are single-line)
-    const MSG_RE = /^\s*MESSAGE\s*\(/i;
+    // Regex to match MESSAGE/SELECT, including optional leading script labels.
+    const COMMAND_RE = /^\s*(?:(?:[A-Za-z_]\w*):\s*)?(MESSAGE|SELECT)\s*\(/i;
     for (let i = 0; i < rawLines.length; i++) {
       const raw = rawLines[i];
-      if (!MSG_RE.test(raw)) continue;
-      // Extract comma-separated args from the full argument string
-      // Format: MESSAGE (arg0, "JP", "EN", "ZH", arg4, arg5, arg6)
-      // Use a simple quoted-string-aware splitter
+      const commandMatch = raw.match(COMMAND_RE);
+      if (!commandMatch) continue;
+      const command = commandMatch[1].toUpperCase();
       const parenStart = raw.indexOf('(');
       const parenEnd = raw.lastIndexOf(')');
       if (parenStart === -1 || parenEnd === -1) continue;
       const argsStr = raw.slice(parenStart + 1, parenEnd);
       const args = splitLucaArgs(argsStr);
-      if (args.length < 4) continue;
-      const jpRaw = unquoteLuca(args[1]);
-      const enRaw = unquoteLuca(args[2]);
-      const zhRaw = unquoteLuca(args[3]);
-      const { name, text: jpText } = parseLucaTxtText(jpRaw);
-      if (!jpText && !name) continue; // skip empty
-      lines.push({
-        line_num: cur++,
-        file: fileName,
-        luca_raw_index: i,
-        name: name,
-        message: jpText,
-        luca_jp: jpRaw,
-        luca_en: enRaw,
-        luca_zh: zhRaw,
-        luca_raw: raw,
-        luca_pre: raw.slice(0, parenStart + 1) + args[0],
-        trans_name: null,
-        trans_message: null,
-        is_translated: false,
-      });
+      if (command === "MESSAGE") {
+        if (args.length < 4) continue;
+        const jpRaw = unquoteLuca(args[1]);
+        const enRaw = unquoteLuca(args[2]);
+        const zhRaw = unquoteLuca(args[3]);
+        const { name, text: jpText } = parseLucaTxtText(jpRaw);
+        if (!jpText && !name) continue; // skip empty
+        lines.push({
+          line_num: cur++,
+          file: fileName,
+          luca_raw_index: i,
+          luca_command: command,
+          name: name,
+          message: jpText,
+          luca_jp: jpRaw,
+          luca_en: enRaw,
+          luca_zh: zhRaw,
+          luca_raw: raw,
+          luca_pre: raw.slice(0, parenStart + 1) + args[0],
+          trans_name: null,
+          trans_message: null,
+          is_translated: false,
+        });
+      } else if (command === "SELECT") {
+        if (args.length < 3) continue;
+        const jpChoices = splitLucaChoices(unquoteLuca(args[0]));
+        const enChoices = splitLucaChoices(unquoteLuca(args[1]));
+        const zhChoices = splitLucaChoices(unquoteLuca(args[2]));
+        for (let choiceIndex = 0; choiceIndex < jpChoices.length; choiceIndex++) {
+          const jpText = String(jpChoices[choiceIndex] || "").trim();
+          if (!jpText) continue;
+          lines.push({
+            line_num: cur++,
+            file: fileName,
+            luca_raw_index: i,
+            luca_command: command,
+            luca_choice_index: choiceIndex,
+            name: null,
+            message: jpText,
+            luca_jp: jpText,
+            luca_en: String(enChoices[choiceIndex] || "").trim(),
+            luca_zh: String(zhChoices[choiceIndex] || "").trim(),
+            luca_raw: raw,
+            luca_pre: raw.slice(0, parenStart + 1),
+            trans_name: null,
+            trans_message: null,
+            is_translated: false,
+          });
+        }
+      }
     }
     return lines;
   }
@@ -1335,7 +1371,7 @@
         ui.copyStatus.classList.add("empty");
         setTimeout(() => alert(`Gagal impor: File duplikat.\n${skippedFiles.join('\n')}`), 10);
       } else {
-        flashHint("Tidak ada MESSAGE yang ditemukan dalam file TXT.");
+        flashHint("Tidak ada MESSAGE atau SELECT yang ditemukan dalam file TXT.");
       }
     } catch (err) {
       ui.copyStatus.classList.add("empty");
@@ -1419,6 +1455,12 @@
       });
       const contentWrap = document.createElement("div");
       contentWrap.className = "text-content";
+      if (line.luca_command === "SELECT") {
+        const metaDiv = document.createElement("div");
+        metaDiv.className = "file-meta";
+        metaDiv.textContent = `SELECT choice ${(line.luca_choice_index || 0) + 1}`;
+        contentWrap.appendChild(metaDiv);
+      }
       const origDiv = document.createElement("div");
       origDiv.className = "original";
       const dName = line.name || "";
@@ -1720,7 +1762,7 @@
   }
 
   function stripImportFileExt(pathOrName) {
-    return pathOrName.replace(/\.(json|xhtml|html)$/i, "");
+    return pathOrName.replace(/\.(json|xhtml|html|txt)$/i, "");
   }
 
   function getImportPathBaseName(pathOrName) {
@@ -1808,6 +1850,82 @@
     };
   }
 
+  function collectTranslatedLucaTxtUpdates(pathOrName, fileText, fileMatchMap, groupedLines, usedFiles) {
+    if (state.projectType !== "luca") return { status: "unsupported", path: pathOrName, updates: [] };
+    const target = findTranslatedImportTarget(pathOrName, fileMatchMap, groupedLines);
+    if (target.ambiguous) return { status: "ambiguous", path: pathOrName, updates: [] };
+    if (!target.fileName) return { status: "unmatched", path: pathOrName, updates: [] };
+    if (usedFiles.has(target.fileName)) return { status: "duplicate", path: pathOrName, updates: [] };
+    usedFiles.add(target.fileName);
+
+    const targetLineMap = new Map();
+    for (const line of target.lines) {
+      const command = line.luca_command || "MESSAGE";
+      const choiceIndex = line.luca_choice_index != null ? line.luca_choice_index : "";
+      targetLineMap.set(`${line.luca_raw_index}|${command}|${choiceIndex}`, line);
+    }
+
+    const exportLang = state.lucaExportLang || "en";
+    const rawLines = String(fileText || "").split(/\r?\n/);
+    const commandRe = /^\s*(?:(?:[A-Za-z_]\w*):\s*)?(MESSAGE|SELECT)\s*\(/i;
+    const updates = [];
+    let importedRows = 0;
+    const unmatchedRows = [];
+
+    for (let rawIndex = 0; rawIndex < rawLines.length; rawIndex++) {
+      const raw = rawLines[rawIndex];
+      const commandMatch = raw.match(commandRe);
+      if (!commandMatch) continue;
+      const command = commandMatch[1].toUpperCase();
+      const parenStart = raw.indexOf('(');
+      const parenEnd = raw.lastIndexOf(')');
+      if (parenStart === -1 || parenEnd === -1) continue;
+      const args = splitLucaArgs(raw.slice(parenStart + 1, parenEnd));
+
+      if (command === "MESSAGE") {
+        if (args.length < 4) continue;
+        const sourceText = parseLucaTxtText(unquoteLuca(args[1]));
+        if (!sourceText.text && !sourceText.name) continue;
+        const slotIndex = exportLang === "zh" ? 3 : 2;
+        const { name, text } = parseLucaTxtText(unquoteLuca(args[slotIndex]));
+        const message = normalizeTranslatedImportValue(text);
+        if (!message) continue;
+        importedRows++;
+        const line = targetLineMap.get(`${rawIndex}|MESSAGE|`) || target.lines.find(row => row.luca_raw_index === rawIndex && row.luca_command !== "SELECT");
+        if (!line) {
+          unmatchedRows.push(rawIndex + 1);
+          continue;
+        }
+        updates.push({ line, name: normalizeTranslatedImportValue(name), message, hasNameValue: !!name });
+      } else if (command === "SELECT") {
+        if (args.length < 3) continue;
+        const slotIndex = exportLang === "zh" ? 2 : 1;
+        const choices = splitLucaChoices(unquoteLuca(args[slotIndex]));
+        for (let choiceIndex = 0; choiceIndex < choices.length; choiceIndex++) {
+          const message = normalizeTranslatedImportValue(choices[choiceIndex]);
+          if (!message) continue;
+          importedRows++;
+          const line = targetLineMap.get(`${rawIndex}|SELECT|${choiceIndex}`);
+          if (!line) {
+            unmatchedRows.push(rawIndex + 1);
+            continue;
+          }
+          updates.push({ line, name: null, message, hasNameValue: false });
+        }
+      }
+    }
+
+    return {
+      status: "matched",
+      path: pathOrName,
+      fileName: target.fileName,
+      updates,
+      importedRows,
+      projectRows: target.lines.length,
+      unmatchedRows,
+    };
+  }
+
   async function collectTranslatedEpubUpdates(file) {
     if (state.projectType !== "epub") return { status: "unsupported", path: file.name, updates: [] };
     if (!window.JSZip) throw new Error("JSZip tidak tersedia untuk membaca EPUB.");
@@ -1862,16 +1980,22 @@
           if (lowerName.endsWith(".zip")) {
             if (!window.JSZip) throw new Error("JSZip tidak tersedia untuk membaca ZIP.");
             const zip = await window.JSZip.loadAsync(file);
-            const names = Object.keys(zip.files).filter(n => n.toLowerCase().endsWith(".json")).sort(windowsFileOrderCompare);
+            const names = Object.keys(zip.files)
+              .filter(n => /\.(json|txt)$/i.test(n))
+              .sort(windowsFileOrderCompare);
             for (const name of names) {
-              const json = JSON.parse(decodeArrayBuffer(await zip.file(name).async("uint8array")));
-              const result = collectTranslatedJsonUpdates(name, json, fileMatchMap, groupedLines, usedFiles);
+              const content = decodeArrayBuffer(await zip.file(name).async("uint8array"));
+              const result = name.toLowerCase().endsWith(".txt")
+                ? collectTranslatedLucaTxtUpdates(name, content, fileMatchMap, groupedLines, usedFiles)
+                : collectTranslatedJsonUpdates(name, JSON.parse(content), fileMatchMap, groupedLines, usedFiles);
               if (result.status === "matched") {
                 matchedFiles++;
                 allUpdates.push(...result.updates);
                 if (result.importedRows !== result.projectRows) warnings.push(`${name}: jumlah baris ${result.importedRows}/${result.projectRows}.`);
+                if (result.unmatchedRows?.length) warnings.push(`${name}: ${result.unmatchedRows.length} baris TXT tidak cocok dengan proyek.`);
               } else if (result.status === "ambiguous") warnings.push(`${name}: nama file ambigu, dilewati.`);
               else if (result.status === "duplicate") warnings.push(`${name}: target file sudah diimpor dari file lain, dilewati.`);
+              else if (result.status === "unsupported") warnings.push(`${name}: hanya bisa diimpor ke proyek TXT LucaSystem.`);
               else warnings.push(`${name}: tidak cocok dengan file proyek, dilewati.`);
             }
           } else if (lowerName.endsWith(".json")) {
@@ -1883,6 +2007,18 @@
               if (result.importedRows !== result.projectRows) warnings.push(`${path}: jumlah baris ${result.importedRows}/${result.projectRows}.`);
             } else if (result.status === "ambiguous") warnings.push(`${path}: nama file ambigu, dilewati.`);
             else if (result.status === "duplicate") warnings.push(`${path}: target file sudah diimpor dari file lain, dilewati.`);
+            else warnings.push(`${path}: tidak cocok dengan file proyek, dilewati.`);
+          } else if (lowerName.endsWith(".txt")) {
+            const text = decodeArrayBuffer(await file.arrayBuffer());
+            const result = collectTranslatedLucaTxtUpdates(path, text, fileMatchMap, groupedLines, usedFiles);
+            if (result.status === "matched") {
+              matchedFiles++;
+              allUpdates.push(...result.updates);
+              if (result.importedRows !== result.projectRows) warnings.push(`${path}: jumlah baris ${result.importedRows}/${result.projectRows}.`);
+              if (result.unmatchedRows?.length) warnings.push(`${path}: ${result.unmatchedRows.length} baris TXT tidak cocok dengan proyek.`);
+            } else if (result.status === "ambiguous") warnings.push(`${path}: nama file ambigu, dilewati.`);
+            else if (result.status === "duplicate") warnings.push(`${path}: target file sudah diimpor dari file lain, dilewati.`);
+            else if (result.status === "unsupported") warnings.push(`${path}: hanya bisa diimpor ke proyek TXT LucaSystem.`);
             else warnings.push(`${path}: tidak cocok dengan file proyek, dilewati.`);
           } else if (lowerName.endsWith(".epub")) {
             const result = await collectTranslatedEpubUpdates(file);
@@ -2749,7 +2885,9 @@
     const l = state.lineByNum.get(num);
     if (!l) return;
     activeLineEditorLineNum = num;
-    ui.lineEditorTitle.textContent = `Edit Baris ${num}`;
+    ui.lineEditorTitle.textContent = l.luca_command === "SELECT"
+      ? `Edit Baris ${num} - Select Choice ${(l.luca_choice_index || 0) + 1}`
+      : `Edit Baris ${num}`;
     ui.lineOriginalView.value = l.name ? `${l.name}: ${l.message}` : `${l.message}`;
     ui.lineNameWrap.style.display = l.name ? "block" : "none";
     ui.lineNameInput.value = l.name ? (l.trans_name || "") : "";
@@ -2758,10 +2896,15 @@
     ui.lineTranslatedCheck.checked = isTranslated(l);
     // Show LucaSystem reference languages if available
     if (state.projectType === "luca" && (l.luca_en || l.luca_zh)) {
-      const { name: enName, text: enText } = parseLucaTxtText(l.luca_en || "");
-      const { name: zhName, text: zhText } = parseLucaTxtText(l.luca_zh || "");
-      ui.lineRefEnView.value = enName ? `${enName}: ${enText}` : enText;
-      ui.lineRefZhView.value = zhName ? `${zhName}: ${zhText}` : zhText;
+      if (l.luca_command === "SELECT") {
+        ui.lineRefEnView.value = l.luca_en || "";
+        ui.lineRefZhView.value = l.luca_zh || "";
+      } else {
+        const { name: enName, text: enText } = parseLucaTxtText(l.luca_en || "");
+        const { name: zhName, text: zhText } = parseLucaTxtText(l.luca_zh || "");
+        ui.lineRefEnView.value = enName ? `${enName}: ${enText}` : enText;
+        ui.lineRefZhView.value = zhName ? `${zhName}: ${zhText}` : zhText;
+      }
       ui.lucaRefWrap.style.display = "block";
     } else {
       ui.lucaRefWrap.style.display = "none";
@@ -3174,10 +3317,52 @@
         const rawLines = state.lucaRawFiles[fileName] ? [...state.lucaRawFiles[fileName]] : [];
         const outLines = rawLines.length > 0 ? rawLines : [];
         let hasRawLines = outLines.length > 0;
+        const handledSelectRows = new Set();
 
         for (const l of lns) {
           if (!l.luca_raw) {
             if (!hasRawLines) outLines.push(l.luca_raw);
+            continue;
+          }
+          if (l.luca_command === "SELECT") {
+            const selectKey = l.luca_raw_index != null ? l.luca_raw_index : l.luca_raw;
+            if (handledSelectRows.has(selectKey)) continue;
+            handledSelectRows.add(selectKey);
+            const parenStart = l.luca_raw.indexOf('(');
+            const parenEnd = l.luca_raw.lastIndexOf(')');
+            if (parenStart === -1 || parenEnd === -1) {
+              if (!hasRawLines) outLines.push(l.luca_raw);
+              continue;
+            }
+            const argsStr = l.luca_raw.slice(parenStart + 1, parenEnd);
+            const args = splitLucaArgs(argsStr);
+            if (args.length < 3) {
+              if (!hasRawLines) outLines.push(l.luca_raw);
+              continue;
+            }
+            const targetIdx = exportLang === "zh" ? 2 : 1;
+            const targetChoices = splitLucaChoices(unquoteLuca(args[targetIdx]));
+            const jpChoices = splitLucaChoices(unquoteLuca(args[0]));
+            const selectLines = lns
+              .filter(row => row.luca_command === "SELECT" && row.luca_raw_index === l.luca_raw_index)
+              .sort((a, b) => (a.luca_choice_index || 0) - (b.luca_choice_index || 0));
+            const mergedChoices = [...targetChoices];
+            for (const choiceLine of selectLines) {
+              const choiceIndex = choiceLine.luca_choice_index || 0;
+              const fallback = targetChoices[choiceIndex] || jpChoices[choiceIndex] || choiceLine.message || "";
+              mergedChoices[choiceIndex] = isTranslated(choiceLine)
+                ? String(choiceLine.trans_message || "").replace(/\\n/g, "\n")
+                : fallback;
+            }
+            args[targetIdx] = requoteLuca(mergedChoices.join("$d"));
+            const prefix = l.luca_raw.slice(0, parenStart + 1);
+            const suffix = l.luca_raw.slice(parenEnd);
+            const newRaw = prefix + args.join(", ") + suffix;
+            if (hasRawLines && l.luca_raw_index != null && l.luca_raw_index < outLines.length) {
+              outLines[l.luca_raw_index] = newRaw;
+            } else if (!hasRawLines) {
+              outLines.push(newRaw);
+            }
             continue;
           }
           if (!isTranslated(l)) {
@@ -3285,8 +3470,4 @@
 
   function openModal(el) { el.classList.add("open"); }
   function closeModal(el) { el.classList.remove("open"); }
-
-  // ─── Save LucaExportLang in project data ───────────────────────────────────
-  // Patch: ensure lucaExportLang is included in every saveProjectToOpfs call
-  const _origSaveProjectToOpfs = saveProjectToOpfs;
 })();
