@@ -1,9 +1,9 @@
 (() => {
   "use strict";
-  const DEFAULT_PROMPT_HEADER = `Rewrite entire text to Native Indonesian. Do not change prefix number. Euphemism prohibited. Use of "Bahasa Jakarta Selatan" is prohibited. Put results inside \`\`\`plaintext block.`;
-  const DEFAULT_GLOSSARY_PROMPT = `Extract important names and story-specific terminology from the following text to build a typed glossary.\nFormat the output STRICTLY as:\n[type] [Japanese term] = [Indonesian term] {short description}\n\nAllowed types:\n[character], [place], [organization], [item], [ability], [title], [concept], [term]\n\nDescription examples:\n{male name}, {female name}, {family name}, {given name}, {place name}, {school}, {food}, {honorific}, {concept}\n\nExample:\n[character] 浅村 悠太 = Asamura Yuuta {male name}\n[character] 綾瀬 沙季 = Ayase Saki {female name}\n[place] 渋谷 = Shibuya {place name}\n[item] 炬燵 = Kotatsu {household item}\n[term] 義妹 = adik tiri perempuan {family term}\n\nRules:\n1. Do NOT translate the text itself.\n2. Only output the typed glossary list.\n3. Do NOT include common everyday words, ordinary verbs, generic adjectives, or basic nouns unless they are proper nouns, recurring key terms, culturally specific terms, or story-specific concepts.\n4. Prefer character names, family names, given names, place names, organization names, titles, unique items, abilities, honorifics, relationship terms, and recurring setting-specific terminology.\n5. Prefer specific types over [term].\n6. Include gender for character names when inferable from context; otherwise use {character name}.\n7. Put results inside \`\`\`plaintext block.`;
-  const DEFAULT_AI_CHECK_PROMPT = `Check the existing Indonesian translation against the original Japanese text.\nOnly return lines that need correction. Do not return lines that are already good.\n\nUse this STRICT format for each correction:\n[line 12]\nreason: why this line needs correction\nname: corrected character name, or blank if unchanged/not applicable\ntext: corrected Indonesian translation without the speaker name prefix\n\nRules:\n1. Keep the original line number exactly.\n2. Give a short, concrete reason.\n3. Use name only for corrected character names; leave it blank when unchanged.\n4. Put only the corrected message in text. Do NOT repeat the speaker name in text.\n5. Correct only the Indonesian translation, not the Japanese original.\n6. Respect provided glossary entries.\n7. Put results inside \`\`\`plaintext block.`;
-  const APP_VERSION = "vM3";
+  const DEFAULT_PROMPT_HEADER = `Rewrite entire text to Native {{targetLang}}. Do not change prefix number. Euphemism prohibited. Use of "Bahasa Jakarta Selatan" is prohibited. Put results inside \`\`\`plaintext block.`;
+  const DEFAULT_GLOSSARY_PROMPT = `Extract important names and story-specific terminology from the following text to build a typed glossary.\nFormat the output STRICTLY as:\n[type] [{{sourceLang}} term] = [{{targetLang}} term] {short description}\n\nAllowed types:\n[character], [place], [organization], [item], [ability], [title], [concept], [term]\n\nDescription examples:\n{male name}, {female name}, {family name}, {given name}, {place name}, {school}, {food}, {honorific}, {concept}\n\nExample:\n[character] 浅村 悠太 = Asamura Yuuta {male name}\n[character] 綾瀬 沙季 = Ayase Saki {female name}\n[place] 渋谷 = Shibuya {place name}\n[item] 炬燵 = Kotatsu {household item}\n[term] 義妹 = adik tiri perempuan {family term}\n\nRules:\n1. Do NOT translate the text itself.\n2. Only output the typed glossary list.\n3. Do NOT include common everyday words, ordinary verbs, generic adjectives, or basic nouns unless they are proper nouns, recurring key terms, culturally specific terms, or story-specific concepts.\n4. Prefer character names, family names, given names, place names, organization names, titles, unique items, abilities, honorifics, relationship terms, and recurring setting-specific terminology.\n5. Prefer specific types over [term].\n6. Include gender for character names when inferable from context; otherwise use {character name}.\n7. Put results inside \`\`\`plaintext block.`;
+  const DEFAULT_AI_CHECK_PROMPT = `Check the existing {{targetLang}} translation against the original {{sourceLang}} text.\nOnly return lines that need correction. Do not return lines that are already good.\n\nUse this STRICT format for each correction:\n[line 12]\nreason: why this line needs correction\nname: corrected character name, or blank if unchanged/not applicable\ntext: corrected {{targetLang}} translation without the speaker name prefix\n\nRules:\n1. Keep the original line number exactly.\n2. Give a short, concrete reason.\n3. Use name only for corrected character names; leave it blank when unchanged.\n4. Put only the corrected message in text. Do NOT repeat the speaker name in text.\n5. Correct only the {{targetLang}} translation, not the {{sourceLang}} original.\n6. Respect provided glossary entries.\n7. Put results inside \`\`\`plaintext block.`;
+  const APP_VERSION = "vM4";
   const MAX_UNDO_STEPS = 10;
   const DEFAULT_SELECTION_BATCH_SIZE = 100;
   const DEFAULT_GLOSSARY_BATCH_SIZE = 500;
@@ -17,6 +17,9 @@
   });
   
   const state = {
+    sourceLang: "Japanese",
+    targetLang: "Indonesian",
+    regexFilter: "",
     currentProjectId: null,
     projectName: "",
     projectType: "",
@@ -232,12 +235,12 @@
       "btnBackToDashboard", "projectNameDisplay", "restoreProjectInput", "btnImportFile",
       "btnImportFolder", "btnImportZip", "btnImportTranslatedFile", "btnImportTranslatedFolder", "btnExport", "btnProofread", "btnSettings",
       "previewViewport", "previewContainer", "progressFill", "progressText", "btnSelectAll",
-      "btnClearSelection", "copyCount", "btnCopyForAi", "copyStatus", "pasteArea", "btnApply",
+      "btnClearSelection", "copyCount", "btnCopyForAi", "copyStatus", "pasteArea", "btnApply", "checkIgnorePasteNames",
       "btnUndo", "nameTableBody", "statusBar", "importFileInput", "importFolderInput", "importTranslatedFileInput", "importTranslatedFolderInput",
       "glossaryPreviewWrap", "glossaryPreviewText",
       "importZipInput", "importLucaTxtInput", "importLucaTxtFolderInput", "btnImportLucaTxt", "btnImportLucaTxtFolder",
       "glossaryFileInput", "settingsModal", "settingsPromptInput", "settingsGlossaryPromptInput", "settingsAiCheckPromptInput", "settingsEpubTagsInput",
-      "settingsLucaWrap", "settingsLucaExportLangSelect",
+      "settingsLucaWrap", "settingsLucaExportLangSelect", "settingsSourceLangSelect", "settingsTargetLangSelect", "settingsRegexFilterInput",
       "settingsGlossaryInput", "settingsContextLinesInput", "settingsSelectionBatchSizeInput", "settingsGlossaryBatchSizeInput", "settingsAiCheckBatchSizeInput", "settingsSelectionPrevShortcutInput", "settingsSelectionNextShortcutInput", "btnSettingsReset", "btnSettingsGlossaryReset", "btnSettingsAiCheckReset", "btnSettingsCancel", "btnSettingsSave", "lineEditorModal", "lineEditorTitle",
       "tabTranslate", "tabGlossary", "viewTranslate", "viewGlossary", "btnCopyForGlossaryAi", "pasteGlossaryArea", "btnSaveGlossary", "btnImportGlossaryFile", "btnExportGlossaryFile", "copyGlossaryCount",
       "tabAiCheck", "viewAiCheck", "btnCopyForAiCheck", "copyAiCheckCount", "aiCheckStatus", "pasteAiCheckArea", "btnParseAiCheck", "btnApplyAiCheck", "btnClearAiCheck", "aiCheckResults",
@@ -1381,13 +1384,41 @@
     }
   }
 
+  function applyPromptVariables(prompt) {
+    if (!prompt) return "";
+    return prompt
+      .replace(/\{\{sourceLang\}\}/g, state.sourceLang || "Japanese")
+      .replace(/\{\{targetLang\}\}/g, state.targetLang || "Indonesian");
+  }
+
   function rebuildDisplayState() {
     state.lineByNum.clear();
     const grouped = new Map(state.importedFiles.map(f => [f, []]));
     for (const line of state.lines) {
       state.lineByNum.set(line.line_num, line);
       if (!grouped.has(line.file)) grouped.set(line.file, []);
-      grouped.get(line.file).push(line);
+      
+      let shouldHide = false;
+      if (state.sourceLang === "English") {
+        if (containsJapanese(line.name || "") || containsJapanese(line.message || "")) {
+          shouldHide = true;
+        }
+      }
+      
+      if (!shouldHide && state.regexFilter) {
+        try {
+          const re = new RegExp(state.regexFilter, "u");
+          if (re.test(line.name || "") || re.test(line.message || "")) {
+            shouldHide = true;
+          }
+        } catch (e) {
+          // ignore invalid regex
+        }
+      }
+      
+      if (!shouldHide) {
+        grouped.get(line.file).push(line);
+      }
     }
     state.displayRows = [];
     for (const [fileName, rows] of grouped.entries()) {
@@ -2248,7 +2279,8 @@
     const sel = state.lines.filter(l => state.selectedLines.has(l.line_num));
     if (!sel.length) return;
     const out = getSelectedTranslationText().split("\n").filter(Boolean);
-    const promptText = `${(state.glossaryPrompt || DEFAULT_GLOSSARY_PROMPT).trim()}\n\n${out.join("\n")}\n`;
+    const basePrompt = applyPromptVariables((state.glossaryPrompt || DEFAULT_GLOSSARY_PROMPT).trim());
+    const promptText = `${basePrompt}\n\n${out.join("\n")}\n`;
     try {
       await navigator.clipboard.writeText(promptText);
       flashHint(`Disalin ${sel.length} baris untuk ekstraksi glossary.`);
@@ -2604,7 +2636,8 @@
 
     const joinedText = getSelectedTranslationText(false);
     const glossaryBlock = getGlossaryPrompt(joinedText);
-    const p = `${(state.aiInstructionHeader || DEFAULT_PROMPT_HEADER).trim()}${glossaryBlock}${contextBlock}\n\n${joinedText}\n`;
+    const baseHeader = applyPromptVariables((state.aiInstructionHeader || DEFAULT_PROMPT_HEADER).trim());
+    const p = `${baseHeader}${glossaryBlock}${contextBlock}\n\n${joinedText}\n`;
     try {
       await navigator.clipboard.writeText(p);
       flashHint(`Disalin ${sel.length} baris.`);
@@ -2647,7 +2680,8 @@
       setAiCheckStatus("Tidak ada baris terjemahan yang dipilih.");
       return;
     }
-    const promptText = `${(state.aiCheckPrompt || DEFAULT_AI_CHECK_PROMPT).trim()}\n\n${sel.map(getLineForAiCheck).join("\n\n")}\n`;
+    const baseCheck = applyPromptVariables((state.aiCheckPrompt || DEFAULT_AI_CHECK_PROMPT).trim());
+    const promptText = `${baseCheck}\n\n${sel.map(getLineForAiCheck).join("\n\n")}\n`;
     try {
       await navigator.clipboard.writeText(promptText);
       setAiCheckStatus(`Disalin ${sel.length} baris untuk AI Check.`);
@@ -2845,6 +2879,7 @@
         if (!selectedUntranslated.has(num)) errors.push(`[#${num}] Nyasar, baris ini tidak kamu centang sebelumnya.`);
       }
     }
+    const ignoreNames = ui.checkIgnorePasteNames.checked;
     const updates = [];
     for (const it of parsed) {
       const l = state.lineByNum.get(it.num);
@@ -2852,9 +2887,13 @@
       const oN = !!(l.name || "").trim();
       let tN = !!(it.name || "").trim();
       if (!oN && tN) { it.msg = it.rawMsg; it.name = null; tN = false; }
-      if (oN && !tN) errors.push(`[#${it.num}] Nama karakter hilang.`);
-      else if (!oN && tN) errors.push(`[#${it.num}] Tiba-tiba ada nama karakter.`);
-      else if (!it.msg) errors.push(`[#${it.num}] Pesannya kosong.`);
+      
+      if (!ignoreNames) {
+        if (oN && !tN) errors.push(`[#${it.num}] Nama karakter hilang.`);
+        else if (!oN && tN) errors.push(`[#${it.num}] Tiba-tiba ada nama karakter.`);
+      }
+      
+      if (!it.msg) errors.push(`[#${it.num}] Pesannya kosong.`);
       else updates.push({ l, it });
     }
     if (errors.length) {
@@ -2864,7 +2903,7 @@
     for (const {l, it} of updates) {
       l.trans_message = it.msg;
       l.is_translated = true;
-      if (it.name) l.trans_name = it.name;
+      if (it.name && !ignoreNames) l.trans_name = it.name;
       state.selectedLines.delete(l.line_num);
     }
     ui.pasteArea.value = "";
@@ -3164,6 +3203,9 @@
   }
 
   function onOpenSettings() {
+    ui.settingsSourceLangSelect.value = state.sourceLang || "Japanese";
+    ui.settingsTargetLangSelect.value = state.targetLang || "Indonesian";
+    ui.settingsRegexFilterInput.value = state.regexFilter || "";
     ui.settingsPromptInput.value = state.aiInstructionHeader;
     ui.settingsGlossaryPromptInput.value = state.glossaryPrompt;
     ui.settingsAiCheckPromptInput.value = state.aiCheckPrompt;
@@ -3182,6 +3224,18 @@
   }
 
   function onSavePromptSettings() {
+    const sourceLang = ui.settingsSourceLangSelect.value || "Japanese";
+    const targetLang = ui.settingsTargetLangSelect.value || "Indonesian";
+    const regexFilter = ui.settingsRegexFilterInput.value;
+    
+    if (regexFilter) {
+      try {
+        new RegExp(regexFilter, "u");
+      } catch (err) {
+        return alert("Regex Filter tidak valid: " + err.message);
+      }
+    }
+    
     const aiInstructionHeader = ui.settingsPromptInput.value.trim();
     const glossaryPrompt = ui.settingsGlossaryPromptInput.value.trim();
     const aiCheckPrompt = ui.settingsAiCheckPromptInput.value.trim();
@@ -3198,6 +3252,9 @@
       return alert("Ctrl+ArrowUp dan Ctrl+ArrowDown sudah dipakai untuk riwayat pilihan.");
     }
 
+    state.sourceLang = sourceLang;
+    state.targetLang = targetLang;
+    state.regexFilter = regexFilter;
     state.aiInstructionHeader = aiInstructionHeader;
     state.glossaryPrompt = glossaryPrompt;
     state.aiCheckPrompt = aiCheckPrompt;
@@ -3217,6 +3274,7 @@
     ui.settingsSelectionPrevShortcutInput.value = prevShortcut;
     ui.settingsSelectionNextShortcutInput.value = nextShortcut;
     closeModal(ui.settingsModal);
+    refreshAll();
     renderGlossaryPreview();
     queueAutoSave();
   }

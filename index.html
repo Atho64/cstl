@@ -102,6 +102,12 @@
           </div>
           <label class="section-label" for="pasteArea">Paste hasil terjemahan AI di sini</label>
           <textarea id="pasteArea" class="mono input-area" placeholder="Paste hasil dari AI di sini..." disabled></textarea>
+          <div class="mb-2 mt-1">
+            <label class="flex-center gap-1 cursor-pointer">
+              <input type="checkbox" id="checkIgnorePasteNames" />
+              <span class="hint m-0">Abaikan Nama Karakter (Jangan terjemahkan nama saat paste)</span>
+            </label>
+          </div>
           <div class="inline-actions">
             <button id="btnApply" class="btn btn-success grow" disabled>Terapkan Terjemahan</button>
             <button id="btnUndo" class="btn btn-danger" disabled>Undo</button>
@@ -196,6 +202,33 @@
     <div class="modal modal-wide">
       <h3>Pengaturan</h3>
       <div class="mt-2">
+        <label class="section-label text-white m-0">Bahasa Proyek</label>
+        <p class="hint mt-1">Pilih bahasa sumber dan bahasa target terjemahan. Teks yang tidak sesuai dengan bahasa sumber akan disembunyikan (berguna untuk menyaring teks campur dalam proyek).</p>
+        <div class="flex-center gap-4 wrap mt-1">
+          <div class="flex-col grow">
+            <label class="hint m-0" for="settingsSourceLangSelect">Bahasa Sumber (Source)</label>
+            <select id="settingsSourceLangSelect" class="text-input w-full">
+              <option value="Japanese">Japanese</option>
+              <option value="English">English</option>
+              <option value="Chinese">Chinese</option>
+              <option value="Korean">Korean</option>
+            </select>
+          </div>
+          <div class="flex-col grow">
+            <label class="hint m-0" for="settingsTargetLangSelect">Bahasa Tujuan (Target)</label>
+            <select id="settingsTargetLangSelect" class="text-input w-full">
+              <option value="Indonesian">Indonesian</option>
+              <option value="English">English</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="mt-3">
+        <label class="section-label text-white m-0">Regex Filter</label>
+        <p class="hint mt-1">Sembunyikan baris yang cocok dengan regex ini (contoh: <code>^[A-Za-z0-9_]+$</code>). Kosongkan jika tidak digunakan.</p>
+        <input id="settingsRegexFilterInput" class="text-input w-full" type="text" placeholder="Masukkan pola regex (opsional)..." />
+      </div>
+      <div class="mt-3">
         <div class="flex-between mb-1">
           <label class="section-label text-white m-0">Pengaturan Prompt AI</label>
           <button id="btnSettingsReset" class="btn btn-outline btn-xs">Reset Default</button>
