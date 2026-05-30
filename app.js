@@ -476,7 +476,7 @@
   function getActiveBatchConfig() {
     if (state.activeWorkspaceTab === "glossary") {
       return {
-        lines: state.lines.slice(),
+        lines: state.lines.filter(l => !l._hidden),
         batchSize: normalizeSelectionBatchSize(state.glossaryBatchSize, DEFAULT_GLOSSARY_BATCH_SIZE),
         emptyMessage: "Tidak ada baris untuk Glossary Extractor.",
         tabLabel: "Glossary Extractor",
@@ -484,14 +484,14 @@
     }
     if (state.activeWorkspaceTab === "aiCheck") {
       return {
-        lines: state.lines.filter(isTranslated),
+        lines: state.lines.filter(l => isTranslated(l) && !l._hidden),
         batchSize: normalizeSelectionBatchSize(state.aiCheckBatchSize, DEFAULT_AI_CHECK_BATCH_SIZE),
         emptyMessage: "Tidak ada baris terjemahan untuk AI Check.",
         tabLabel: "AI Check",
       };
     }
     return {
-      lines: state.lines.filter(l => !isTranslated(l)),
+      lines: state.lines.filter(l => !isTranslated(l) && !l._hidden),
       batchSize: normalizeSelectionBatchSize(state.selectionBatchSize),
       emptyMessage: "Tidak ada baris belum diterjemahkan.",
       tabLabel: "Translate",
@@ -1135,7 +1135,7 @@
   }
 
   function isSelectableForActiveTab(line) {
-    if (!line) return false;
+    if (!line || line._hidden) return false;
     if (state.activeWorkspaceTab === "aiCheck") return isTranslated(line);
     if (state.activeWorkspaceTab === "translate") return !isTranslated(line);
     return true;
@@ -1415,6 +1415,8 @@
           // ignore invalid regex
         }
       }
+      
+      line._hidden = shouldHide;
       
       if (!shouldHide) {
         grouped.get(line.file).push(line);
