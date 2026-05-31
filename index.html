@@ -114,6 +114,14 @@
           </div>
           <label class="section-label mt-3">Daftar Nama Karakter</label>
           <p class="hint mb-2 hint-tight">Klik nama asli untuk copy. Isi terjemah nama untuk mengganti nama karakter di semua baris terkait.</p>
+          <div class="card-box mb-2">
+            <button id="btnCopyNamesForAi" class="btn btn-primary w-full" disabled>Copy <span id="copyNameCount">0</span> Nama untuk AI</button>
+          </div>
+          <label class="section-label" for="pasteNameArea">Paste hasil terjemahan nama AI di sini</label>
+          <textarea id="pasteNameArea" class="mono input-area small" placeholder="[character] 浅村 悠太 = Asamura Yuuta {male name}&#10;[character] 綾瀬 沙季 = Ayase Saki {female name}" disabled></textarea>
+          <div class="inline-actions mb-2">
+            <button id="btnApplyNameTranslations" class="btn btn-success grow" disabled>Terapkan Nama</button>
+          </div>
           <div id="nameTableWrap" class="name-table-wrap">
             <table class="name-table">
               <thead>

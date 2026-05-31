@@ -3,6 +3,7 @@
   const DEFAULT_PROMPT_HEADER = `Rewrite entire text to Native {{targetLang}}. Do not change prefix number. Euphemism prohibited. Use of "Bahasa Jakarta Selatan" is prohibited. Put results inside \`\`\`plaintext block.`;
   const DEFAULT_GLOSSARY_PROMPT = `Extract important names and story-specific terminology from the following text to build a typed glossary.\nFormat the output STRICTLY as:\n[type] [{{sourceLang}} term] = [{{targetLang}} term] {short description}\n\nAllowed types:\n[character], [place], [organization], [item], [ability], [title], [concept], [term]\n\nDescription examples:\n{male name}, {female name}, {family name}, {given name}, {place name}, {school}, {food}, {honorific}, {concept}\n\nExample:\n[character] 浅村 悠太 = Asamura Yuuta {male name}\n[character] 綾瀬 沙季 = Ayase Saki {female name}\n[place] 渋谷 = Shibuya {place name}\n[item] 炬燵 = Kotatsu {household item}\n[term] 義妹 = adik tiri perempuan {family term}\n\nRules:\n1. Do NOT translate the text itself.\n2. Only output the typed glossary list.\n3. Do NOT include common everyday words, ordinary verbs, generic adjectives, or basic nouns unless they are proper nouns, recurring key terms, culturally specific terms, or story-specific concepts.\n4. Prefer character names, family names, given names, place names, organization names, titles, unique items, abilities, honorifics, relationship terms, and recurring setting-specific terminology.\n5. Prefer specific types over [term].\n6. Include gender for character names when inferable from context; otherwise use {character name}.\n7. Put results inside \`\`\`plaintext block.`;
   const DEFAULT_AI_CHECK_PROMPT = `Check the existing {{targetLang}} translation against the original {{sourceLang}} text.\nOnly return lines that need correction. Do not return lines that are already good.\n\nUse this STRICT format for each correction:\n[line 12]\nreason: why this line needs correction\nname: corrected character name, or blank if unchanged/not applicable\ntext: corrected {{targetLang}} translation without the speaker name prefix\n\nRules:\n1. Keep the original line number exactly.\n2. Give a short, concrete reason.\n3. Use name only for corrected character names; leave it blank when unchanged.\n4. Put only the corrected message in text. Do NOT repeat the speaker name in text.\n5. Correct only the {{targetLang}} translation, not the {{sourceLang}} original.\n6. Respect provided glossary entries.\n7. Put results inside \`\`\`plaintext block.`;
+  const DEFAULT_NAME_TRANSLATION_PROMPT = `Translate or romanize all character names from {{sourceLang}} into natural {{targetLang}} name forms.\nUse the dialogue context only to infer reading, gender, relationship, or naming style.\n\nFormat the output STRICTLY as:\n[character] [{{sourceLang}} name] = [{{targetLang}} name] {short description}\n\nRules:\n1. Keep every source name exactly as given.\n2. Return one line for every name.\n3. Do NOT translate dialogue context.\n4. Do NOT add commentary or markdown outside the result.\n5. Put results inside \`\`\`plaintext block.`;
   const APP_VERSION = "vM4";
   const MAX_UNDO_STEPS = 10;
   const DEFAULT_SELECTION_BATCH_SIZE = 100;
@@ -237,6 +238,7 @@
       "previewViewport", "previewContainer", "progressFill", "progressText", "btnSelectAll",
       "btnClearSelection", "copyCount", "btnCopyForAi", "copyStatus", "pasteArea", "btnApply", "checkIgnorePasteNames",
       "btnUndo", "nameTableBody", "statusBar", "importFileInput", "importFolderInput", "importTranslatedFileInput", "importTranslatedFolderInput",
+      "btnCopyNamesForAi", "copyNameCount", "pasteNameArea", "btnApplyNameTranslations",
       "glossaryPreviewWrap", "glossaryPreviewText",
       "importZipInput", "importLucaTxtInput", "importLucaTxtFolderInput", "btnImportLucaTxt", "btnImportLucaTxtFolder",
       "glossaryFileInput", "settingsModal", "settingsPromptInput", "settingsGlossaryPromptInput", "settingsAiCheckPromptInput", "settingsEpubTagsInput",
@@ -288,8 +290,11 @@
     ui.glossaryFileInput.addEventListener("change", onImportGlossaryFile);
     ui.btnExport.addEventListener("click", onExport);
     ui.btnCopyForAi.addEventListener("click", onCopyForAi);
+    ui.btnCopyNamesForAi.addEventListener("click", onCopyNamesForAi);
     ui.btnCopyForGlossaryAi.addEventListener("click", onCopyForGlossaryAi);
     ui.btnApply.addEventListener("click", onApplyTranslation);
+    ui.btnApplyNameTranslations.addEventListener("click", onApplyNameTranslations);
+    ui.pasteNameArea.addEventListener("input", updateButtonStates);
     ui.btnSaveGlossary.addEventListener("click", onSaveGlossary);
     ui.btnImportGlossaryFile.addEventListener("click", () => ui.glossaryFileInput.click());
     ui.btnExportGlossaryFile.addEventListener("click", onExportGlossaryFile);
@@ -697,6 +702,7 @@
       lucaExportLang: "en",
       lucaRawFiles: {},
       updatedAt: Date.now(),
+      regex_filter: "",
       imported_files: [],
       lines: [],
       prompt_header: DEFAULT_PROMPT_HEADER,
@@ -838,6 +844,7 @@
         epubSourceId: state.epubSourceId,
         lucaExportLang: state.lucaExportLang,
         lucaRawFiles: state.lucaRawFiles,
+        regex_filter: state.regexFilter,
         imported_files: state.importedFiles,
         lines: state.lines,
         prompt_header: state.aiInstructionHeader,
@@ -867,6 +874,7 @@
     state.epubSourceId = data.epubSourceId || null;
     state.lucaExportLang = data.lucaExportLang || "en";
     state.lucaRawFiles = data.lucaRawFiles || {};
+    state.regexFilter = data.regex_filter || "";
     state.lines = (data.lines || []).map(normalizeLineDict);
     state.importedFiles = data.imported_files || [];
     state.aiInstructionHeader = data.prompt_header || DEFAULT_PROMPT_HEADER;
@@ -903,6 +911,7 @@
         projectType: state.projectType, epubTags: state.epubTags, epubSourceId: state.epubSourceId,
         lucaExportLang: state.lucaExportLang,
         lucaRawFiles: state.lucaRawFiles,
+        regex_filter: state.regexFilter,
         imported_files: state.importedFiles, lines: state.lines,
         prompt_header: state.aiInstructionHeader,
         glossary_prompt: state.glossaryPrompt,
@@ -964,6 +973,7 @@
         lucaExportLang: p.lucaExportLang || "en",
         lucaRawFiles: p.lucaRawFiles || {},
         updatedAt: Date.now(),
+        regex_filter: p.regex_filter || "",
         imported_files: p.imported_files || [],
         lines: (p.lines || []).map(normalizeLineDict),
         prompt_header: p.prompt_header || DEFAULT_PROMPT_HEADER,
@@ -988,6 +998,7 @@
   function updateButtonStates() {
     const hasData = state.lines.length > 0;
     const hasSelection = state.selectedLines.size > 0;
+    const nameCount = collectCharacterNameRows().length;
     const untranslatedSelectionCount = state.lines.filter(l => state.selectedLines.has(l.line_num) && !isTranslated(l)).length;
     const translatedSelectionCount = state.lines.filter(l => state.selectedLines.has(l.line_num) && isTranslated(l)).length;
     ui.btnExport.disabled = !hasData;
@@ -997,12 +1008,15 @@
     ui.btnSelectAll.disabled = !hasData;
     ui.btnClearSelection.disabled = !hasSelection;
     ui.btnCopyForAi.disabled = untranslatedSelectionCount === 0;
+    ui.btnCopyNamesForAi.disabled = nameCount === 0;
     ui.btnCopyForGlossaryAi.disabled = !hasSelection;
     ui.btnCopyForAiCheck.disabled = translatedSelectionCount === 0;
     ui.btnExtractEpubRubyNames.disabled = !(state.projectType === "epub" && state.epubSourceId);
     ui.pasteArea.disabled = !hasData;
+    ui.pasteNameArea.disabled = nameCount === 0;
     ui.pasteGlossaryArea.disabled = !hasData;
     ui.btnApply.disabled = !hasData;
+    ui.btnApplyNameTranslations.disabled = nameCount === 0 || !ui.pasteNameArea.value.trim();
     ui.btnSaveGlossary.disabled = !hasData;
     ui.btnParseAiCheck.disabled = !hasData;
     ui.pasteAiCheckArea.disabled = !hasData;
@@ -1014,6 +1028,7 @@
     ui.rangeToInput.disabled = !hasData;
     ui.btnSelectRange.disabled = !hasData;
     ui.copyCount.textContent = untranslatedSelectionCount;
+    ui.copyNameCount.textContent = nameCount;
     ui.copyGlossaryCount.textContent = state.selectedLines.size;
     ui.copyAiCheckCount.textContent = translatedSelectionCount;
     renderGlossaryPreview();
@@ -1532,13 +1547,30 @@
     updateButtonStates();
   }
 
+  function collectCharacterNameRows() {
+    const rows = new Map();
+    for (const line of state.lines) {
+      const name = String(line.name || "").trim();
+      if (!name) continue;
+      if (!rows.has(name)) {
+        rows.set(name, { name, lines: [], translatedNames: new Set() });
+      }
+      const row = rows.get(name);
+      row.lines.push(line);
+      const translatedName = String(line.trans_name || "").trim();
+      if (translatedName) row.translatedNames.add(translatedName);
+    }
+    return Array.from(rows.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }
+
   function renderNameTable() {
-    const autoDetectedNames = Array.from(new Set(state.lines.map(l => l.name).filter(Boolean))).sort();
+    const autoDetectedNames = collectCharacterNameRows();
     ui.nameTableBody.textContent = "";
     const frag = document.createDocumentFragment();
-    for (const n of autoDetectedNames) {
-      const matchingLines = state.lines.filter(l => l.name === n);
-      const translatedNames = Array.from(new Set(matchingLines.map(l => (l.trans_name || "").trim()).filter(Boolean)));
+    for (const nameRow of autoDetectedNames) {
+      const n = nameRow.name;
+      const matchingLines = nameRow.lines;
+      const translatedNames = Array.from(nameRow.translatedNames);
       const tr = document.createElement("tr");
       const sourceTd = document.createElement("td");
       sourceTd.textContent = n;
@@ -2636,6 +2668,169 @@
     } finally {
       ui.btnImportAnilistNames.disabled = false;
     }
+  }
+
+  function truncateForPrompt(text, maxLen = 180) {
+    const clean = String(text || "").replace(/\s+/g, " ").trim();
+    if (clean.length <= maxLen) return clean;
+    return `${clean.slice(0, maxLen - 3)}...`;
+  }
+
+  function buildNameTranslationPrompt(nameRows) {
+    const basePrompt = applyPromptVariables(DEFAULT_NAME_TRANSLATION_PROMPT).trim();
+    const namesBlock = nameRows.map((row, idx) => {
+      const translatedNames = Array.from(row.translatedNames);
+      const current = translatedNames.length === 1
+        ? ` (current: ${translatedNames[0]})`
+        : translatedNames.length > 1
+          ? ` (current variants: ${translatedNames.join(" / ")})`
+          : "";
+      return `${idx + 1}. ${row.name}${current}`;
+    }).join("\n");
+    const contextBlock = nameRows.map(row => {
+      const examples = row.lines.slice(0, 3).map(line => {
+        return `line ${line.line_num}: ${row.name}: ${truncateForPrompt(line.message)}`;
+      });
+      return `${row.name}\n${examples.join("\n")}`;
+    }).join("\n\n");
+    return `${basePrompt}\n\n<Names>\n${namesBlock}\n</Names>\n\n<Context>\nThese lines are for context only. Do NOT translate them.\n${contextBlock}\n</Context>\n`;
+  }
+
+  async function onCopyNamesForAi() {
+    const nameRows = collectCharacterNameRows();
+    if (!nameRows.length) return;
+    const promptText = buildNameTranslationPrompt(nameRows);
+    try {
+      await navigator.clipboard.writeText(promptText);
+      flashHint(`Disalin ${nameRows.length} nama untuk AI.`);
+    } catch (_) {
+      ui.pasteNameArea.value = promptText;
+      flashHint("Clipboard gagal, prompt dimasukkan ke kotak paste nama.");
+    }
+    updateButtonStates();
+  }
+
+  function stripPlaintextFences(text) {
+    return String(text || "")
+      .split(/\r?\n/)
+      .filter(line => !/^\s*```(?:plaintext|text)?\s*$/i.test(line.trim()))
+      .join("\n");
+  }
+
+  function stripDecorativeWrapping(value) {
+    let clean = String(value || "").trim();
+    const quotePairs = [
+      ['"', '"'],
+      ["'", "'"],
+      ["`", "`"],
+      ["[", "]"],
+      ["「", "」"],
+      ["『", "』"],
+    ];
+    let changed = true;
+    while (changed && clean.length >= 2) {
+      changed = false;
+      for (const [open, close] of quotePairs) {
+        if (clean.startsWith(open) && clean.endsWith(close)) {
+          clean = clean.slice(open.length, clean.length - close.length).trim();
+          changed = true;
+        }
+      }
+    }
+    return clean;
+  }
+
+  function matchKnownName(source, knownNames) {
+    const clean = stripDecorativeWrapping(source);
+    if (knownNames.has(clean)) return clean;
+    const normalized = clean.replace(/\s+/g, "");
+    for (const name of knownNames) {
+      if (name.replace(/\s+/g, "") === normalized) return name;
+    }
+    return null;
+  }
+
+  function parseNameTranslationPaste(text, nameRows) {
+    const knownNames = new Set(nameRows.map(row => row.name));
+    const result = new Map();
+    const errors = [];
+    const lines = stripPlaintextFences(text).split(/\r?\n/);
+    for (let i = 0; i < lines.length; i++) {
+      let raw = lines[i].trim();
+      if (!raw) continue;
+      raw = raw.replace(/^[-*]\s+/, "").replace(/^\d+[.)]\s+/, "");
+      const typeMatch = raw.match(/^\[([a-z ]+)\]\s*/i);
+      if (typeMatch) raw = raw.slice(typeMatch[0].length).trim();
+
+      let sepIdx = raw.indexOf("=");
+      let sepLen = 1;
+      if (sepIdx === -1) {
+        const arrowIdx = raw.indexOf("->");
+        if (arrowIdx !== -1) {
+          sepIdx = arrowIdx;
+          sepLen = 2;
+        }
+      }
+      if (sepIdx === -1) {
+        errors.push(`[Baris ${i + 1}] Format harus "nama = terjemah".`);
+        continue;
+      }
+
+      const source = matchKnownName(raw.slice(0, sepIdx), knownNames);
+      let target = raw.slice(sepIdx + sepLen).trim();
+      target = target.replace(/\s*\{[^{}]*\}\s*$/, "").trim();
+      target = stripDecorativeWrapping(target);
+
+      if (!source) {
+        errors.push(`[Baris ${i + 1}] Nama sumber tidak ada di tabel: "${raw.slice(0, sepIdx).trim()}".`);
+        continue;
+      }
+      if (!target) {
+        errors.push(`[Baris ${i + 1}] Terjemah nama "${source}" kosong.`);
+        continue;
+      }
+      result.set(source, target);
+    }
+    return { result, errors };
+  }
+
+  function onApplyNameTranslations() {
+    const nameRows = collectCharacterNameRows();
+    if (!nameRows.length) return;
+    const { result, errors } = parseNameTranslationPaste(ui.pasteNameArea.value.trim(), nameRows);
+    if (!result.size && !errors.length) return alert("Teks di kotak nama kosong atau tidak valid.");
+    if (errors.length) {
+      return alert("TERJEMAH NAMA DITOLAK:\n\n" + errors.slice(0, 12).join("\n") + (errors.length > 12 ? `\n\n... (+${errors.length - 12} error lain)` : ""));
+    }
+
+    let changedNames = 0;
+    let changedLines = 0;
+    pushUndoSnapshot();
+    for (const row of nameRows) {
+      if (!result.has(row.name)) continue;
+      const nextName = result.get(row.name);
+      let rowChanged = false;
+      for (const line of row.lines) {
+        if ((line.trans_name || "") !== nextName) {
+          line.trans_name = nextName;
+          changedLines++;
+          rowChanged = true;
+        }
+      }
+      if (rowChanged) changedNames++;
+    }
+
+    if (!changedLines) {
+      state.undoStack.pop();
+      ui.btnUndo.disabled = state.undoStack.length === 0;
+      flashHint("Tidak ada nama yang berubah.");
+      return;
+    }
+
+    ui.pasteNameArea.value = "";
+    refreshAll();
+    queueAutoSave();
+    flashHint(`Diterapkan ${changedNames} nama ke ${changedLines} baris.`);
   }
 
   async function onCopyForAi() {
