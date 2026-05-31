@@ -1537,12 +1537,14 @@
     ui.nameTableBody.textContent = "";
     const frag = document.createDocumentFragment();
     for (const n of autoDetectedNames) {
+      const matchingLines = state.lines.filter(l => l.name === n);
+      const translatedNames = Array.from(new Set(matchingLines.map(l => (l.trans_name || "").trim()).filter(Boolean)));
       const tr = document.createElement("tr");
-      const td = document.createElement("td");
-      td.textContent = n;
-      td.className = "mono";
-      td.title = "Klik untuk copy nama ke clipboard";
-      td.addEventListener("click", async () => {
+      const sourceTd = document.createElement("td");
+      sourceTd.textContent = n;
+      sourceTd.className = "mono name-source-cell";
+      sourceTd.title = "Klik untuk copy nama ke clipboard";
+      sourceTd.addEventListener("click", async () => {
         try {
           await navigator.clipboard.writeText(n);
           flashHint(`Nama "${n}" disalin!`);
@@ -1550,7 +1552,29 @@
           alert("Gagal menyalin teks.");
         }
       });
-      tr.appendChild(td);
+      const translatedTd = document.createElement("td");
+      const input = document.createElement("input");
+      input.type = "text";
+      input.className = "name-translation-input mono";
+      input.placeholder = n;
+      input.value = translatedNames.length === 1 ? translatedNames[0] : "";
+      input.title = translatedNames.length > 1
+        ? `Ada ${translatedNames.length} variasi terjemah nama. Isi untuk menyamakan semuanya.`
+        : "Terjemah nama karakter";
+      input.addEventListener("change", () => {
+        const nextName = input.value.trim().replace(/\r?\n/g, "\\n");
+        const currentNames = Array.from(new Set(matchingLines.map(l => (l.trans_name || "").trim())));
+        if (currentNames.length === 1 && currentNames[0] === nextName) return;
+        pushUndoSnapshot();
+        matchingLines.forEach(line => {
+          line.trans_name = nextName || null;
+        });
+        renderPreviewRows();
+        queueAutoSave();
+        flashHint(nextName ? `Nama "${n}" diganti menjadi "${nextName}".` : `Terjemah nama "${n}" dikosongkan.`);
+      });
+      translatedTd.appendChild(input);
+      tr.append(sourceTd, translatedTd);
       frag.appendChild(tr);
     }
     ui.nameTableBody.appendChild(frag);

@@ -646,10 +646,32 @@ html, body {
   padding: 10px; 
   font-weight: 600; 
   color: var(--muted); 
-  width: 100%; 
+  width: 50%; 
 }
 
 .name-table td.mono { font-family: 'JetBrains Mono', monospace; }
+
+.name-source-cell {
+  word-break: break-word;
+}
+
+.name-translation-input {
+  width: 100%;
+  min-width: 140px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 8px 10px;
+  background: #020617;
+  color: var(--text);
+  font-size: 13px;
+  text-align: center;
+  outline: none;
+}
+
+.name-translation-input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25);
+}
 
 .status-bar { 
   border-top: 1px solid var(--line); 
