@@ -21,6 +21,7 @@
     sourceLang: "Japanese",
     targetLang: "Indonesian",
     regexFilter: "",
+    disableEmptyLineValidation: false,
     currentProjectId: null,
     projectName: "",
     projectType: "",
@@ -238,12 +239,12 @@
       "previewViewport", "previewContainer", "progressFill", "progressText", "btnSelectAll",
       "btnClearSelection", "copyCount", "btnCopyForAi", "copyStatus", "pasteArea", "btnApply", "checkIgnorePasteNames",
       "btnUndo", "nameTableBody", "statusBar", "importFileInput", "importFolderInput", "importTranslatedFileInput", "importTranslatedFolderInput",
-      "btnCopyNamesForAi", "copyNameCount", "pasteNameArea", "btnApplyNameTranslations",
+      "btnCopyNamesForAi", "copyNameCount", "pasteNameArea", "btnApplyNameTranslations", "btnResetNameTranslations",
       "glossaryPreviewWrap", "glossaryPreviewText",
       "importZipInput", "importLucaTxtInput", "importLucaTxtFolderInput", "btnImportLucaTxt", "btnImportLucaTxtFolder",
       "glossaryFileInput", "settingsModal", "settingsPromptInput", "settingsGlossaryPromptInput", "settingsAiCheckPromptInput", "settingsEpubTagsInput",
       "settingsLucaWrap", "settingsLucaExportLangSelect", "settingsSourceLangSelect", "settingsTargetLangSelect", "settingsRegexFilterInput",
-      "settingsGlossaryInput", "settingsContextLinesInput", "settingsSelectionBatchSizeInput", "settingsGlossaryBatchSizeInput", "settingsAiCheckBatchSizeInput", "settingsSelectionPrevShortcutInput", "settingsSelectionNextShortcutInput", "btnSettingsReset", "btnSettingsGlossaryReset", "btnSettingsAiCheckReset", "btnSettingsCancel", "btnSettingsSave", "lineEditorModal", "lineEditorTitle",
+      "settingsDisableEmptyLineValidation", "settingsGlossaryInput", "settingsContextLinesInput", "settingsSelectionBatchSizeInput", "settingsGlossaryBatchSizeInput", "settingsAiCheckBatchSizeInput", "settingsSelectionPrevShortcutInput", "settingsSelectionNextShortcutInput", "btnSettingsReset", "btnSettingsGlossaryReset", "btnSettingsAiCheckReset", "btnSettingsCancel", "btnSettingsSave", "lineEditorModal", "lineEditorTitle",
       "tabTranslate", "tabGlossary", "viewTranslate", "viewGlossary", "btnCopyForGlossaryAi", "pasteGlossaryArea", "btnSaveGlossary", "btnImportGlossaryFile", "btnExportGlossaryFile", "copyGlossaryCount",
       "tabAiCheck", "viewAiCheck", "btnCopyForAiCheck", "copyAiCheckCount", "aiCheckStatus", "pasteAiCheckArea", "btnParseAiCheck", "btnApplyAiCheck", "btnClearAiCheck", "aiCheckResults",
       "vndbInput", "btnImportVndbNames", "vndbStatus",
@@ -294,6 +295,7 @@
     ui.btnCopyForGlossaryAi.addEventListener("click", onCopyForGlossaryAi);
     ui.btnApply.addEventListener("click", onApplyTranslation);
     ui.btnApplyNameTranslations.addEventListener("click", onApplyNameTranslations);
+    ui.btnResetNameTranslations.addEventListener("click", onResetNameTranslations);
     ui.pasteNameArea.addEventListener("input", updateButtonStates);
     ui.btnSaveGlossary.addEventListener("click", onSaveGlossary);
     ui.btnImportGlossaryFile.addEventListener("click", () => ui.glossaryFileInput.click());
@@ -703,6 +705,7 @@
       lucaRawFiles: {},
       updatedAt: Date.now(),
       regex_filter: "",
+      disable_empty_line_validation: false,
       imported_files: [],
       lines: [],
       prompt_header: DEFAULT_PROMPT_HEADER,
@@ -845,6 +848,7 @@
         lucaExportLang: state.lucaExportLang,
         lucaRawFiles: state.lucaRawFiles,
         regex_filter: state.regexFilter,
+        disable_empty_line_validation: state.disableEmptyLineValidation,
         imported_files: state.importedFiles,
         lines: state.lines,
         prompt_header: state.aiInstructionHeader,
@@ -875,6 +879,7 @@
     state.lucaExportLang = data.lucaExportLang || "en";
     state.lucaRawFiles = data.lucaRawFiles || {};
     state.regexFilter = data.regex_filter || "";
+    state.disableEmptyLineValidation = !!data.disable_empty_line_validation;
     state.lines = (data.lines || []).map(normalizeLineDict);
     state.importedFiles = data.imported_files || [];
     state.aiInstructionHeader = data.prompt_header || DEFAULT_PROMPT_HEADER;
@@ -912,6 +917,7 @@
         lucaExportLang: state.lucaExportLang,
         lucaRawFiles: state.lucaRawFiles,
         regex_filter: state.regexFilter,
+        disable_empty_line_validation: state.disableEmptyLineValidation,
         imported_files: state.importedFiles, lines: state.lines,
         prompt_header: state.aiInstructionHeader,
         glossary_prompt: state.glossaryPrompt,
@@ -974,6 +980,7 @@
         lucaRawFiles: p.lucaRawFiles || {},
         updatedAt: Date.now(),
         regex_filter: p.regex_filter || "",
+        disable_empty_line_validation: !!p.disable_empty_line_validation,
         imported_files: p.imported_files || [],
         lines: (p.lines || []).map(normalizeLineDict),
         prompt_header: p.prompt_header || DEFAULT_PROMPT_HEADER,
@@ -999,6 +1006,7 @@
     const hasData = state.lines.length > 0;
     const hasSelection = state.selectedLines.size > 0;
     const nameCount = collectCharacterNameRows().length;
+    const translatedNameCount = state.lines.filter(l => (l.name || "").trim() && (l.trans_name || "").trim()).length;
     const untranslatedSelectionCount = state.lines.filter(l => state.selectedLines.has(l.line_num) && !isTranslated(l)).length;
     const translatedSelectionCount = state.lines.filter(l => state.selectedLines.has(l.line_num) && isTranslated(l)).length;
     ui.btnExport.disabled = !hasData;
@@ -1009,6 +1017,7 @@
     ui.btnClearSelection.disabled = !hasSelection;
     ui.btnCopyForAi.disabled = untranslatedSelectionCount === 0;
     ui.btnCopyNamesForAi.disabled = nameCount === 0;
+    ui.btnResetNameTranslations.disabled = translatedNameCount === 0;
     ui.btnCopyForGlossaryAi.disabled = !hasSelection;
     ui.btnCopyForAiCheck.disabled = translatedSelectionCount === 0;
     ui.btnExtractEpubRubyNames.disabled = !(state.projectType === "epub" && state.epubSourceId);
@@ -1035,7 +1044,7 @@
   }
 
   function isTranslated(line) {
-    return !!line.is_translated && !!String(line.trans_message).trim();
+    return !!line.is_translated && (state.disableEmptyLineValidation || !!String(line.trans_message).trim());
   }
 
   function normalizeSelectionBatchSize(value, fallback = DEFAULT_SELECTION_BATCH_SIZE) {
@@ -1922,7 +1931,7 @@
       const entry = jsonArray[i];
       if (!entry || typeof entry !== "object") continue;
       const message = normalizeTranslatedImportValue(entry.message ?? entry.trans_message ?? entry.text);
-      if (!message) continue;
+      if (!message && !state.disableEmptyLineValidation) continue;
       const line = target.lines[i];
       const hasNameValue = Object.hasOwn(entry, "name") || Object.hasOwn(entry, "trans_name");
       const name = hasNameValue ? normalizeTranslatedImportValue(entry.name ?? entry.trans_name) : null;
@@ -1978,7 +1987,7 @@
         const slotIndex = exportLang === "zh" ? 3 : 2;
         const { name, text } = parseLucaTxtText(unquoteLuca(args[slotIndex]));
         const message = normalizeTranslatedImportValue(text);
-        if (!message) continue;
+        if (!message && !state.disableEmptyLineValidation) continue;
         importedRows++;
         const line = targetLineMap.get(`${rawIndex}|MESSAGE|`) || target.lines.find(row => row.luca_raw_index === rawIndex && row.luca_command !== "SELECT");
         if (!line) {
@@ -1992,7 +2001,7 @@
         const choices = splitLucaChoices(unquoteLuca(args[slotIndex]));
         for (let choiceIndex = 0; choiceIndex < choices.length; choiceIndex++) {
           const message = normalizeTranslatedImportValue(choices[choiceIndex]);
-          if (!message) continue;
+          if (!message && !state.disableEmptyLineValidation) continue;
           importedRows++;
           const line = targetLineMap.get(`${rawIndex}|SELECT|${choiceIndex}`);
           if (!line) {
@@ -2037,7 +2046,7 @@
       const limit = Math.min(els.length, lines.length);
       for (let i = 0; i < limit; i++) {
         const message = normalizeTranslatedImportValue(els[i].textContent.replace(/\r?\n/g, " ").trim());
-        if (message) updates.push({ line: lines[i], name: null, message, hasNameValue: false });
+        if (message || state.disableEmptyLineValidation) updates.push({ line: lines[i], name: null, message, hasNameValue: false });
       }
     }
 
@@ -2833,6 +2842,21 @@
     flashHint(`Diterapkan ${changedNames} nama ke ${changedLines} baris.`);
   }
 
+  function onResetNameTranslations() {
+    const affectedLines = state.lines.filter(line => (line.name || "").trim() && (line.trans_name || "").trim());
+    if (!affectedLines.length) return;
+    const affectedNames = new Set(affectedLines.map(line => String(line.name || "").trim()));
+    if (!confirm(`Reset semua terjemah nama karakter?\n\nIni akan mengosongkan ${affectedNames.size} nama di ${affectedLines.length} baris.`)) return;
+
+    pushUndoSnapshot();
+    for (const line of affectedLines) {
+      line.trans_name = null;
+    }
+    refreshAll();
+    queueAutoSave();
+    flashHint(`Terjemah nama dikosongkan untuk ${affectedNames.size} nama di ${affectedLines.length} baris.`);
+  }
+
   async function onCopyForAi() {
     const sel = state.lines.filter(l => state.selectedLines.has(l.line_num) && !isTranslated(l));
     if (!sel.length) return;
@@ -3114,7 +3138,7 @@
         else if (!oN && tN) errors.push(`[#${it.num}] Tiba-tiba ada nama karakter.`);
       }
       
-      if (!it.msg) errors.push(`[#${it.num}] Pesannya kosong.`);
+      if (!it.msg && !state.disableEmptyLineValidation) errors.push(`[#${it.num}] Pesannya kosong.`);
       else updates.push({ l, it });
     }
     if (errors.length) {
@@ -3123,7 +3147,7 @@
     pushUndoSnapshot();
     for (const {l, it} of updates) {
       l.trans_message = it.msg;
-      l.is_translated = true;
+      l.is_translated = !!(it.msg || state.disableEmptyLineValidation);
       if (it.name && !ignoreNames) l.trans_name = it.name;
       state.selectedLines.delete(l.line_num);
     }
@@ -3176,12 +3200,12 @@
     const l = state.lineByNum.get(activeLineEditorLineNum);
     if (!l) return;
     const m = ui.lineMessageInput.value.trim().replace(/\r?\n/g, "\\n");
-    if (ui.lineTranslatedCheck.checked && !m) return alert("Gagal: Pesan terjemahan kosong.");
+    if (ui.lineTranslatedCheck.checked && !m && !state.disableEmptyLineValidation) return alert("Gagal: Pesan terjemahan kosong.");
     let n = null;
     if (l.name) n = ui.lineNameInput.value.trim().replace(/\r?\n/g, "\\n");
     pushUndoSnapshot();
-    l.trans_message = m || null;
-    l.is_translated = !!(ui.lineTranslatedCheck.checked && m);
+    l.trans_message = m || (ui.lineTranslatedCheck.checked && state.disableEmptyLineValidation ? "" : null);
+    l.is_translated = !!(ui.lineTranslatedCheck.checked && (m || state.disableEmptyLineValidation));
     if (l.name) l.trans_name = n || null;
     closeModal(ui.lineEditorModal);
     refreshAll();
@@ -3427,6 +3451,7 @@
     ui.settingsSourceLangSelect.value = state.sourceLang || "Japanese";
     ui.settingsTargetLangSelect.value = state.targetLang || "Indonesian";
     ui.settingsRegexFilterInput.value = state.regexFilter || "";
+    ui.settingsDisableEmptyLineValidation.checked = !!state.disableEmptyLineValidation;
     ui.settingsPromptInput.value = state.aiInstructionHeader;
     ui.settingsGlossaryPromptInput.value = state.glossaryPrompt;
     ui.settingsAiCheckPromptInput.value = state.aiCheckPrompt;
@@ -3448,6 +3473,7 @@
     const sourceLang = ui.settingsSourceLangSelect.value || "Japanese";
     const targetLang = ui.settingsTargetLangSelect.value || "Indonesian";
     const regexFilter = ui.settingsRegexFilterInput.value;
+    const disableEmptyLineValidation = ui.settingsDisableEmptyLineValidation.checked;
     
     if (regexFilter) {
       try {
@@ -3476,6 +3502,7 @@
     state.sourceLang = sourceLang;
     state.targetLang = targetLang;
     state.regexFilter = regexFilter;
+    state.disableEmptyLineValidation = disableEmptyLineValidation;
     state.aiInstructionHeader = aiInstructionHeader;
     state.glossaryPrompt = glossaryPrompt;
     state.aiCheckPrompt = aiCheckPrompt;
@@ -3549,8 +3576,8 @@
           for (const el of els) {
             if (el.textContent.replace(/\r?\n/g, " ").trim() === "") continue;
             const l = fLines[lineIdx++];
-            if (l && l.is_translated && l.trans_message) {
-              el.textContent = l.trans_message;
+            if (l && isTranslated(l)) {
+              el.textContent = l.trans_message || "";
             }
           }
           
