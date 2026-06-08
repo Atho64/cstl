@@ -4,7 +4,7 @@
   const DEFAULT_GLOSSARY_PROMPT = `Extract important names and story-specific terminology from the following text to build a typed glossary.\nFormat the output STRICTLY as:\n[type] [{{sourceLang}} term] = [{{targetLang}} term] {short description}\n\nAllowed types:\n[character], [place], [organization], [item], [ability], [title], [concept], [term]\n\nDescription examples:\n{male name}, {female name}, {family name}, {given name}, {place name}, {school}, {food}, {honorific}, {concept}\n\nExample:\n[character] 浅村 悠太 = Asamura Yuuta {male name}\n[character] 綾瀬 沙季 = Ayase Saki {female name}\n[place] 渋谷 = Shibuya {place name}\n[item] 炬燵 = Kotatsu {household item}\n[term] 義妹 = adik tiri perempuan {family term}\n\nRules:\n1. Do NOT translate the text itself.\n2. Only output the typed glossary list.\n3. Do NOT include common everyday words, ordinary verbs, generic adjectives, or basic nouns unless they are proper nouns, recurring key terms, culturally specific terms, or story-specific concepts.\n4. Prefer character names, family names, given names, place names, organization names, titles, unique items, abilities, honorifics, relationship terms, and recurring setting-specific terminology.\n5. Prefer specific types over [term].\n6. Include gender for character names when inferable from context; otherwise use {character name}.\n7. Put results inside \`\`\`plaintext block.`;
   const DEFAULT_AI_CHECK_PROMPT = `Check the existing {{targetLang}} translation against the original {{sourceLang}} text.\nOnly return lines that need correction. Do not return lines that are already good.\n\nUse this STRICT format for each correction:\n[line 12]\nreason: why this line needs correction\nname: corrected character name, or blank if unchanged/not applicable\ntext: corrected {{targetLang}} translation without the speaker name prefix\n\nRules:\n1. Keep the original line number exactly.\n2. Give a short, concrete reason.\n3. Use name only for corrected character names; leave it blank when unchanged.\n4. Put only the corrected message in text. Do NOT repeat the speaker name in text.\n5. Correct only the {{targetLang}} translation, not the {{sourceLang}} original.\n6. Respect provided glossary entries.\n7. Put results inside \`\`\`plaintext block.`;
   const DEFAULT_NAME_TRANSLATION_PROMPT = `Translate or romanize all character names from {{sourceLang}} into natural {{targetLang}} name forms.\nUse the dialogue context only to infer reading, gender, relationship, or naming style.\n\nFormat the output STRICTLY as:\n[character] [{{sourceLang}} name] = [{{targetLang}} name] {short description}\n\nRules:\n1. Keep every source name exactly as given.\n2. Return one line for every name.\n3. Do NOT translate dialogue context.\n4. Do NOT add commentary or markdown outside the result.\n5. Put results inside \`\`\`plaintext block.`;
-  const APP_VERSION = "vM4";
+  const APP_VERSION = "vM5";
   const MAX_UNDO_STEPS = 10;
   const DEFAULT_SELECTION_BATCH_SIZE = 100;
   const DEFAULT_GLOSSARY_BATCH_SIZE = 500;
@@ -1166,7 +1166,7 @@
   }
 
   function normalizeLineDict(line) {
-    return {
+    const normalized = {
       line_num: Number(line.line_num),
       file: String(line.file),
       name: line.name == null ? null : String(line.name).replace(/\r?\n/g, "\\n").trim(),
@@ -1182,7 +1182,39 @@
       ...(line.luca_command != null ? { luca_command: String(line.luca_command).toUpperCase() } : {}),
       ...(line.luca_choice_index != null ? { luca_choice_index: Number(line.luca_choice_index) } : {}),
       ...(line.luca_raw_index != null ? { luca_raw_index: Number(line.luca_raw_index) } : {}),
+      ...(line.luca_heavy_quotes != null ? { luca_heavy_quotes: Boolean(line.luca_heavy_quotes) } : {}),
     };
+    return normalizeLucaHeavyQuoteFields(normalized);
+  }
+
+  function normalizeLucaHeavyQuoteFields(line) {
+    if (!line || (!line.luca_jp && !line.luca_raw && line.luca_heavy_quotes == null)) return line;
+    if (line.luca_heavy_quotes == null) {
+      if (line.luca_jp) {
+        const parsed = parseLucaTxtText(line.luca_jp);
+        if (parsed.heavyQuotes) {
+          line.luca_heavy_quotes = true;
+          if (detectLucaHeavyQuotes(line.message)) {
+            line.message = stripLucaHeavyQuotes(line.message);
+          }
+          if (line.trans_message != null && detectLucaHeavyQuotes(line.trans_message)) {
+            line.trans_message = stripLucaHeavyQuotes(line.trans_message);
+          }
+        }
+      } else if (detectLucaHeavyQuotes(line.message)) {
+        line.luca_heavy_quotes = true;
+        line.message = stripLucaHeavyQuotes(line.message);
+        if (line.trans_message != null && detectLucaHeavyQuotes(line.trans_message)) {
+          line.trans_message = stripLucaHeavyQuotes(line.trans_message);
+        }
+      }
+    } else if (line.luca_heavy_quotes) {
+      if (detectLucaHeavyQuotes(line.message)) line.message = stripLucaHeavyQuotes(line.message);
+      if (line.trans_message != null && detectLucaHeavyQuotes(line.trans_message)) {
+        line.trans_message = stripLucaHeavyQuotes(line.trans_message);
+      }
+    }
+    return line;
   }
 
   function normalizeFileBaseName(pathOrName) {
@@ -1233,13 +1265,60 @@
   // ─── LucaSystem TXT Parser ─────────────────────────────────────────────────
   // MESSAGE (id, "JP", "EN", "ZH", voiceId, flags, 0x0)
   // SELECT ("JP$dJP", "EN$dEN", "ZH$dZH")
-  // Speaker prefix embedded as @Name@ inside JP text
+  // Speaker prefix embedded as @Name@ inside JP text; dialogue may use heavy quotes ❝…❞
+  const LUCA_HEAVY_QUOTE_OPEN = "\u275D";
+  const LUCA_HEAVY_QUOTE_CLOSE = "\u275E";
+
+  function detectLucaHeavyQuotes(text) {
+    const s = String(text || "").trim();
+    return s.length >= 2 && s.startsWith(LUCA_HEAVY_QUOTE_OPEN) && s.endsWith(LUCA_HEAVY_QUOTE_CLOSE);
+  }
+
+  function stripLucaHeavyQuotes(text) {
+    const s = String(text || "").trim();
+    if (!detectLucaHeavyQuotes(s)) return s;
+    return s.slice(LUCA_HEAVY_QUOTE_OPEN.length, s.length - LUCA_HEAVY_QUOTE_CLOSE.length);
+  }
+
+  function wrapLucaHeavyQuotes(text, useQuotes) {
+    if (!useQuotes) return String(text || "");
+    const inner = stripLucaHeavyQuotes(String(text || ""));
+    return `${LUCA_HEAVY_QUOTE_OPEN}${inner}${LUCA_HEAVY_QUOTE_CLOSE}`;
+  }
+
+  function formatLucaTxtPayload(name, text, heavyQuotes) {
+    const msg = wrapLucaHeavyQuotes(text, heavyQuotes);
+    return name ? `@${name}@${msg}` : msg;
+  }
+
+  function getLucaHeavyQuotes(line) {
+    if (!line) return false;
+    if (line.luca_heavy_quotes != null) return Boolean(line.luca_heavy_quotes);
+    if (detectLucaHeavyQuotes(line.message)) return true;
+    if (line.luca_jp) return parseLucaTxtText(line.luca_jp).heavyQuotes;
+    return false;
+  }
+
   function parseLucaTxtText(raw) {
-    if (raw == null) return { name: null, text: "" };
+    if (raw == null) return { name: null, text: "", heavyQuotes: false };
     const s = String(raw);
     const m = s.match(/^@([^@]+)@(.*)$/s);
-    if (m) return { name: m[1].trim(), text: m[2].trim() };
-    return { name: null, text: s.trim() };
+    if (m) {
+      const rawText = m[2].trim();
+      const heavyQuotes = detectLucaHeavyQuotes(rawText);
+      return {
+        name: m[1].trim(),
+        text: heavyQuotes ? stripLucaHeavyQuotes(rawText) : rawText,
+        heavyQuotes,
+      };
+    }
+    const trimmed = s.trim();
+    const heavyQuotes = detectLucaHeavyQuotes(trimmed);
+    return {
+      name: null,
+      text: heavyQuotes ? stripLucaHeavyQuotes(trimmed) : trimmed,
+      heavyQuotes,
+    };
   }
 
   function splitLucaChoices(raw) {
@@ -1267,7 +1346,7 @@
         const jpRaw = unquoteLuca(args[1]);
         const enRaw = unquoteLuca(args[2]);
         const zhRaw = unquoteLuca(args[3]);
-        const { name, text: jpText } = parseLucaTxtText(jpRaw);
+        const { name, text: jpText, heavyQuotes } = parseLucaTxtText(jpRaw);
         if (!jpText && !name) continue; // skip empty
         lines.push({
           line_num: cur++,
@@ -1276,6 +1355,7 @@
           luca_command: command,
           name: name,
           message: jpText,
+          luca_heavy_quotes: heavyQuotes,
           luca_jp: jpRaw,
           luca_en: enRaw,
           luca_zh: zhRaw,
@@ -3678,7 +3758,7 @@
           // Reconstruct the translation name+message for this slot
           const tName = l.trans_name || l.name || "";
           const tMsg = (l.trans_message || "").replace(/\\n/g, "\n");
-          const tFull = tName ? `@${tName}@${tMsg}` : tMsg;
+          const tFull = formatLucaTxtPayload(tName, tMsg, getLucaHeavyQuotes(l));
           
           // Parse original args to reconstruct
           const parenStart = l.luca_raw.indexOf('(');
