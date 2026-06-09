@@ -10,7 +10,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./styles.css" />
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-  <script defer src="./app.js"></script>
+  <script defer src="./app.js?v=M7"></script>
 </head>
 <body>
   <div id="dashboardView" class="dashboard-shell open">
@@ -276,15 +276,26 @@
       </div>
       <div class="mt-3" id="settingsLucaWrap">
         <label class="section-label text-white m-0">Pengaturan TXT LucaSystem</label>
-        <p class="hint mt-1">Slot bahasa mana dalam file .txt yang akan diganti dengan terjemahan saat ekspor.</p>
+        <p class="hint mt-1">Pilih format script sebelum impor folder decompile LuckSystem. Setelah ada data, jangan ganti profil.</p>
         <div class="flex-center gap-4 wrap mt-1">
           <div class="flex-col grow">
-            <label class="hint m-0" for="settingsLucaExportLangSelect">Slot Ekspor (ganti bahasa ini)</label>
-            <select id="settingsLucaExportLangSelect" class="text-input w-full">
-              <option value="en">English (arg 3)</option>
-              <option value="zh">Chinese / 中文 (arg 4)</option>
+            <label class="hint m-0" for="settingsLucaProfileSelect">Profil game</label>
+            <select id="settingsLucaProfileSelect" class="text-input w-full">
+              <option value="summer-pockets-steam">Summer Pockets Steam (MESSAGE 4-slot)</option>
+              <option value="clannad-switch">CLANNAD Switch (MESSAGE JP+EN)</option>
+              <option value="tomoyo-switch">Tomoyo After Switch (MESSAGE voice+text)</option>
+              <option value="clannad-ss">CLANNAD Side Stories (MESSAGE_WAIT)</option>
             </select>
           </div>
+          <div class="flex-col grow" id="settingsLucaExportLangWrap">
+            <label class="hint m-0" for="settingsLucaExportLangSelect">Slot Ekspor (ganti bahasa ini)</label>
+            <select id="settingsLucaExportLangSelect" class="text-input w-full"></select>
+          </div>
+        </div>
+        <div class="mt-2" id="settingsLucaMcWrap">
+          <label class="hint m-0" for="settingsLucaMcDisplayNameInput">Nama MC tampilan (CLANNAD: token <code>＊Ｂ</code> = protagonis; game ganti nama di runtime)</label>
+          <input id="settingsLucaMcDisplayNameInput" class="text-input w-full mt-1" type="text" placeholder="Tomoya" />
+          <p class="hint m-0 mt-1">Hanya label di CSTL. Ekspor PAK tetap memakai <code>＊Ｂ@</code> di file script.</p>
         </div>
       </div>
       <div class="mt-3">

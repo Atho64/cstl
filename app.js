@@ -4,7 +4,9 @@
   const DEFAULT_GLOSSARY_PROMPT = `Extract important names and story-specific terminology from the following text to build a typed glossary.\nFormat the output STRICTLY as:\n[type] [{{sourceLang}} term] = [{{targetLang}} term] {short description}\n\nAllowed types:\n[character], [place], [organization], [item], [ability], [title], [concept], [term]\n\nDescription examples:\n{male name}, {female name}, {family name}, {given name}, {place name}, {school}, {food}, {honorific}, {concept}\n\nExample:\n[character] 浅村 悠太 = Asamura Yuuta {male name}\n[character] 綾瀬 沙季 = Ayase Saki {female name}\n[place] 渋谷 = Shibuya {place name}\n[item] 炬燵 = Kotatsu {household item}\n[term] 義妹 = adik tiri perempuan {family term}\n\nRules:\n1. Do NOT translate the text itself.\n2. Only output the typed glossary list.\n3. Do NOT include common everyday words, ordinary verbs, generic adjectives, or basic nouns unless they are proper nouns, recurring key terms, culturally specific terms, or story-specific concepts.\n4. Prefer character names, family names, given names, place names, organization names, titles, unique items, abilities, honorifics, relationship terms, and recurring setting-specific terminology.\n5. Prefer specific types over [term].\n6. Include gender for character names when inferable from context; otherwise use {character name}.\n7. Put results inside \`\`\`plaintext block.`;
   const DEFAULT_AI_CHECK_PROMPT = `Check the existing {{targetLang}} translation against the original {{sourceLang}} text.\nOnly return lines that need correction. Do not return lines that are already good.\n\nUse this STRICT format for each correction:\n[line 12]\nreason: why this line needs correction\nname: corrected character name, or blank if unchanged/not applicable\ntext: corrected {{targetLang}} translation without the speaker name prefix\n\nRules:\n1. Keep the original line number exactly.\n2. Give a short, concrete reason.\n3. Use name only for corrected character names; leave it blank when unchanged.\n4. Put only the corrected message in text. Do NOT repeat the speaker name in text.\n5. Correct only the {{targetLang}} translation, not the {{sourceLang}} original.\n6. Respect provided glossary entries.\n7. Put results inside \`\`\`plaintext block.`;
   const DEFAULT_NAME_TRANSLATION_PROMPT = `Translate or romanize all character names from {{sourceLang}} into natural {{targetLang}} name forms.\nUse the dialogue context only to infer reading, gender, relationship, or naming style.\n\nFormat the output STRICTLY as:\n[character] [{{sourceLang}} name] = [{{targetLang}} name] {short description}\n\nRules:\n1. Keep every source name exactly as given.\n2. Return one line for every name.\n3. Do NOT translate dialogue context.\n4. Do NOT add commentary or markdown outside the result.\n5. Put results inside \`\`\`plaintext block.`;
-  const APP_VERSION = "vM5";
+  const APP_VERSION = "vM7";
+  const DEFAULT_LUCA_MC_DISPLAY_NAME = "Tomoya";
+  const CLANNAD_PROTAGONIST_TOKENS = new Set(["＊Ｂ", "＊B", "＊Ａ", "＊A", "*B", "*A"]);
   const MAX_UNDO_STEPS = 10;
   const DEFAULT_SELECTION_BATCH_SIZE = 100;
   const DEFAULT_GLOSSARY_BATCH_SIZE = 500;
@@ -28,6 +30,8 @@
     epubTags: "p",
     epubSourceId: null,
     lucaExportLang: "en",
+    lucaProfile: "summer-pockets-steam",
+    lucaMcDisplayName: DEFAULT_LUCA_MC_DISPLAY_NAME,
     lucaRawFiles: {},
     lines: [],
     importedFiles: [],
@@ -243,7 +247,7 @@
       "glossaryPreviewWrap", "glossaryPreviewText",
       "importZipInput", "importLucaTxtInput", "importLucaTxtFolderInput", "btnImportLucaTxt", "btnImportLucaTxtFolder",
       "glossaryFileInput", "settingsModal", "settingsPromptInput", "settingsGlossaryPromptInput", "settingsAiCheckPromptInput", "settingsEpubTagsInput",
-      "settingsLucaWrap", "settingsLucaExportLangSelect", "settingsSourceLangSelect", "settingsTargetLangSelect", "settingsRegexFilterInput",
+      "settingsLucaWrap", "settingsLucaProfileSelect", "settingsLucaMcWrap", "settingsLucaMcDisplayNameInput", "settingsLucaExportLangWrap", "settingsLucaExportLangSelect", "settingsSourceLangSelect", "settingsTargetLangSelect", "settingsRegexFilterInput",
       "settingsDisableEmptyLineValidation", "settingsGlossaryInput", "settingsContextLinesInput", "settingsSelectionBatchSizeInput", "settingsGlossaryBatchSizeInput", "settingsAiCheckBatchSizeInput", "settingsSelectionPrevShortcutInput", "settingsSelectionNextShortcutInput", "btnSettingsReset", "btnSettingsGlossaryReset", "btnSettingsAiCheckReset", "btnSettingsCancel", "btnSettingsSave", "lineEditorModal", "lineEditorTitle",
       "tabTranslate", "tabGlossary", "viewTranslate", "viewGlossary", "btnCopyForGlossaryAi", "pasteGlossaryArea", "btnSaveGlossary", "btnImportGlossaryFile", "btnExportGlossaryFile", "copyGlossaryCount",
       "tabAiCheck", "viewAiCheck", "btnCopyForAiCheck", "copyAiCheckCount", "aiCheckStatus", "pasteAiCheckArea", "btnParseAiCheck", "btnApplyAiCheck", "btnClearAiCheck", "aiCheckResults",
@@ -368,6 +372,17 @@
     });
     ui.btnSettingsCancel.addEventListener("click", () => closeModal(ui.settingsModal));
     ui.btnSettingsSave.addEventListener("click", onSavePromptSettings);
+    if (ui.settingsLucaProfileSelect) {
+      ui.settingsLucaProfileSelect.addEventListener("change", () => {
+        if (state.lines.length > 0) return;
+        const profileId = ui.settingsLucaProfileSelect.value || DEFAULT_LUCA_PROFILE;
+        populateLucaExportSlotSelect(profileId);
+        const profile = getLucaProfile(profileId);
+        if (ui.settingsLucaMcWrap) {
+          ui.settingsLucaMcWrap.style.display = profile.nameAtFormat ? "block" : "none";
+        }
+      });
+    }
     ui.btnLineCancel.addEventListener("click", () => closeModal(ui.lineEditorModal));
     ui.btnLineSave.addEventListener("click", onSaveLineEditor);
     ui.btnProofreadClose.addEventListener("click", () => closeModal(ui.proofreadModal));
@@ -702,6 +717,8 @@
       epubTags: "p",
       epubSourceId: null,
       lucaExportLang: "en",
+      luca_profile: DEFAULT_LUCA_PROFILE,
+      luca_mc_display_name: DEFAULT_LUCA_MC_DISPLAY_NAME,
       lucaRawFiles: {},
       updatedAt: Date.now(),
       regex_filter: "",
@@ -846,6 +863,8 @@
         epubTags: state.epubTags,
         epubSourceId: state.epubSourceId,
         lucaExportLang: state.lucaExportLang,
+        luca_profile: state.lucaProfile || DEFAULT_LUCA_PROFILE,
+        luca_mc_display_name: state.lucaMcDisplayName || DEFAULT_LUCA_MC_DISPLAY_NAME,
         lucaRawFiles: state.lucaRawFiles,
         regex_filter: state.regexFilter,
         disable_empty_line_validation: state.disableEmptyLineValidation,
@@ -877,6 +896,8 @@
     state.epubTags = data.epubTags || "p";
     state.epubSourceId = data.epubSourceId || null;
     state.lucaExportLang = data.lucaExportLang || "en";
+    state.lucaProfile = data.luca_profile || DEFAULT_LUCA_PROFILE;
+    state.lucaMcDisplayName = data.luca_mc_display_name || DEFAULT_LUCA_MC_DISPLAY_NAME;
     state.lucaRawFiles = data.lucaRawFiles || {};
     state.regexFilter = data.regex_filter || "";
     state.disableEmptyLineValidation = !!data.disable_empty_line_validation;
@@ -915,6 +936,8 @@
         version: APP_VERSION, projectName: state.projectName,
         projectType: state.projectType, epubTags: state.epubTags, epubSourceId: state.epubSourceId,
         lucaExportLang: state.lucaExportLang,
+        luca_profile: state.lucaProfile || DEFAULT_LUCA_PROFILE,
+        luca_mc_display_name: state.lucaMcDisplayName || DEFAULT_LUCA_MC_DISPLAY_NAME,
         lucaRawFiles: state.lucaRawFiles,
         regex_filter: state.regexFilter,
         disable_empty_line_validation: state.disableEmptyLineValidation,
@@ -977,6 +1000,7 @@
         epubTags: p.epubTags || "p",
         epubSourceId: restoredEpubSourceId,
         lucaExportLang: p.lucaExportLang || "en",
+        luca_profile: p.luca_profile || DEFAULT_LUCA_PROFILE,
         lucaRawFiles: p.lucaRawFiles || {},
         updatedAt: Date.now(),
         regex_filter: p.regex_filter || "",
@@ -1183,6 +1207,7 @@
       ...(line.luca_choice_index != null ? { luca_choice_index: Number(line.luca_choice_index) } : {}),
       ...(line.luca_raw_index != null ? { luca_raw_index: Number(line.luca_raw_index) } : {}),
       ...(line.luca_heavy_quotes != null ? { luca_heavy_quotes: Boolean(line.luca_heavy_quotes) } : {}),
+      ...(line.luca_profile != null ? { luca_profile: String(line.luca_profile) } : {}),
     };
     return normalizeLucaHeavyQuoteFields(normalized);
   }
@@ -1263,8 +1288,298 @@
   }
 
   // ─── LucaSystem TXT Parser ─────────────────────────────────────────────────
-  // MESSAGE (id, "JP", "EN", "ZH", voiceId, flags, 0x0)
+  const DEFAULT_LUCA_PROFILE = "summer-pockets-steam";
+  const LUCA_PROFILES = {
+    "summer-pockets-steam": {
+      id: "summer-pockets-steam",
+      label: "Summer Pockets Steam",
+      shortLabel: "SP Steam",
+      commands: ["MESSAGE", "SELECT"],
+      messageMinArgs: 4,
+      messageExportSlot: (lang) => (lang === "zh" ? 3 : 2),
+      messageSourceSlot: 1,
+      messagePreArgCount: 1,
+      hasMultiLangRef: true,
+      selectMinArgs: 3,
+      selectJpSlot: 0,
+      selectEnSlot: 1,
+      selectZhSlot: 2,
+      selectExportSlot: (lang) => (lang === "zh" ? 2 : 1),
+      selectSourceSlot: 0,
+      exportSlotOptions: [
+        { value: "en", label: "English (arg 3)" },
+        { value: "zh", label: "Chinese / 中文 (arg 4)" },
+      ],
+    },
+    "clannad-switch": {
+      id: "clannad-switch",
+      label: "CLANNAD Switch",
+      shortLabel: "CLANNAD",
+      commands: ["MESSAGE", "SELECT"],
+      messageMinArgs: 2,
+      messageExportSlot: () => 1,
+      messageSourceSlot: 0,
+      messagePreArgCount: 0,
+      storeJpSlot: 0,
+      storeEnSlot: 1,
+      hasMultiLangRef: false,
+      selectMinArgs: 4,
+      selectJpSlot: 2,
+      selectEnSlot: 3,
+      selectZhSlot: null,
+      selectExportSlot: () => 3,
+      selectSourceSlot: 2,
+      nameAtFormat: true,
+      exportSlotOptions: [
+        { value: "en", label: "English (arg 2)" },
+      ],
+    },
+    "tomoyo-switch": {
+      id: "tomoyo-switch",
+      label: "Tomoyo After Switch",
+      shortLabel: "Tomoyo",
+      commands: ["MESSAGE", "SELECT"],
+      messageMinArgs: 2,
+      messageExportSlot: () => 1,
+      messageSourceSlot: 1,
+      messagePreArgCount: 1,
+      hasMultiLangRef: false,
+      selectMinArgs: 4,
+      selectJpSlot: 2,
+      selectEnSlot: 3,
+      selectZhSlot: null,
+      selectExportSlot: () => 3,
+      selectSourceSlot: 3,
+      exportSlotOptions: [
+        { value: "en", label: "English (arg 2)" },
+      ],
+    },
+    "clannad-ss": {
+      id: "clannad-ss",
+      label: "CLANNAD Side Stories",
+      shortLabel: "CLANNAD SS",
+      commands: ["MESSAGE_WAIT"],
+      messageMinArgs: 2,
+      messageExportSlot: () => 1,
+      messageSourceSlot: 1,
+      messagePreArgCount: 1,
+      messageRequiresQuotedSlot: 1,
+      hasMultiLangRef: false,
+      skipSelect: true,
+      exportSlotOptions: [
+        { value: "en", label: "Text (arg 2)" },
+      ],
+    },
+  };
+
+  function getLucaExportSlotOptions(profile) {
+    return profile.exportSlotOptions || [{ value: "en", label: "English" }];
+  }
+
+  function populateLucaExportSlotSelect(profileId) {
+    const select = ui.settingsLucaExportLangSelect;
+    if (!select) return;
+    const profile = getLucaProfile(profileId);
+    const options = getLucaExportSlotOptions(profile);
+    const preferred = select.value || state.lucaExportLang || "en";
+    select.replaceChildren();
+    for (const opt of options) {
+      const el = document.createElement("option");
+      el.value = opt.value;
+      el.textContent = opt.label;
+      select.appendChild(el);
+    }
+    const valid = options.some((o) => o.value === preferred);
+    select.value = valid ? preferred : options[0].value;
+  }
+
+  function getLucaProfile(profileId) {
+    return LUCA_PROFILES[profileId] || LUCA_PROFILES[DEFAULT_LUCA_PROFILE];
+  }
+
+  function getActiveLucaProfile() {
+    return getLucaProfile(state.lucaProfile || DEFAULT_LUCA_PROFILE);
+  }
+
+  function getLucaCommandRe(profile) {
+    const cmds = profile.commands.join("|");
+    return new RegExp(`^\\s*(?:(?:[A-Za-z_]\\w*)\\s*:\\s*)?(${cmds})\\s*\\(`, "i");
+  }
+
+  function isQuotedLucaArg(s) {
+    const t = String(s || "").trim();
+    return t.startsWith('"') && t.endsWith('"');
+  }
+
+  function buildLucaPre(raw, args, preArgCount) {
+    const parenStart = raw.indexOf("(");
+    if (parenStart === -1) return "";
+    if (!preArgCount) return raw.slice(0, parenStart + 1);
+    return raw.slice(0, parenStart + 1) + args.slice(0, preArgCount).join(", ");
+  }
+
+  function buildLucaMessageRow(profile, command, args, raw, lineIndex, fileName, lineNum) {
+    if (args.length < profile.messageMinArgs) return null;
+    if (profile.messageRequiresQuotedSlot != null && !isQuotedLucaArg(args[profile.messageRequiresQuotedSlot])) {
+      return null;
+    }
+    const sourceRaw = unquoteLuca(args[profile.messageSourceSlot]);
+    const { name, text, heavyQuotes } = parseLucaTxtText(sourceRaw);
+    if (!text && !name) return null;
+    const row = {
+      line_num: lineNum,
+      file: fileName,
+      luca_raw_index: lineIndex,
+      luca_command: command,
+      luca_profile: profile.id || state.lucaProfile,
+      name,
+      message: text,
+      luca_heavy_quotes: heavyQuotes,
+      luca_raw: raw,
+      luca_pre: buildLucaPre(raw, args, profile.messagePreArgCount),
+      trans_name: null,
+      trans_message: null,
+      is_translated: false,
+    };
+    if (profile.id === "summer-pockets-steam") {
+      row.luca_jp = unquoteLuca(args[1]);
+      row.luca_en = unquoteLuca(args[2]);
+      row.luca_zh = unquoteLuca(args[3]);
+    } else if (profile.storeEnSlot != null) {
+      if (profile.storeJpSlot != null) {
+        row.luca_jp = unquoteLuca(args[profile.storeJpSlot]);
+      }
+      row.luca_en = unquoteLuca(args[profile.storeEnSlot]);
+    } else if (profile.storeJpSlot != null) {
+      row.luca_jp = unquoteLuca(args[profile.storeJpSlot]);
+      row.luca_en = sourceRaw;
+    } else {
+      row.luca_en = sourceRaw;
+    }
+    return row;
+  }
+
+  function buildLucaSelectRows(profile, args, raw, lineIndex, fileName, startLineNum) {
+    if (profile.skipSelect) return [];
+    if (args.length < profile.selectMinArgs) return [];
+    const jpChoices = splitLucaChoices(unquoteLuca(args[profile.selectJpSlot]));
+    const enChoices = profile.selectEnSlot != null ? splitLucaChoices(unquoteLuca(args[profile.selectEnSlot])) : [];
+    const zhChoices = profile.selectZhSlot != null ? splitLucaChoices(unquoteLuca(args[profile.selectZhSlot])) : [];
+    const sourceSlot = profile.selectSourceSlot != null ? profile.selectSourceSlot : profile.selectJpSlot;
+    const sourceChoices = splitLucaChoices(unquoteLuca(args[sourceSlot]));
+    const rows = [];
+    let cur = startLineNum;
+    const choiceCount = Math.max(jpChoices.length, sourceChoices.length, enChoices.length);
+    for (let choiceIndex = 0; choiceIndex < choiceCount; choiceIndex++) {
+      const sourceText = String(sourceChoices[choiceIndex] || jpChoices[choiceIndex] || "").trim();
+      if (!sourceText) continue;
+      rows.push({
+        line_num: cur++,
+        file: fileName,
+        luca_raw_index: lineIndex,
+        luca_command: "SELECT",
+        luca_profile: profile.id || state.lucaProfile,
+        luca_choice_index: choiceIndex,
+        name: null,
+        message: sourceText,
+        luca_jp: String(jpChoices[choiceIndex] || "").trim(),
+        luca_en: String(enChoices[choiceIndex] || sourceChoices[choiceIndex] || "").trim(),
+        luca_zh: String(zhChoices[choiceIndex] || "").trim(),
+        luca_raw: raw,
+        luca_pre: buildLucaPre(raw, args, 0),
+        trans_name: null,
+        trans_message: null,
+        is_translated: false,
+      });
+    }
+    return rows;
+  }
+
+  function isClannadProtagonistToken(name) {
+    return CLANNAD_PROTAGONIST_TOKENS.has(String(name || "").trim());
+  }
+
+  function getLucaMcDisplayName() {
+    return String(state.lucaMcDisplayName || DEFAULT_LUCA_MC_DISPLAY_NAME).trim() || DEFAULT_LUCA_MC_DISPLAY_NAME;
+  }
+
+  function resolveLucaDisplayName(name, profileId) {
+    const n = String(name || "").trim();
+    if (!n) return null;
+    const profile = getLucaProfile(profileId || state.lucaProfile);
+    if (profile?.nameAtFormat && isClannadProtagonistToken(n)) {
+      return getLucaMcDisplayName();
+    }
+    return n;
+  }
+
+  function getLineDisplayName(line, translated = false) {
+    if (!line?.name) return null;
+    const profile = getLucaProfile(line.luca_profile || state.lucaProfile);
+    if (isClannadProtagonistToken(line.name) && profile?.nameAtFormat) {
+      return getLucaMcDisplayName();
+    }
+    if (translated) {
+      const translatedName = String(line.trans_name || "").trim();
+      if (translatedName) return translatedName;
+    }
+    return line.name;
+  }
+
+  function getLucaExportSpeakerName(line, profile) {
+    const token = String(line.name || "").trim();
+    if (profile?.nameAtFormat && isClannadProtagonistToken(token)) {
+      return token;
+    }
+    return String(line.trans_name || line.name || "").trim();
+  }
+
+  function formatLineLabel(line, { translated = false } = {}) {
+    const name = getLineDisplayName(line, translated);
+    const msg = translated && isTranslated(line) ? line.trans_message : line.message;
+    const prefix = line.line_num != null ? `${line.line_num}. ` : "";
+    return name ? `${prefix}${name}: ${msg}` : `${prefix}${msg}`;
+  }
+
+  function buildLucaExportText(line) {
+    const profile = getLucaProfile(line.luca_profile || state.lucaProfile);
+    const tName = getLucaExportSpeakerName(line, profile);
+    const tMsg = (line.trans_message || "").replace(/\\n/g, "\n");
+    if (tName || getLucaHeavyQuotes(line) || profile.nameAtFormat) {
+      return formatLucaTxtPayload(tName, tMsg, getLucaHeavyQuotes(line), profile.id);
+    }
+    return tMsg;
+  }
+
+  function applyLucaMessageExport(profile, args, line, exportLang) {
+    if (args.length < profile.messageMinArgs) return null;
+    const tFull = buildLucaExportText(line);
+    const targetIdx = profile.messageExportSlot(exportLang);
+    if (targetIdx == null || targetIdx >= args.length) return null;
+    args[targetIdx] = requoteLuca(tFull);
+    return args;
+  }
+
+  function applyLucaSelectExport(profile, args, selectLines, exportLang) {
+    if (profile.skipSelect || args.length < profile.selectMinArgs) return null;
+    const targetIdx = profile.selectExportSlot(exportLang);
+    const targetChoices = splitLucaChoices(unquoteLuca(args[targetIdx]));
+    const jpChoices = splitLucaChoices(unquoteLuca(args[profile.selectJpSlot]));
+    const mergedChoices = [...targetChoices];
+    for (const choiceLine of selectLines) {
+      const choiceIndex = choiceLine.luca_choice_index || 0;
+      const fallback = targetChoices[choiceIndex] || jpChoices[choiceIndex] || choiceLine.message || "";
+      mergedChoices[choiceIndex] = isTranslated(choiceLine)
+        ? String(choiceLine.trans_message || "").replace(/\\n/g, "\n")
+        : fallback;
+    }
+    args[targetIdx] = requoteLuca(mergedChoices.join("$d"));
+    return args;
+  }
+
+  // Summer Pockets Steam: MESSAGE (id, "JP", "EN", "ZH", voiceId, flags, 0x0)
   // SELECT ("JP$dJP", "EN$dEN", "ZH$dZH")
+  // CLANNAD Switch: SELECT (tableId, subId, "JP$dJP", "EN$dEN")
   // Speaker prefix embedded as @Name@ inside JP text; dialogue may use heavy quotes ❝…❞
   const LUCA_HEAVY_QUOTE_OPEN = "\u275D";
   const LUCA_HEAVY_QUOTE_CLOSE = "\u275E";
@@ -1286,7 +1601,52 @@
     return `${LUCA_HEAVY_QUOTE_OPEN}${inner}${LUCA_HEAVY_QUOTE_CLOSE}`;
   }
 
-  function formatLucaTxtPayload(name, text, heavyQuotes) {
+  function stripKeyEngineBackticks(text) {
+    let s = String(text || "").trim();
+    // CLANNAD EN often uses a leading ` only: `＊Ｂ@dialogue (no closing backtick)
+    if (s.startsWith("`") && s.endsWith("`") && s.length >= 2) {
+      s = s.slice(1, -1).trim();
+    } else {
+      if (s.startsWith("`")) s = s.slice(1).trim();
+      if (s.endsWith("`")) s = s.slice(0, -1).trim();
+    }
+    return s;
+  }
+
+  function normalizeKeyEngineSpeakerName(name) {
+    return String(name || "").trim().replace(/^`+/, "").replace(/`+$/, "");
+  }
+
+  function stripKeyEngineCornerQuotes(text) {
+    const s = String(text || "").trim();
+    if (s.startsWith("「") && s.endsWith("」") && s.length >= 2) {
+      return s.slice(1, -1).trim();
+    }
+    return s;
+  }
+
+  // CLANNAD / Key VN: `Name@dialogue` or Name@dialogue (JP may use 「…」)
+  function parseKeyNameAtText(raw) {
+    const s = stripKeyEngineBackticks(String(raw || "").trim());
+    const at = s.indexOf("@");
+    if (at <= 0) return null;
+    const name = normalizeKeyEngineSpeakerName(s.slice(0, at));
+    if (!name) return null;
+    const text = stripKeyEngineBackticks(stripKeyEngineCornerQuotes(s.slice(at + 1).trim()));
+    return { name, text };
+  }
+
+  function formatKeyNameAtPayload(name, text) {
+    const body = String(text || "");
+    if (!name) return body;
+    return `\`${name}@${body}\``;
+  }
+
+  function formatLucaTxtPayload(name, text, heavyQuotes, profileId) {
+    const profile = getLucaProfile(profileId || state.lucaProfile || DEFAULT_LUCA_PROFILE);
+    if (profile.nameAtFormat) {
+      return formatKeyNameAtPayload(name, text);
+    }
     const msg = wrapLucaHeavyQuotes(text, heavyQuotes);
     return name ? `@${name}@${msg}` : msg;
   }
@@ -1312,6 +1672,10 @@
         heavyQuotes,
       };
     }
+    const key = parseKeyNameAtText(s);
+    if (key) {
+      return { name: key.name, text: key.text, heavyQuotes: false };
+    }
     const trimmed = s.trim();
     const heavyQuotes = detectLucaHeavyQuotes(trimmed);
     return {
@@ -1325,72 +1689,31 @@
     return String(raw || "").split("$d");
   }
 
-  function parseLucaTxt(fileText, fileName, startLineNum) {
+  function parseLucaTxt(fileText, fileName, startLineNum, profileId) {
+    const profile = getLucaProfile(profileId || state.lucaProfile || DEFAULT_LUCA_PROFILE);
+    const commandRe = getLucaCommandRe(profile);
     const lines = [];
     let cur = startLineNum;
     const rawLines = fileText.split(/\r?\n/);
-    // Regex to match MESSAGE/SELECT, including optional leading script labels.
-    const COMMAND_RE = /^\s*(?:(?:[A-Za-z_]\w*):\s*)?(MESSAGE|SELECT)\s*\(/i;
     for (let i = 0; i < rawLines.length; i++) {
       const raw = rawLines[i];
-      const commandMatch = raw.match(COMMAND_RE);
+      const commandMatch = raw.match(commandRe);
       if (!commandMatch) continue;
       const command = commandMatch[1].toUpperCase();
-      const parenStart = raw.indexOf('(');
-      const parenEnd = raw.lastIndexOf(')');
+      const parenStart = raw.indexOf("(");
+      const parenEnd = raw.lastIndexOf(")");
       if (parenStart === -1 || parenEnd === -1) continue;
-      const argsStr = raw.slice(parenStart + 1, parenEnd);
-      const args = splitLucaArgs(argsStr);
-      if (command === "MESSAGE") {
-        if (args.length < 4) continue;
-        const jpRaw = unquoteLuca(args[1]);
-        const enRaw = unquoteLuca(args[2]);
-        const zhRaw = unquoteLuca(args[3]);
-        const { name, text: jpText, heavyQuotes } = parseLucaTxtText(jpRaw);
-        if (!jpText && !name) continue; // skip empty
-        lines.push({
-          line_num: cur++,
-          file: fileName,
-          luca_raw_index: i,
-          luca_command: command,
-          name: name,
-          message: jpText,
-          luca_heavy_quotes: heavyQuotes,
-          luca_jp: jpRaw,
-          luca_en: enRaw,
-          luca_zh: zhRaw,
-          luca_raw: raw,
-          luca_pre: raw.slice(0, parenStart + 1) + args[0],
-          trans_name: null,
-          trans_message: null,
-          is_translated: false,
-        });
+      const args = splitLucaArgs(raw.slice(parenStart + 1, parenEnd));
+      if (command === "MESSAGE" || command === "MESSAGE_WAIT") {
+        const row = buildLucaMessageRow(profile, command, args, raw, i, fileName, cur);
+        if (!row) continue;
+        lines.push(row);
+        cur++;
       } else if (command === "SELECT") {
-        if (args.length < 3) continue;
-        const jpChoices = splitLucaChoices(unquoteLuca(args[0]));
-        const enChoices = splitLucaChoices(unquoteLuca(args[1]));
-        const zhChoices = splitLucaChoices(unquoteLuca(args[2]));
-        for (let choiceIndex = 0; choiceIndex < jpChoices.length; choiceIndex++) {
-          const jpText = String(jpChoices[choiceIndex] || "").trim();
-          if (!jpText) continue;
-          lines.push({
-            line_num: cur++,
-            file: fileName,
-            luca_raw_index: i,
-            luca_command: command,
-            luca_choice_index: choiceIndex,
-            name: null,
-            message: jpText,
-            luca_jp: jpText,
-            luca_en: String(enChoices[choiceIndex] || "").trim(),
-            luca_zh: String(zhChoices[choiceIndex] || "").trim(),
-            luca_raw: raw,
-            luca_pre: raw.slice(0, parenStart + 1),
-            trans_name: null,
-            trans_message: null,
-            is_translated: false,
-          });
-        }
+        const selectRows = buildLucaSelectRows(profile, args, raw, i, fileName, cur);
+        if (!selectRows.length) continue;
+        lines.push(...selectRows);
+        cur += selectRows.length;
       }
     }
     return lines;
@@ -1443,7 +1766,19 @@
       const skippedFiles = [];
       const newLines = [];
 
-      if (state.lines.length === 0) state.projectType = "luca";
+      const selectedProfile = ui.settingsLucaProfileSelect
+        ? (ui.settingsLucaProfileSelect.value || DEFAULT_LUCA_PROFILE)
+        : (state.lucaProfile || DEFAULT_LUCA_PROFILE);
+      if (state.lines.length === 0) {
+        state.projectType = "luca";
+        state.lucaProfile = selectedProfile;
+      } else if (state.lucaProfile && state.lucaProfile !== selectedProfile) {
+        throw new Error(
+          `Profil aktif: ${getLucaProfile(state.lucaProfile).label}. ` +
+          `Profil di Setting: ${getLucaProfile(selectedProfile).label}. ` +
+          `Buat proyek baru atau samakan profil sebelum impor.`
+        );
+      }
 
       const sortedFiles = Array.from(files).sort((a, b) =>
         windowsFileOrderCompare(getFileOrderPath(a), getFileOrderPath(b))
@@ -1455,7 +1790,7 @@
         const buf = await f.arrayBuffer();
         const text = decodeArrayBuffer(new Uint8Array(buf));
         if (!existingFiles.has(baseName)) state.lucaRawFiles[baseName] = text.split(/\r?\n/);
-        const parsed = parseLucaTxt(text, baseName, cur);
+        const parsed = parseLucaTxt(text, baseName, cur, state.lucaProfile);
         if (parsed.length > 0) {
           existingFiles.add(baseName);
           newLines.push(...parsed);
@@ -1471,7 +1806,7 @@
         resetSelectionHistory();
         refreshAll();
         queueAutoSave();
-        let msg = `Berhasil impor ${newLines.length} baris dari TXT LucaSystem.`;
+        let msg = `Berhasil impor ${newLines.length} baris (${getActiveLucaProfile().label}).`;
         if (skippedFiles.length > 0) msg += ` (${skippedFiles.length} file duplikat diabaikan)`;
         flashHint(msg);
       } else if (skippedFiles.length > 0) {
@@ -1600,14 +1935,12 @@
       }
       const origDiv = document.createElement("div");
       origDiv.className = "original";
-      const dName = line.name || "";
-      origDiv.textContent = dName ? `${line.line_num}. ${dName}: ${line.message}` : `${line.line_num}. ${line.message}`;
+      origDiv.textContent = formatLineLabel(line);
       const transDiv = document.createElement("div");
       transDiv.className = "translated";
       let tTxt = "——";
       if (isTranslated(line)) {
-          const tName = line.trans_name || dName;
-          tTxt = tName ? `${line.line_num}. ${tName}: ${line.trans_message}` : `${line.line_num}. ${line.trans_message}`;
+          tTxt = formatLineLabel(line, { translated: true });
       } else {
           transDiv.classList.add("cell-muted");
       }
@@ -1708,7 +2041,9 @@
     
     let modeText = "-";
     if (state.importedFiles.length > 0) {
-      modeText = state.projectType === "epub" ? "EPUB" : state.projectType === "luca" ? "TXT LUCA" : "JSON VNTP";
+      if (state.projectType === "epub") modeText = "EPUB";
+      else if (state.projectType === "luca") modeText = `TXT LUCA (${getActiveLucaProfile().shortLabel})`;
+      else modeText = "JSON VNTP";
     }
 
     ui.statusBar.textContent = `Mode: ${modeText} | File: ${state.importedFiles.length > 1 ? state.importedFiles.length + ' file' : (state.importedFiles[0] || '-')} | Baris: ${total} | TL: ${trans}/${total} (${perc}%)`;
@@ -2043,9 +2378,10 @@
       targetLineMap.set(`${line.luca_raw_index}|${command}|${choiceIndex}`, line);
     }
 
+    const profile = getActiveLucaProfile();
     const exportLang = state.lucaExportLang || "en";
     const rawLines = String(fileText || "").split(/\r?\n/);
-    const commandRe = /^\s*(?:(?:[A-Za-z_]\w*):\s*)?(MESSAGE|SELECT)\s*\(/i;
+    const commandRe = getLucaCommandRe(profile);
     const updates = [];
     let importedRows = 0;
     const unmatchedRows = [];
@@ -2055,29 +2391,31 @@
       const commandMatch = raw.match(commandRe);
       if (!commandMatch) continue;
       const command = commandMatch[1].toUpperCase();
-      const parenStart = raw.indexOf('(');
-      const parenEnd = raw.lastIndexOf(')');
+      const parenStart = raw.indexOf("(");
+      const parenEnd = raw.lastIndexOf(")");
       if (parenStart === -1 || parenEnd === -1) continue;
       const args = splitLucaArgs(raw.slice(parenStart + 1, parenEnd));
 
-      if (command === "MESSAGE") {
-        if (args.length < 4) continue;
-        const sourceText = parseLucaTxtText(unquoteLuca(args[1]));
+      if (command === "MESSAGE" || command === "MESSAGE_WAIT") {
+        if (args.length < profile.messageMinArgs) continue;
+        if (profile.messageRequiresQuotedSlot != null && !isQuotedLucaArg(args[profile.messageRequiresQuotedSlot])) continue;
+        const sourceText = parseLucaTxtText(unquoteLuca(args[profile.messageSourceSlot]));
         if (!sourceText.text && !sourceText.name) continue;
-        const slotIndex = exportLang === "zh" ? 3 : 2;
+        const slotIndex = profile.messageExportSlot(exportLang);
         const { name, text } = parseLucaTxtText(unquoteLuca(args[slotIndex]));
         const message = normalizeTranslatedImportValue(text);
         if (!message && !state.disableEmptyLineValidation) continue;
         importedRows++;
-        const line = targetLineMap.get(`${rawIndex}|MESSAGE|`) || target.lines.find(row => row.luca_raw_index === rawIndex && row.luca_command !== "SELECT");
+        const line = targetLineMap.get(`${rawIndex}|${command}|`) ||
+          target.lines.find(row => row.luca_raw_index === rawIndex && row.luca_command !== "SELECT");
         if (!line) {
           unmatchedRows.push(rawIndex + 1);
           continue;
         }
         updates.push({ line, name: normalizeTranslatedImportValue(name), message, hasNameValue: !!name });
       } else if (command === "SELECT") {
-        if (args.length < 3) continue;
-        const slotIndex = exportLang === "zh" ? 2 : 1;
+        if (profile.skipSelect || args.length < profile.selectMinArgs) continue;
+        const slotIndex = profile.selectExportSlot(exportLang);
         const choices = splitLucaChoices(unquoteLuca(args[slotIndex]));
         for (let choiceIndex = 0; choiceIndex < choices.length; choiceIndex++) {
           const message = normalizeTranslatedImportValue(choices[choiceIndex]);
@@ -3252,24 +3590,69 @@
     ui.lineEditorTitle.textContent = l.luca_command === "SELECT"
       ? `Edit Baris ${num} - Select Choice ${(l.luca_choice_index || 0) + 1}`
       : `Edit Baris ${num}`;
-    ui.lineOriginalView.value = l.name ? `${l.name}: ${l.message}` : `${l.message}`;
-    ui.lineNameWrap.style.display = l.name ? "block" : "none";
-    ui.lineNameInput.value = l.name ? (l.trans_name || "") : "";
-    if (l.name) ui.lineNameInput.placeholder = l.name;
+    const displayName = getLineDisplayName(l);
+    ui.lineOriginalView.value = displayName ? `${displayName}: ${l.message}` : `${l.message}`;
+    const hideMcName = isClannadProtagonistToken(l.name) && getActiveLucaProfile().nameAtFormat;
+    ui.lineNameWrap.style.display = l.name && !hideMcName ? "block" : "none";
+    ui.lineNameInput.value = l.name && !hideMcName ? (l.trans_name || "") : "";
+    if (l.name && !hideMcName) ui.lineNameInput.placeholder = l.name;
     ui.lineMessageInput.value = (l.trans_message || "").trim();
     ui.lineTranslatedCheck.checked = isTranslated(l);
     // Show LucaSystem reference languages if available
-    if (state.projectType === "luca" && (l.luca_en || l.luca_zh)) {
-      if (l.luca_command === "SELECT") {
-        ui.lineRefEnView.value = l.luca_en || "";
-        ui.lineRefZhView.value = l.luca_zh || "";
+    if (state.projectType === "luca" && (l.luca_en || l.luca_zh || l.luca_jp)) {
+      const profile = getActiveLucaProfile();
+      if (profile.hasMultiLangRef) {
+        if (l.luca_command === "SELECT") {
+          ui.lineRefEnView.value = l.luca_en || "";
+          ui.lineRefZhView.value = l.luca_zh || "";
+        } else {
+          const { name: enName, text: enText } = parseLucaTxtText(l.luca_en || "");
+          const { name: zhName, text: zhText } = parseLucaTxtText(l.luca_zh || "");
+          ui.lineRefEnView.value = enName ? `${enName}: ${enText}` : enText;
+          ui.lineRefZhView.value = zhName ? `${zhName}: ${zhText}` : zhText;
+        }
+        ui.lucaRefWrap.style.display = "block";
+        ui.lineRefEnView.previousElementSibling.textContent = "🇬🇧 English (Referensi)";
+        ui.lineRefZhView.previousElementSibling.textContent = "🇨🇳 中文 (Referensi)";
+        ui.lineRefZhView.parentElement.style.display = "";
+      } else if (l.luca_command === "SELECT") {
+        const showEnRef = profile.selectSourceSlot === profile.selectJpSlot;
+        if (showEnRef) {
+          ui.lineRefEnView.value = l.luca_en || "";
+          ui.lineRefZhView.value = "";
+          ui.lucaRefWrap.style.display = ui.lineRefEnView.value ? "block" : "none";
+          ui.lineRefEnView.previousElementSibling.textContent = "🇬🇧 English (Referensi)";
+          ui.lineRefZhView.parentElement.style.display = "none";
+        } else {
+          ui.lineRefEnView.value = l.luca_jp || "";
+          ui.lineRefZhView.value = "";
+          ui.lucaRefWrap.style.display = ui.lineRefEnView.value ? "block" : "none";
+          ui.lineRefEnView.previousElementSibling.textContent = "🇯🇵 Japanese (Referensi)";
+          ui.lineRefZhView.parentElement.style.display = "none";
+        }
+      } else if (profile.storeEnSlot != null && profile.messageSourceSlot === profile.storeJpSlot) {
+        const enRef = parseLucaTxtText(l.luca_en || "");
+        const enName = resolveLucaDisplayName(enRef.name, profile.id);
+        ui.lineRefEnView.value = enName ? `${enName}: ${enRef.text}` : enRef.text;
+        ui.lineRefZhView.value = "";
+        ui.lucaRefWrap.style.display = ui.lineRefEnView.value ? "block" : "none";
+        ui.lineRefEnView.previousElementSibling.textContent = "🇬🇧 English (Referensi)";
+        ui.lineRefZhView.parentElement.style.display = "none";
       } else {
-        const { name: enName, text: enText } = parseLucaTxtText(l.luca_en || "");
-        const { name: zhName, text: zhText } = parseLucaTxtText(l.luca_zh || "");
-        ui.lineRefEnView.value = enName ? `${enName}: ${enText}` : enText;
-        ui.lineRefZhView.value = zhName ? `${zhName}: ${zhText}` : zhText;
+        const jpRef = parseLucaTxtText(l.luca_jp || "");
+        const jpName = resolveLucaDisplayName(jpRef.name, profile.id);
+        ui.lineRefEnView.value = jpName ? `${jpName}: ${jpRef.text}` : jpRef.text;
+        const rawSlot = l.luca_en && l.luca_en !== (l.luca_jp || "") ? l.luca_en : "";
+        const slotRef = rawSlot ? parseLucaTxtText(rawSlot) : { name: null, text: "" };
+        const slotName = resolveLucaDisplayName(slotRef.name, profile.id);
+        ui.lineRefZhView.value = slotRef.text
+          ? (slotName ? `${slotName}: ${slotRef.text}` : slotRef.text)
+          : "";
+        ui.lucaRefWrap.style.display = (ui.lineRefEnView.value || ui.lineRefZhView.value) ? "block" : "none";
+        ui.lineRefEnView.previousElementSibling.textContent = "🇯🇵 Japanese (Referensi)";
+        ui.lineRefZhView.previousElementSibling.textContent = "📎 Slot asli";
+        ui.lineRefZhView.parentElement.style.display = ui.lineRefZhView.value ? "" : "none";
       }
-      ui.lucaRefWrap.style.display = "block";
     } else {
       ui.lucaRefWrap.style.display = "none";
     }
@@ -3282,11 +3665,12 @@
     const m = ui.lineMessageInput.value.trim().replace(/\r?\n/g, "\\n");
     if (ui.lineTranslatedCheck.checked && !m && !state.disableEmptyLineValidation) return alert("Gagal: Pesan terjemahan kosong.");
     let n = null;
-    if (l.name) n = ui.lineNameInput.value.trim().replace(/\r?\n/g, "\\n");
+    const hideMcName = isClannadProtagonistToken(l.name) && getActiveLucaProfile().nameAtFormat;
+    if (l.name && !hideMcName) n = ui.lineNameInput.value.trim().replace(/\r?\n/g, "\\n");
     pushUndoSnapshot();
     l.trans_message = m || (ui.lineTranslatedCheck.checked && state.disableEmptyLineValidation ? "" : null);
     l.is_translated = !!(ui.lineTranslatedCheck.checked && (m || state.disableEmptyLineValidation));
-    if (l.name) l.trans_name = n || null;
+    if (l.name && !hideMcName) l.trans_name = n || null;
     closeModal(ui.lineEditorModal);
     refreshAll();
     if (ui.proofreadModal.classList.contains("open")) renderProofreadResults();
@@ -3544,8 +3928,31 @@
     ui.settingsSelectionPrevShortcutInput.value = state.selectionBatchPrevShortcut;
     ui.settingsSelectionNextShortcutInput.value = state.selectionBatchNextShortcut;
     // LucaSystem settings visibility
-    ui.settingsLucaWrap.style.display = state.projectType === "luca" ? "block" : "none";
-    ui.settingsLucaExportLangSelect.value = state.lucaExportLang || "en";
+    const showLucaSettings = state.projectType !== "epub";
+    ui.settingsLucaWrap.style.display = showLucaSettings ? "block" : "none";
+    if (ui.settingsLucaProfileSelect) {
+      ui.settingsLucaProfileSelect.value = state.lucaProfile || DEFAULT_LUCA_PROFILE;
+      ui.settingsLucaProfileSelect.disabled = state.lines.length > 0;
+    }
+    const activeProfile = getActiveLucaProfile();
+    if (ui.settingsLucaMcWrap) {
+      ui.settingsLucaMcWrap.style.display = activeProfile.nameAtFormat ? "block" : "none";
+    }
+    if (ui.settingsLucaMcDisplayNameInput) {
+      ui.settingsLucaMcDisplayNameInput.value = state.lucaMcDisplayName || DEFAULT_LUCA_MC_DISPLAY_NAME;
+    }
+    if (ui.settingsLucaExportLangWrap) {
+      ui.settingsLucaExportLangWrap.style.display = showLucaSettings ? "flex" : "none";
+    }
+    if (ui.settingsLucaExportLangSelect && showLucaSettings) {
+      const profileId = ui.settingsLucaProfileSelect?.value || state.lucaProfile || DEFAULT_LUCA_PROFILE;
+      populateLucaExportSlotSelect(profileId);
+      const saved = state.lucaExportLang || "en";
+      const options = getLucaExportSlotOptions(activeProfile);
+      ui.settingsLucaExportLangSelect.value = options.some((o) => o.value === saved)
+        ? saved
+        : ui.settingsLucaExportLangSelect.value;
+    }
     openModal(ui.settingsModal);
   }
 
@@ -3595,6 +4002,12 @@
     state.selectionBatchPrevShortcut = prevShortcut;
     state.selectionBatchNextShortcut = nextShortcut;
     state.lucaExportLang = ui.settingsLucaExportLangSelect.value || "en";
+    if (ui.settingsLucaMcDisplayNameInput) {
+      state.lucaMcDisplayName = ui.settingsLucaMcDisplayNameInput.value.trim() || DEFAULT_LUCA_MC_DISPLAY_NAME;
+    }
+    if (ui.settingsLucaProfileSelect && state.lines.length === 0) {
+      state.lucaProfile = ui.settingsLucaProfileSelect.value || DEFAULT_LUCA_PROFILE;
+    }
 
     ui.settingsSelectionBatchSizeInput.value = selectionBatchSize;
     ui.settingsGlossaryBatchSizeInput.value = glossaryBatchSize;
@@ -3693,6 +4106,7 @@
       }
     } else if (state.projectType === "luca") {
       // ─── LucaSystem TXT Export ────────────────────────────────────────────
+      const profile = getActiveLucaProfile();
       const exportLang = state.lucaExportLang || "en";
       const g = new Map();
       for (const l of state.lines) {
@@ -3702,90 +4116,41 @@
       const res = Array.from(g.entries()).map(([fileName, lns]) => {
         const rawLines = state.lucaRawFiles[fileName] ? [...state.lucaRawFiles[fileName]] : [];
         const outLines = rawLines.length > 0 ? rawLines : [];
-        let hasRawLines = outLines.length > 0;
+        const hasRawLines = outLines.length > 0;
         const handledSelectRows = new Set();
 
         for (const l of lns) {
-          if (!l.luca_raw) {
-            if (!hasRawLines) outLines.push(l.luca_raw);
-            continue;
-          }
+          if (!l.luca_raw) continue;
+          const parenStart = l.luca_raw.indexOf("(");
+          const parenEnd = l.luca_raw.lastIndexOf(")");
+          if (parenStart === -1 || parenEnd === -1) continue;
+          const args = splitLucaArgs(l.luca_raw.slice(parenStart + 1, parenEnd));
+
           if (l.luca_command === "SELECT") {
             const selectKey = l.luca_raw_index != null ? l.luca_raw_index : l.luca_raw;
             if (handledSelectRows.has(selectKey)) continue;
             handledSelectRows.add(selectKey);
-            const parenStart = l.luca_raw.indexOf('(');
-            const parenEnd = l.luca_raw.lastIndexOf(')');
-            if (parenStart === -1 || parenEnd === -1) {
-              if (!hasRawLines) outLines.push(l.luca_raw);
-              continue;
-            }
-            const argsStr = l.luca_raw.slice(parenStart + 1, parenEnd);
-            const args = splitLucaArgs(argsStr);
-            if (args.length < 3) {
-              if (!hasRawLines) outLines.push(l.luca_raw);
-              continue;
-            }
-            const targetIdx = exportLang === "zh" ? 2 : 1;
-            const targetChoices = splitLucaChoices(unquoteLuca(args[targetIdx]));
-            const jpChoices = splitLucaChoices(unquoteLuca(args[0]));
-            const selectLines = lns
-              .filter(row => row.luca_command === "SELECT" && row.luca_raw_index === l.luca_raw_index)
-              .sort((a, b) => (a.luca_choice_index || 0) - (b.luca_choice_index || 0));
-            const mergedChoices = [...targetChoices];
-            for (const choiceLine of selectLines) {
-              const choiceIndex = choiceLine.luca_choice_index || 0;
-              const fallback = targetChoices[choiceIndex] || jpChoices[choiceIndex] || choiceLine.message || "";
-              mergedChoices[choiceIndex] = isTranslated(choiceLine)
-                ? String(choiceLine.trans_message || "").replace(/\\n/g, "\n")
-                : fallback;
-            }
-            args[targetIdx] = requoteLuca(mergedChoices.join("$d"));
-            const prefix = l.luca_raw.slice(0, parenStart + 1);
-            const suffix = l.luca_raw.slice(parenEnd);
-            const newRaw = prefix + args.join(", ") + suffix;
+            const patched = applyLucaSelectExport(
+              profile,
+              args,
+              lns.filter(row => row.luca_command === "SELECT" && row.luca_raw_index === l.luca_raw_index)
+                .sort((a, b) => (a.luca_choice_index || 0) - (b.luca_choice_index || 0)),
+              exportLang
+            );
+            if (!patched) continue;
+            const newRaw = l.luca_raw.slice(0, parenStart + 1) + patched.join(", ") + l.luca_raw.slice(parenEnd);
             if (hasRawLines && l.luca_raw_index != null && l.luca_raw_index < outLines.length) {
               outLines[l.luca_raw_index] = newRaw;
-            } else if (!hasRawLines) {
-              outLines.push(newRaw);
             }
             continue;
           }
-          if (!isTranslated(l)) {
-            if (!hasRawLines) outLines.push(l.luca_raw);
-            continue;
-          }
-          // Reconstruct the translation name+message for this slot
-          const tName = l.trans_name || l.name || "";
-          const tMsg = (l.trans_message || "").replace(/\\n/g, "\n");
-          const tFull = formatLucaTxtPayload(tName, tMsg, getLucaHeavyQuotes(l));
-          
-          // Parse original args to reconstruct
-          const parenStart = l.luca_raw.indexOf('(');
-          const parenEnd = l.luca_raw.lastIndexOf(')');
-          if (parenStart === -1 || parenEnd === -1) { 
-             if (!hasRawLines) outLines.push(l.luca_raw); 
-             continue; 
-          }
-          
-          const argsStr = l.luca_raw.slice(parenStart + 1, parenEnd);
-          const args = splitLucaArgs(argsStr);
-          if (args.length < 4) { 
-             if (!hasRawLines) outLines.push(l.luca_raw); 
-             continue; 
-          }
-          
-          const targetIdx = exportLang === "zh" ? 3 : 2;
-          args[targetIdx] = requoteLuca(tFull);
-          
-          const prefix = l.luca_raw.slice(0, parenStart + 1);
-          const suffix = l.luca_raw.slice(parenEnd);
-          const newRaw = prefix + args.join(", ") + suffix;
-          
+
+          if (!isTranslated(l)) continue;
+          const patched = applyLucaMessageExport(profile, args, l, exportLang);
+          if (!patched) continue;
+          const newRaw = l.luca_raw.slice(0, parenStart + 1) + patched.join(", ") + l.luca_raw.slice(parenEnd);
           if (hasRawLines && l.luca_raw_index != null && l.luca_raw_index < outLines.length) {
             outLines[l.luca_raw_index] = newRaw;
-          } else if (!hasRawLines) {
-            outLines.push(newRaw);
           }
         }
         return {
