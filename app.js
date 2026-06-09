@@ -1207,6 +1207,7 @@
       ...(line.luca_choice_index != null ? { luca_choice_index: Number(line.luca_choice_index) } : {}),
       ...(line.luca_raw_index != null ? { luca_raw_index: Number(line.luca_raw_index) } : {}),
       ...(line.luca_heavy_quotes != null ? { luca_heavy_quotes: Boolean(line.luca_heavy_quotes) } : {}),
+      ...(line.luca_text_prefix != null ? { luca_text_prefix: String(line.luca_text_prefix) } : {}),
       ...(line.luca_profile != null ? { luca_profile: String(line.luca_profile) } : {}),
     };
     return normalizeLucaHeavyQuoteFields(normalized);
@@ -1424,7 +1425,7 @@
       return null;
     }
     const sourceRaw = unquoteLuca(args[profile.messageSourceSlot]);
-    const { name, text, heavyQuotes } = parseLucaTxtText(sourceRaw);
+    const { name, text, heavyQuotes, prefix } = parseLucaTxtText(sourceRaw);
     if (!text && !name) return null;
     const row = {
       line_num: lineNum,
@@ -1435,6 +1436,7 @@
       name,
       message: text,
       luca_heavy_quotes: heavyQuotes,
+      luca_text_prefix: prefix || null,
       luca_raw: raw,
       luca_pre: buildLucaPre(raw, args, profile.messagePreArgCount),
       trans_name: null,
@@ -1545,10 +1547,14 @@
     const profile = getLucaProfile(line.luca_profile || state.lucaProfile);
     const tName = getLucaExportSpeakerName(line, profile);
     const tMsg = (line.trans_message || "").replace(/\\n/g, "\n");
+    let out;
     if (tName || getLucaHeavyQuotes(line) || profile.nameAtFormat) {
-      return formatLucaTxtPayload(tName, tMsg, getLucaHeavyQuotes(line), profile.id);
+      out = formatLucaTxtPayload(tName, tMsg, getLucaHeavyQuotes(line), profile.id);
+    } else {
+      out = tMsg;
     }
-    return tMsg;
+    if (line.luca_text_prefix) out = line.luca_text_prefix + out;
+    return out;
   }
 
   function applyLucaMessageExport(profile, args, line, exportLang) {
@@ -1659,9 +1665,18 @@
     return false;
   }
 
+  function peelLucaTextPrefix(raw) {
+    const original = String(raw || "");
+    const prefixMatch = original.match(/^[\uFFFD\u0000-\u001F\uFEFF]+/);
+    const prefix = prefixMatch ? prefixMatch[0] : "";
+    const body = prefix ? original.slice(prefix.length) : original;
+    return { prefix, body };
+  }
+
   function parseLucaTxtText(raw) {
-    if (raw == null) return { name: null, text: "", heavyQuotes: false };
-    const s = String(raw);
+    if (raw == null) return { name: null, text: "", heavyQuotes: false, prefix: "" };
+    const { prefix, body } = peelLucaTextPrefix(raw);
+    const s = body;
     const m = s.match(/^@([^@]+)@(.*)$/s);
     if (m) {
       const rawText = m[2].trim();
@@ -1670,11 +1685,12 @@
         name: m[1].trim(),
         text: heavyQuotes ? stripLucaHeavyQuotes(rawText) : rawText,
         heavyQuotes,
+        prefix,
       };
     }
     const key = parseKeyNameAtText(s);
     if (key) {
-      return { name: key.name, text: key.text, heavyQuotes: false };
+      return { name: key.name, text: key.text, heavyQuotes: false, prefix };
     }
     const trimmed = s.trim();
     const heavyQuotes = detectLucaHeavyQuotes(trimmed);
@@ -1682,6 +1698,7 @@
       name: null,
       text: heavyQuotes ? stripLucaHeavyQuotes(trimmed) : trimmed,
       heavyQuotes,
+      prefix,
     };
   }
 
