@@ -4,7 +4,7 @@
   const DEFAULT_GLOSSARY_PROMPT = `Extract important names and story-specific terminology from the following text to build a typed glossary.\nFormat the output STRICTLY as:\n[type] [{{sourceLang}} term] = [{{targetLang}} term] {short description}\n\nAllowed types:\n[character], [place], [organization], [item], [ability], [title], [concept], [term]\n\nDescription examples:\n{male name}, {female name}, {family name}, {given name}, {place name}, {school}, {food}, {honorific}, {concept}\n\nExample:\n[character] 浅村 悠太 = Asamura Yuuta {male name}\n[character] 綾瀬 沙季 = Ayase Saki {female name}\n[place] 渋谷 = Shibuya {place name}\n[item] 炬燵 = Kotatsu {household item}\n[term] 義妹 = adik tiri perempuan {family term}\n\nRules:\n1. Do NOT translate the text itself.\n2. Only output the typed glossary list.\n3. Do NOT include common everyday words, ordinary verbs, generic adjectives, or basic nouns unless they are proper nouns, recurring key terms, culturally specific terms, or story-specific concepts.\n4. Prefer character names, family names, given names, place names, organization names, titles, unique items, abilities, honorifics, relationship terms, and recurring setting-specific terminology.\n5. Prefer specific types over [term].\n6. Include gender for character names when inferable from context; otherwise use {character name}.\n7. Put results inside \`\`\`plaintext block.`;
   const DEFAULT_AI_CHECK_PROMPT = `Check the existing {{targetLang}} translation against the original {{sourceLang}} text.\nOnly return lines that need correction. Do not return lines that are already good.\n\nUse this STRICT format for each correction:\n[line 12]\nreason: why this line needs correction\nname: corrected character name, or blank if unchanged/not applicable\ntext: corrected {{targetLang}} translation without the speaker name prefix\n\nRules:\n1. Keep the original line number exactly.\n2. Give a short, concrete reason.\n3. Use name only for corrected character names; leave it blank when unchanged.\n4. Put only the corrected message in text. Do NOT repeat the speaker name in text.\n5. Correct only the {{targetLang}} translation, not the {{sourceLang}} original.\n6. Respect provided glossary entries.\n7. Put results inside \`\`\`plaintext block.`;
   const DEFAULT_NAME_TRANSLATION_PROMPT = `Translate or romanize all character names from {{sourceLang}} into natural {{targetLang}} name forms.\nUse the dialogue context only to infer reading, gender, relationship, or naming style.\n\nFormat the output STRICTLY as:\n[character] [{{sourceLang}} name] = [{{targetLang}} name] {short description}\n\nRules:\n1. Keep every source name exactly as given.\n2. Return one line for every name.\n3. Do NOT translate dialogue context.\n4. Do NOT add commentary or markdown outside the result.\n5. Put results inside \`\`\`plaintext block.`;
-  const APP_VERSION = "vM7";
+  const APP_VERSION = "vM12";
   const DEFAULT_LUCA_MC_DISPLAY_NAME = "Tomoya";
   const CLANNAD_PROTAGONIST_TOKENS = new Set(["＊Ｂ", "＊B", "＊Ａ", "＊A", "*B", "*A"]);
   const MAX_UNDO_STEPS = 10;
@@ -33,6 +33,7 @@
     lucaProfile: "summer-pockets-steam",
     lucaMcDisplayName: DEFAULT_LUCA_MC_DISPLAY_NAME,
     lucaRawFiles: {},
+    lucaRawBuffers: {},
     lines: [],
     importedFiles: [],
     aiInstructionHeader: DEFAULT_PROMPT_HEADER,
@@ -720,6 +721,7 @@
       luca_profile: DEFAULT_LUCA_PROFILE,
       luca_mc_display_name: DEFAULT_LUCA_MC_DISPLAY_NAME,
       lucaRawFiles: {},
+      lucaRawBuffers: {},
       updatedAt: Date.now(),
       regex_filter: "",
       disable_empty_line_validation: false,
@@ -866,6 +868,7 @@
         luca_profile: state.lucaProfile || DEFAULT_LUCA_PROFILE,
         luca_mc_display_name: state.lucaMcDisplayName || DEFAULT_LUCA_MC_DISPLAY_NAME,
         lucaRawFiles: state.lucaRawFiles,
+        lucaRawBuffers: state.lucaRawBuffers,
         regex_filter: state.regexFilter,
         disable_empty_line_validation: state.disableEmptyLineValidation,
         imported_files: state.importedFiles,
@@ -899,6 +902,8 @@
     state.lucaProfile = data.luca_profile || DEFAULT_LUCA_PROFILE;
     state.lucaMcDisplayName = data.luca_mc_display_name || DEFAULT_LUCA_MC_DISPLAY_NAME;
     state.lucaRawFiles = data.lucaRawFiles || {};
+    state.lucaRawBuffers = data.lucaRawBuffers || {};
+    clearLucaFileLineBytesCache();
     state.regexFilter = data.regex_filter || "";
     state.disableEmptyLineValidation = !!data.disable_empty_line_validation;
     state.lines = (data.lines || []).map(normalizeLineDict);
@@ -939,6 +944,7 @@
         luca_profile: state.lucaProfile || DEFAULT_LUCA_PROFILE,
         luca_mc_display_name: state.lucaMcDisplayName || DEFAULT_LUCA_MC_DISPLAY_NAME,
         lucaRawFiles: state.lucaRawFiles,
+        lucaRawBuffers: state.lucaRawBuffers,
         regex_filter: state.regexFilter,
         disable_empty_line_validation: state.disableEmptyLineValidation,
         imported_files: state.importedFiles, lines: state.lines,
@@ -1002,6 +1008,7 @@
         lucaExportLang: p.lucaExportLang || "en",
         luca_profile: p.luca_profile || DEFAULT_LUCA_PROFILE,
         lucaRawFiles: p.lucaRawFiles || {},
+        lucaRawBuffers: p.lucaRawBuffers || {},
         updatedAt: Date.now(),
         regex_filter: p.regex_filter || "",
         disable_empty_line_validation: !!p.disable_empty_line_validation,
@@ -1208,6 +1215,7 @@
       ...(line.luca_raw_index != null ? { luca_raw_index: Number(line.luca_raw_index) } : {}),
       ...(line.luca_heavy_quotes != null ? { luca_heavy_quotes: Boolean(line.luca_heavy_quotes) } : {}),
       ...(line.luca_text_prefix != null ? { luca_text_prefix: String(line.luca_text_prefix) } : {}),
+      ...(line.luca_prefix_b64 != null ? { luca_prefix_b64: String(line.luca_prefix_b64) } : {}),
       ...(line.luca_profile != null ? { luca_profile: String(line.luca_profile) } : {}),
     };
     return normalizeLucaHeavyQuoteFields(normalized);
@@ -1263,6 +1271,186 @@
       catch (_) {}
     }
     return new TextDecoder("utf-8").decode(buffer);
+  }
+
+  function bytesToBase64(bytes) {
+    const u8 = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+    let binary = "";
+    for (let i = 0; i < u8.length; i++) binary += String.fromCharCode(u8[i]);
+    return btoa(binary);
+  }
+
+  function base64ToBytes(b64) {
+    if (!b64) return new Uint8Array(0);
+    const binary = atob(b64);
+    const out = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) out[i] = binary.charCodeAt(i);
+    return out;
+  }
+
+  function arrayBufferToBase64(buffer) {
+    return bytesToBase64(new Uint8Array(buffer));
+  }
+
+  function base64ToArrayBuffer(b64) {
+    const bytes = base64ToBytes(b64);
+    return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+  }
+
+  function latin1BytesToString(bytes) {
+    let s = "";
+    for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+    return s;
+  }
+
+  function decodeUtf8Bytes(bytes) {
+    return new TextDecoder("utf-8").decode(bytes);
+  }
+
+  function concatBytes(...parts) {
+    const arrays = parts.map((p) => (p instanceof Uint8Array ? p : new Uint8Array(p)));
+    const total = arrays.reduce((n, p) => n + p.length, 0);
+    const out = new Uint8Array(total);
+    let off = 0;
+    for (const p of arrays) {
+      out.set(p, off);
+      off += p.length;
+    }
+    return out;
+  }
+
+  function splitBufferToLines(buffer) {
+    const lines = [];
+    let start = 0;
+    for (let i = 0; i <= buffer.length; i++) {
+      if (i === buffer.length || buffer[i] === 0x0A) {
+        let end = i;
+        if (end > start && buffer[end - 1] === 0x0D) end--;
+        lines.push(buffer.slice(start, end));
+        start = i + 1;
+      }
+    }
+    return lines;
+  }
+
+  function joinLinesToBuffer(lineArrays) {
+    const nl = new Uint8Array([0x0D, 0x0A]);
+    const chunks = [];
+    let total = 0;
+    for (let i = 0; i < lineArrays.length; i++) {
+      if (i > 0) {
+        chunks.push(nl);
+        total += nl.length;
+      }
+      chunks.push(lineArrays[i]);
+      total += lineArrays[i].length;
+    }
+    const out = new Uint8Array(total);
+    let off = 0;
+    for (const c of chunks) {
+      out.set(c, off);
+      off += c.length;
+    }
+    return out;
+  }
+
+  function splitLucaArgsBytes(argsBytes) {
+    const args = [];
+    let cur = [];
+    let inQuote = false;
+    for (let i = 0; i < argsBytes.length; i++) {
+      const b = argsBytes[i];
+      if (b === 0x22) {
+        inQuote = !inQuote;
+        cur.push(b);
+        continue;
+      }
+      if (b === 0x2C && !inQuote) {
+        args.push(Uint8Array.from(cur));
+        cur = [];
+        while (i + 1 < argsBytes.length && argsBytes[i + 1] === 0x20) i++;
+        continue;
+      }
+      cur.push(b);
+    }
+    if (cur.length) args.push(Uint8Array.from(cur));
+    return args;
+  }
+
+  function extractMessageQuotedArgBytes(lineBytes, slotIndex) {
+    if (!lineBytes || !lineBytes.length || slotIndex == null) return null;
+    const lineStr = latin1BytesToString(lineBytes);
+    const match = lineStr.match(/\bMESSAGE(?:_WAIT)?\s*\(/i);
+    if (!match) return null;
+    const parenStart = lineStr.indexOf("(", match.index);
+    const parenEnd = lineStr.lastIndexOf(")");
+    if (parenStart === -1 || parenEnd === -1 || parenEnd <= parenStart) return null;
+    const args = splitLucaArgsBytes(lineBytes.slice(parenStart + 1, parenEnd));
+    if (slotIndex >= args.length) return null;
+    const arg = args[slotIndex];
+    if (!arg.length) return null;
+    if (arg[0] === 0x22 && arg[arg.length - 1] === 0x22) return arg.slice(1, -1);
+    return arg;
+  }
+
+  function extractTomoyoEnginePrefixBytes(argBytes) {
+    if (argBytes && argBytes.length >= 2 && argBytes[1] === 0xFF) return argBytes.slice(0, 2);
+    return new Uint8Array(0);
+  }
+
+  const lucaFileLineBytesCache = new Map();
+
+  function clearLucaFileLineBytesCache() {
+    lucaFileLineBytesCache.clear();
+  }
+
+  function getLucaFileLineBytes(fileName) {
+    if (lucaFileLineBytesCache.has(fileName)) return lucaFileLineBytesCache.get(fileName);
+    const rawB64 = state.lucaRawBuffers[fileName];
+    if (!rawB64) return null;
+    const lines = splitBufferToLines(new Uint8Array(base64ToArrayBuffer(rawB64)));
+    lucaFileLineBytesCache.set(fileName, lines);
+    return lines;
+  }
+
+  function countTomoyoBadEmbeddedPrefixesInFile(fileName, exportSlot) {
+    const lineBytesList = getLucaFileLineBytes(fileName);
+    if (!lineBytesList) return 0;
+    let bad = 0;
+    for (let i = 0; i < lineBytesList.length; i++) {
+      const lineBytes = lineBytesList[i];
+      if (!/\bMESSAGE(?:_WAIT)?\s*\(/i.test(latin1BytesToString(lineBytes))) continue;
+      const argBytes = extractMessageQuotedArgBytes(lineBytes, exportSlot);
+      if (argBytes && extractTomoyoEnginePrefixBytes(argBytes).length > 0) bad++;
+    }
+    return bad;
+  }
+
+  function countTomoyoBadEmbeddedPrefixes(exportSlot) {
+    let bad = 0;
+    for (const fileName of state.importedFiles) {
+      bad += countTomoyoBadEmbeddedPrefixesInFile(fileName, exportSlot);
+    }
+    return bad;
+  }
+
+  function patchMessageQuotedArgBytes(lineBytes, slotIndex, newArgContentBytes) {
+    const lineStr = latin1BytesToString(lineBytes);
+    const match = lineStr.match(/\bMESSAGE(?:_WAIT)?\s*\(/i);
+    if (!match) return lineBytes;
+    const parenStart = lineStr.indexOf("(", match.index);
+    const parenEnd = lineStr.lastIndexOf(")");
+    const before = lineBytes.slice(0, parenStart + 1);
+    const after = lineBytes.slice(parenEnd);
+    const args = splitLucaArgsBytes(lineBytes.slice(parenStart + 1, parenEnd));
+    if (slotIndex >= args.length) return lineBytes;
+    args[slotIndex] = concatBytes(new Uint8Array([0x22]), newArgContentBytes, new Uint8Array([0x22]));
+    const rebuilt = [];
+    for (let i = 0; i < args.length; i++) {
+      if (i > 0) rebuilt.push(new Uint8Array([0x2C, 0x20]));
+      rebuilt.push(args[i]);
+    }
+    return concatBytes(before, ...rebuilt, after);
   }
 
   async function parseJsonFromFileObject(file) {
@@ -1365,6 +1553,7 @@
       messageSourceSlot: 1,
       messagePreArgCount: 1,
       messageRequiresQuotedSlot: 1,
+      messageTailSlot: 2,
       hasMultiLangRef: false,
       skipSelect: true,
       exportSlotOptions: [
@@ -1419,12 +1608,21 @@
     return raw.slice(0, parenStart + 1) + args.slice(0, preArgCount).join(", ");
   }
 
-  function buildLucaMessageRow(profile, command, args, raw, lineIndex, fileName, lineNum) {
+  function buildLucaMessageRow(profile, command, args, raw, lineIndex, fileName, lineNum, lineBytes) {
     if (args.length < profile.messageMinArgs) return null;
     if (profile.messageRequiresQuotedSlot != null && !isQuotedLucaArg(args[profile.messageRequiresQuotedSlot])) {
       return null;
     }
-    const sourceRaw = unquoteLuca(args[profile.messageSourceSlot]);
+    let sourceRaw = unquoteLuca(args[profile.messageSourceSlot]);
+    let lucaPrefixB64 = null;
+    if (profile.id === "tomoyo-switch" && lineBytes) {
+      const argBytes = extractMessageQuotedArgBytes(lineBytes, profile.messageSourceSlot);
+      if (argBytes) {
+        const prefixBytes = extractTomoyoEnginePrefixBytes(argBytes);
+        if (prefixBytes.length) lucaPrefixB64 = bytesToBase64(prefixBytes);
+        sourceRaw = decodeUtf8Bytes(argBytes.slice(prefixBytes.length));
+      }
+    }
     const { name, text, heavyQuotes, prefix } = parseLucaTxtText(sourceRaw);
     if (!text && !name) return null;
     const row = {
@@ -1436,7 +1634,8 @@
       name,
       message: text,
       luca_heavy_quotes: heavyQuotes,
-      luca_text_prefix: prefix || null,
+      luca_text_prefix: lucaPrefixB64 ? null : (prefix || null),
+      luca_prefix_b64: lucaPrefixB64,
       luca_raw: raw,
       luca_pre: buildLucaPre(raw, args, profile.messagePreArgCount),
       trans_name: null,
@@ -1553,17 +1752,110 @@
     } else {
       out = tMsg;
     }
-    if (line.luca_text_prefix) out = line.luca_text_prefix + out;
+    if (!line.luca_prefix_b64 && line.luca_text_prefix) out = line.luca_text_prefix + out;
     return out;
   }
 
-  function applyLucaMessageExport(profile, args, line, exportLang) {
+  function buildTomoyoQuotedArgBytes(line) {
+    // lucksystem import adds inverted-length (2-byte) prefix itself; txt must be payload only.
+    return new TextEncoder().encode(buildLucaExportText(line));
+  }
+
+  const TOMOYO_UTF8_REPLACEMENT = new Uint8Array([0xEF, 0xBF, 0xBD]);
+
+  function stripTomoyoQuotedArgPrefix(argBytes) {
+    let bytes = argBytes instanceof Uint8Array ? argBytes : new Uint8Array(argBytes);
+    let changed = true;
+    while (changed && bytes.length > 0) {
+      changed = false;
+      const enginePrefix = extractTomoyoEnginePrefixBytes(bytes);
+      if (enginePrefix.length) {
+        bytes = bytes.slice(enginePrefix.length);
+        changed = true;
+        continue;
+      }
+      if (
+        bytes.length >= 3 &&
+        bytes[0] === TOMOYO_UTF8_REPLACEMENT[0] &&
+        bytes[1] === TOMOYO_UTF8_REPLACEMENT[1] &&
+        bytes[2] === TOMOYO_UTF8_REPLACEMENT[2]
+      ) {
+        bytes = bytes.slice(3);
+        changed = true;
+      }
+    }
+    return bytes;
+  }
+
+  function normalizeTomoyoMessageLineBytes(lineBytes, slotIndex) {
+    const argBytes = extractMessageQuotedArgBytes(lineBytes, slotIndex);
+    if (!argBytes) return lineBytes;
+    const payload = stripTomoyoQuotedArgPrefix(argBytes);
+    if (payload.length === argBytes.length) return lineBytes;
+    return patchMessageQuotedArgBytes(lineBytes, slotIndex, payload);
+  }
+
+  function normalizeTomoyoMessageLineString(rawLine, slotIndex) {
+    const parenStart = rawLine.indexOf("(");
+    const parenEnd = rawLine.lastIndexOf(")");
+    if (parenStart === -1 || parenEnd === -1) return rawLine;
+    const args = splitLucaArgs(rawLine.slice(parenStart + 1, parenEnd));
+    if (slotIndex >= args.length) return rawLine;
+    const argText = unquoteLuca(args[slotIndex]);
+    const payload = decodeUtf8Bytes(stripTomoyoQuotedArgPrefix(new TextEncoder().encode(argText)));
+    if (payload === argText) return rawLine;
+    args[slotIndex] = requoteLuca(payload);
+    return rawLine.slice(0, parenStart + 1) + args.join(", ") + rawLine.slice(parenEnd);
+  }
+
+  function normalizeTomoyoMessageLinesInArray(lines, slotIndex) {
+    for (let i = 0; i < lines.length; i++) {
+      if (/\bMESSAGE(?:_WAIT)?\s*\(/i.test(lines[i])) {
+        lines[i] = normalizeTomoyoMessageLineString(lines[i], slotIndex);
+      }
+    }
+    return lines;
+  }
+
+  function extractLucaCallArgs(rawLine) {
+    if (!rawLine) return null;
+    const parenStart = rawLine.indexOf("(");
+    const parenEnd = rawLine.lastIndexOf(")");
+    if (parenStart === -1 || parenEnd === -1 || parenEnd <= parenStart) return null;
+    return splitLucaArgs(rawLine.slice(parenStart + 1, parenEnd));
+  }
+
+  /** CLANNAD SS MESSAGE_WAIT: keep engine tail (1280 / 1024 / 9) — arg 3 controls line breaks in-game. */
+  function preserveMessageWaitTrailingArgs(command, args, sourceRawLine, profile) {
+    if (command !== "MESSAGE_WAIT" || !sourceRawLine) return args;
+    const orig = extractLucaCallArgs(sourceRawLine);
+    const tailSlot = profile?.messageTailSlot ?? 2;
+    if (!orig || orig.length <= tailSlot) return args;
+    const out = args.slice();
+    for (let i = tailSlot; i < orig.length; i++) {
+      while (out.length <= i) out.push(orig[i]);
+      out[i] = orig[i];
+    }
+    return out;
+  }
+
+  function applyLucaMessageExport(profile, args, line, exportLang, sourceRawLine) {
     if (args.length < profile.messageMinArgs) return null;
-    const tFull = buildLucaExportText(line);
     const targetIdx = profile.messageExportSlot(exportLang);
-    if (targetIdx == null || targetIdx >= args.length) return null;
+    if (targetIdx == null) return null;
+    const orig = extractLucaCallArgs(sourceRawLine || line.luca_raw);
+    if (orig && orig.length > args.length) {
+      while (args.length < orig.length) args.push(orig[args.length]);
+    }
+    if (targetIdx >= args.length) return null;
+    const tFull = buildLucaExportText(line);
     args[targetIdx] = requoteLuca(tFull);
-    return args;
+    return preserveMessageWaitTrailingArgs(
+      line.luca_command,
+      args,
+      sourceRawLine || line.luca_raw,
+      profile
+    );
   }
 
   function applyLucaSelectExport(profile, args, selectLines, exportLang) {
@@ -1706,7 +1998,7 @@
     return String(raw || "").split("$d");
   }
 
-  function parseLucaTxt(fileText, fileName, startLineNum, profileId) {
+  function parseLucaTxt(fileText, fileName, startLineNum, profileId, lineByteArrays) {
     const profile = getLucaProfile(profileId || state.lucaProfile || DEFAULT_LUCA_PROFILE);
     const commandRe = getLucaCommandRe(profile);
     const lines = [];
@@ -1721,8 +2013,9 @@
       const parenEnd = raw.lastIndexOf(")");
       if (parenStart === -1 || parenEnd === -1) continue;
       const args = splitLucaArgs(raw.slice(parenStart + 1, parenEnd));
+      const lineBytes = lineByteArrays && lineByteArrays[i] ? lineByteArrays[i] : null;
       if (command === "MESSAGE" || command === "MESSAGE_WAIT") {
-        const row = buildLucaMessageRow(profile, command, args, raw, i, fileName, cur);
+        const row = buildLucaMessageRow(profile, command, args, raw, i, fileName, cur, lineBytes);
         if (!row) continue;
         lines.push(row);
         cur++;
@@ -1805,9 +2098,13 @@
         const baseName = f.name;
         if (existingFiles.has(baseName)) { skippedFiles.push(baseName); continue; }
         const buf = await f.arrayBuffer();
-        const text = decodeArrayBuffer(new Uint8Array(buf));
-        if (!existingFiles.has(baseName)) state.lucaRawFiles[baseName] = text.split(/\r?\n/);
-        const parsed = parseLucaTxt(text, baseName, cur, state.lucaProfile);
+        const bytes = new Uint8Array(buf);
+        const text = decodeArrayBuffer(bytes);
+        if (!existingFiles.has(baseName)) {
+          state.lucaRawFiles[baseName] = text.split(/\r?\n/);
+          state.lucaRawBuffers[baseName] = arrayBufferToBase64(buf);
+        }
+        const parsed = parseLucaTxt(text, baseName, cur, state.lucaProfile, splitBufferToLines(bytes));
         if (parsed.length > 0) {
           existingFiles.add(baseName);
           newLines.push(...parsed);
@@ -1817,6 +2114,7 @@
       }
 
       if (newLines.length > 0) {
+        clearLucaFileLineBytesCache();
         state.lines = [...state.lines, ...newLines];
         state.importedFiles = Array.from(existingFiles);
         state.selectedLines.clear();
@@ -1825,6 +2123,14 @@
         queueAutoSave();
         let msg = `Berhasil impor ${newLines.length} baris (${getActiveLucaProfile().label}).`;
         if (skippedFiles.length > 0) msg += ` (${skippedFiles.length} file duplikat diabaikan)`;
+        if (getActiveLucaProfile().id === "tomoyo-switch") {
+          const withPrefix = newLines.filter((l) => l.luca_prefix_b64).length;
+          if (withPrefix > 0) {
+            msg += ` | Tomoyo: ${withPrefix} baris masih punya byte prefix di txt (dinormalisasi saat export).`;
+          } else {
+            msg += " | Tomoyo: format decompile bersih (payload saja — siap diterjemahkan).";
+          }
+        }
         flashHint(msg);
       } else if (skippedFiles.length > 0) {
         ui.copyStatus.classList.add("empty");
@@ -2063,7 +2369,7 @@
       else modeText = "JSON VNTP";
     }
 
-    ui.statusBar.textContent = `Mode: ${modeText} | File: ${state.importedFiles.length > 1 ? state.importedFiles.length + ' file' : (state.importedFiles[0] || '-')} | Baris: ${total} | TL: ${trans}/${total} (${perc}%)`;
+    ui.statusBar.textContent = `${APP_VERSION} | Mode: ${modeText} | File: ${state.importedFiles.length > 1 ? state.importedFiles.length + ' file' : (state.importedFiles[0] || '-')} | Baris: ${total} | TL: ${trans}/${total} (${perc}%)`;
     ui.progressFill.style.width = `${perc}%`;
     ui.progressText.textContent = `${trans}/${total}`;
   }
@@ -4123,25 +4429,65 @@
       }
     } else if (state.projectType === "luca") {
       // ─── LucaSystem TXT Export ────────────────────────────────────────────
-      const profile = getActiveLucaProfile();
-      const exportLang = state.lucaExportLang || "en";
-      const g = new Map();
-      for (const l of state.lines) {
-        if (!g.has(l.file)) g.set(l.file, []);
-        g.get(l.file).push(l);
-      }
-      const res = Array.from(g.entries()).map(([fileName, lns]) => {
+      try {
+        flashHint("Mengekspor TXT Luca...", true);
+        document.body.style.cursor = "wait";
+        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+        const profile = getActiveLucaProfile();
+        const exportLang = state.lucaExportLang || "en";
+        if (profile.id === "tomoyo-switch") {
+          const missingBuffers = state.importedFiles.filter((f) => !state.lucaRawBuffers[f]);
+          if (missingBuffers.length > 0) {
+            alert(
+              "Tomoyo export butuh impor ulang folder decompile lucksystem (SCRIPT.PAK\\*.txt) " +
+              "agar CSTL menyimpan raw buffer per file.\n\n" +
+              `CSTL ${APP_VERSION} | raw buffer hilang: ${missingBuffers.length} file`
+            );
+            return;
+          }
+          const exportSlot = profile.messageExportSlot(exportLang);
+          const badEmbeddedPrefix = countTomoyoBadEmbeddedPrefixes(exportSlot);
+          if (badEmbeddedPrefix > 0) {
+            const messageCount = state.lines.filter((l) => l.luca_command === "MESSAGE" || l.luca_command === "MESSAGE_WAIT").length;
+            alert(
+              "Tomoyo txt masih berisi byte prefix (c1 ff / U+FFFD) di dalam tanda kutip. " +
+              "Itu format decompile lucksystem lama — bukan decompiled_clean yang sudah diperbaiki.\n\n" +
+              `CSTL ${APP_VERSION} | baris bermasalah: ${badEmbeddedPrefix}/${messageCount}\n` +
+              "Jalankan ulang script decompile dengan lucksystem terbaru, atau strip_tomoyo_prefix.py."
+            );
+            return;
+          }
+        }
+        const g = new Map();
+        for (const l of state.lines) {
+          if (!g.has(l.file)) g.set(l.file, []);
+          g.get(l.file).push(l);
+        }
+        const useBinaryTomoyo = profile.id === "tomoyo-switch";
+        const entries = Array.from(g.entries());
+        const res = [];
+        for (let fileIdx = 0; fileIdx < entries.length; fileIdx++) {
+          const [fileName, lns] = entries[fileIdx];
         const rawLines = state.lucaRawFiles[fileName] ? [...state.lucaRawFiles[fileName]] : [];
-        const outLines = rawLines.length > 0 ? rawLines : [];
+        const outLines = rawLines.length > 0 ? [...rawLines] : [];
         const hasRawLines = outLines.length > 0;
+        const cachedLineBytes = useBinaryTomoyo ? getLucaFileLineBytes(fileName) : null;
+        const rawLineBytes = cachedLineBytes
+          ? cachedLineBytes.map((line) => new Uint8Array(line))
+          : null;
+        const outLineBytes = rawLineBytes ? rawLineBytes.map((line) => new Uint8Array(line)) : null;
         const handledSelectRows = new Set();
 
         for (const l of lns) {
           if (!l.luca_raw) continue;
-          const parenStart = l.luca_raw.indexOf("(");
-          const parenEnd = l.luca_raw.lastIndexOf(")");
+          const sourceRawLine = (hasRawLines && l.luca_raw_index != null && rawLines[l.luca_raw_index])
+            ? rawLines[l.luca_raw_index]
+            : l.luca_raw;
+          const parenStart = sourceRawLine.indexOf("(");
+          const parenEnd = sourceRawLine.lastIndexOf(")");
           if (parenStart === -1 || parenEnd === -1) continue;
-          const args = splitLucaArgs(l.luca_raw.slice(parenStart + 1, parenEnd));
+          const args = splitLucaArgs(sourceRawLine.slice(parenStart + 1, parenEnd));
 
           if (l.luca_command === "SELECT") {
             const selectKey = l.luca_raw_index != null ? l.luca_raw_index : l.luca_raw;
@@ -4163,36 +4509,83 @@
           }
 
           if (!isTranslated(l)) continue;
-          const patched = applyLucaMessageExport(profile, args, l, exportLang);
+
+          if (
+            useBinaryTomoyo &&
+            outLineBytes &&
+            l.luca_command === "MESSAGE" &&
+            l.luca_raw_index != null &&
+            l.luca_raw_index < outLineBytes.length
+          ) {
+            const slot = profile.messageExportSlot(exportLang);
+            outLineBytes[l.luca_raw_index] = patchMessageQuotedArgBytes(
+              outLineBytes[l.luca_raw_index],
+              slot,
+              buildTomoyoQuotedArgBytes(l)
+            );
+            continue;
+          }
+
+          const patched = applyLucaMessageExport(profile, args, l, exportLang, sourceRawLine);
           if (!patched) continue;
-          const newRaw = l.luca_raw.slice(0, parenStart + 1) + patched.join(", ") + l.luca_raw.slice(parenEnd);
+          const newRaw = sourceRawLine.slice(0, parenStart + 1) + patched.join(", ") + sourceRawLine.slice(parenEnd);
           if (hasRawLines && l.luca_raw_index != null && l.luca_raw_index < outLines.length) {
             outLines[l.luca_raw_index] = newRaw;
           }
         }
-        return {
-          fn: fileName,
-          content: outLines.join("\r\n")
-        };
-      });
-      if (window.JSZip && res.length > 1) {
-        const zip = new window.JSZip();
-        res.forEach(f => zip.file(f.fn, f.content));
-        zip.generateAsync({ type: "blob" }).then(b => {
+
+        const exportSlot = profile.messageExportSlot(exportLang);
+        if (useBinaryTomoyo) {
+          normalizeTomoyoMessageLinesInArray(outLines, exportSlot);
+        }
+
+        if (useBinaryTomoyo && outLineBytes) {
+          for (let i = 0; i < outLineBytes.length; i++) {
+            if (/\bMESSAGE(?:_WAIT)?\s*\(/i.test(latin1BytesToString(outLineBytes[i]))) {
+              outLineBytes[i] = normalizeTomoyoMessageLineBytes(outLineBytes[i], exportSlot);
+            }
+          }
+          for (let i = 0; i < outLines.length; i++) {
+            if (outLines[i] !== rawLines[i]) {
+              outLineBytes[i] = new TextEncoder().encode(outLines[i]);
+            }
+          }
+          res.push({
+            fn: fileName,
+            content: joinLinesToBuffer(outLineBytes),
+            binary: true,
+          });
+        } else {
+          res.push({
+            fn: fileName,
+            content: outLines.join("\n"),
+            binary: false,
+          });
+        }
+          if (fileIdx % 2 === 1) await new Promise((r) => setTimeout(r, 0));
+        }
+        if (window.JSZip && res.length > 1) {
+          const zip = new window.JSZip();
+          res.forEach(f => zip.file(`SCRIPT.PAK/${f.fn}`, f.content));
+          const b = await zip.generateAsync({ type: "blob" });
           const a = document.createElement("a");
           a.href = URL.createObjectURL(b);
           const safeName = state.projectName.replace(/[<>:"\/\\|?*]/g, '_').trim() || 'export';
           a.download = `${safeName}_luca_export.zip`;
           a.click();
-        });
-      } else {
-        res.forEach(f => {
-          const b = new Blob([f.content], { type: "text/plain;charset=utf-8" });
-          const a = document.createElement("a");
-          a.href = URL.createObjectURL(b);
-          a.download = f.fn;
-          a.click();
-        });
+          flashHint("Berhasil mengekspor ZIP Luca!");
+        } else {
+          res.forEach(f => {
+            const b = new Blob([f.content], { type: f.binary ? "application/octet-stream" : "text/plain;charset=utf-8" });
+            const a = document.createElement("a");
+            a.href = URL.createObjectURL(b);
+            a.download = f.fn;
+            a.click();
+          });
+          flashHint("Berhasil mengekspor TXT Luca!");
+        }
+      } finally {
+        document.body.style.cursor = "default";
       }
     } else {
       const g = new Map();
