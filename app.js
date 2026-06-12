@@ -1,6 +1,11 @@
 (() => {
   "use strict";
-  const DEFAULT_PROMPT_HEADER = `Rewrite entire text to Native {{targetLang}}. Do not change prefix number. Euphemism prohibited. Use of "Bahasa Jakarta Selatan" is prohibited. Put results inside \`\`\`plaintext block.`;
+  const AI_TRANSLATION_FORMAT_BLOCK = "block";
+  const AI_TRANSLATION_FORMAT_NUMBERED = "numbered";
+  const DEFAULT_AI_TRANSLATION_FORMAT = AI_TRANSLATION_FORMAT_BLOCK;
+  const DEFAULT_PROMPT_HEADER_NUMBERED = `Rewrite entire text to Native {{targetLang}}. Do not change prefix number. Euphemism prohibited. Use of "Bahasa Jakarta Selatan" is prohibited. Put results inside \`\`\`plaintext block.`;
+  const DEFAULT_PROMPT_HEADER_BLOCK = `Translate only the text field in each <lines> item to native {{targetLang}}. Keep [line N], speaker, and type unchanged. No adding, removing, or renumbering blocks. Euphemism & "Bahasa Jakarta Selatan" prohibited. Output in \`\`\`plaintext using the same format.`;
+  const DEFAULT_PROMPT_HEADER = DEFAULT_PROMPT_HEADER_BLOCK;
   const DEFAULT_GLOSSARY_PROMPT = `Extract important names and story-specific terminology from the following text to build a typed glossary.\nFormat the output STRICTLY as:\n[type] [{{sourceLang}} term] = [{{targetLang}} term] {short description}\n\nAllowed types:\n[character], [place], [organization], [item], [ability], [title], [concept], [term]\n\nDescription examples:\n{male name}, {female name}, {family name}, {given name}, {place name}, {school}, {food}, {honorific}, {concept}\n\nExample:\n[character] 浅村 悠太 = Asamura Yuuta {male name}\n[character] 綾瀬 沙季 = Ayase Saki {female name}\n[place] 渋谷 = Shibuya {place name}\n[item] 炬燵 = Kotatsu {household item}\n[term] 義妹 = adik tiri perempuan {family term}\n\nRules:\n1. Do NOT translate the text itself.\n2. Only output the typed glossary list.\n3. Do NOT include common everyday words, ordinary verbs, generic adjectives, or basic nouns unless they are proper nouns, recurring key terms, culturally specific terms, or story-specific concepts.\n4. Prefer character names, family names, given names, place names, organization names, titles, unique items, abilities, honorifics, relationship terms, and recurring setting-specific terminology.\n5. Prefer specific types over [term].\n6. Include gender for character names when inferable from context; otherwise use {character name}.\n7. Put results inside \`\`\`plaintext block.`;
   const DEFAULT_AI_CHECK_PROMPT = `Check the existing {{targetLang}} translation against the original {{sourceLang}} text.\nOnly return lines that need correction. Do not return lines that are already good.\n\nUse this STRICT format for each correction:\n[line 12]\nreason: why this line needs correction\nname: corrected character name, or blank if unchanged/not applicable\ntext: corrected {{targetLang}} translation without the speaker name prefix\n\nRules:\n1. Keep the original line number exactly.\n2. Give a short, concrete reason.\n3. Use name only for corrected character names; leave it blank when unchanged.\n4. Put only the corrected message in text. Do NOT repeat the speaker name in text.\n5. Correct only the {{targetLang}} translation, not the {{sourceLang}} original.\n6. Respect provided glossary entries.\n7. Put results inside \`\`\`plaintext block.`;
   const DEFAULT_NAME_TRANSLATION_PROMPT = `Translate or romanize all character names from {{sourceLang}} into natural {{targetLang}} name forms.\nUse the dialogue context only to infer reading, gender, relationship, or naming style.\n\nFormat the output STRICTLY as:\n[character] [{{sourceLang}} name] = [{{targetLang}} name] {short description}\n\nRules:\n1. Keep every source name exactly as given.\n2. Return one line for every name.\n3. Do NOT translate dialogue context.\n4. Do NOT add commentary or markdown outside the result.\n5. Put results inside \`\`\`plaintext block.`;
@@ -37,6 +42,7 @@
     lines: [],
     importedFiles: [],
     aiInstructionHeader: DEFAULT_PROMPT_HEADER,
+    aiTranslationFormat: DEFAULT_AI_TRANSLATION_FORMAT,
     glossaryPrompt: DEFAULT_GLOSSARY_PROMPT,
     aiCheckPrompt: DEFAULT_AI_CHECK_PROMPT,
     glossaryText: "",
@@ -249,7 +255,7 @@
       "importZipInput", "importLucaTxtInput", "importLucaTxtFolderInput", "btnImportLucaTxt", "btnImportLucaTxtFolder",
       "glossaryFileInput", "settingsModal", "settingsPromptInput", "settingsGlossaryPromptInput", "settingsAiCheckPromptInput", "settingsEpubTagsInput",
       "settingsLucaWrap", "settingsLucaProfileSelect", "settingsLucaMcWrap", "settingsLucaMcDisplayNameInput", "settingsLucaExportLangWrap", "settingsLucaExportLangSelect", "settingsSourceLangSelect", "settingsTargetLangSelect", "settingsRegexFilterInput",
-      "settingsDisableEmptyLineValidation", "settingsGlossaryInput", "settingsContextLinesInput", "settingsSelectionBatchSizeInput", "settingsGlossaryBatchSizeInput", "settingsAiCheckBatchSizeInput", "settingsSelectionPrevShortcutInput", "settingsSelectionNextShortcutInput", "btnSettingsReset", "btnSettingsGlossaryReset", "btnSettingsAiCheckReset", "btnSettingsCancel", "btnSettingsSave", "lineEditorModal", "lineEditorTitle",
+      "settingsDisableEmptyLineValidation", "settingsAiTranslationFormatSelect", "settingsGlossaryInput", "settingsContextLinesInput", "settingsSelectionBatchSizeInput", "settingsGlossaryBatchSizeInput", "settingsAiCheckBatchSizeInput", "settingsSelectionPrevShortcutInput", "settingsSelectionNextShortcutInput", "btnSettingsReset", "btnSettingsGlossaryReset", "btnSettingsAiCheckReset", "btnSettingsCancel", "btnSettingsSave", "lineEditorModal", "lineEditorTitle",
       "tabTranslate", "tabGlossary", "viewTranslate", "viewGlossary", "btnCopyForGlossaryAi", "pasteGlossaryArea", "btnSaveGlossary", "btnImportGlossaryFile", "btnExportGlossaryFile", "copyGlossaryCount",
       "tabAiCheck", "viewAiCheck", "btnCopyForAiCheck", "copyAiCheckCount", "aiCheckStatus", "pasteAiCheckArea", "btnParseAiCheck", "btnApplyAiCheck", "btnClearAiCheck", "aiCheckResults",
       "vndbInput", "btnImportVndbNames", "vndbStatus",
@@ -362,9 +368,22 @@
     });
     ui.btnSettings.addEventListener("click", onOpenSettings);
     ui.btnSettingsReset.addEventListener("click", () => {
-      ui.settingsPromptInput.value = DEFAULT_PROMPT_HEADER;
+      const format = ui.settingsAiTranslationFormatSelect?.value || DEFAULT_AI_TRANSLATION_FORMAT;
+      ui.settingsPromptInput.value = getDefaultPromptHeaderForFormat(format);
       ui.settingsEpubTagsInput.value = "p";
     });
+    if (ui.settingsAiTranslationFormatSelect) {
+      ui.settingsAiTranslationFormatSelect.addEventListener("change", () => {
+        const format = ui.settingsAiTranslationFormatSelect.value || DEFAULT_AI_TRANSLATION_FORMAT;
+        const currentDefault = getDefaultPromptHeaderForFormat(format);
+        const otherDefault = getDefaultPromptHeaderForFormat(
+          format === AI_TRANSLATION_FORMAT_BLOCK ? AI_TRANSLATION_FORMAT_NUMBERED : AI_TRANSLATION_FORMAT_BLOCK
+        );
+        if (ui.settingsPromptInput.value.trim() === otherDefault.trim()) {
+          ui.settingsPromptInput.value = currentDefault;
+        }
+      });
+    }
     ui.btnSettingsGlossaryReset.addEventListener("click", () => {
       ui.settingsGlossaryPromptInput.value = DEFAULT_GLOSSARY_PROMPT;
     });
@@ -728,6 +747,7 @@
       imported_files: [],
       lines: [],
       prompt_header: DEFAULT_PROMPT_HEADER,
+      ai_translation_format: DEFAULT_AI_TRANSLATION_FORMAT,
       glossary_prompt: DEFAULT_GLOSSARY_PROMPT,
       ai_check_prompt: DEFAULT_AI_CHECK_PROMPT,
       glossary_text: "",
@@ -874,6 +894,7 @@
         imported_files: state.importedFiles,
         lines: state.lines,
         prompt_header: state.aiInstructionHeader,
+        ai_translation_format: state.aiTranslationFormat || DEFAULT_AI_TRANSLATION_FORMAT,
         glossary_prompt: state.glossaryPrompt,
         ai_check_prompt: state.aiCheckPrompt,
         glossary_text: state.glossaryText,
@@ -909,6 +930,9 @@
     state.lines = (data.lines || []).map(normalizeLineDict);
     state.importedFiles = data.imported_files || [];
     state.aiInstructionHeader = data.prompt_header || DEFAULT_PROMPT_HEADER;
+    state.aiTranslationFormat = data.ai_translation_format != null
+      ? normalizeAiTranslationFormat(data.ai_translation_format)
+      : AI_TRANSLATION_FORMAT_NUMBERED;
     state.glossaryPrompt = data.glossary_prompt || DEFAULT_GLOSSARY_PROMPT;
     state.aiCheckPrompt = data.ai_check_prompt || DEFAULT_AI_CHECK_PROMPT;
     state.glossaryText = data.glossary_text || "";
@@ -949,6 +973,7 @@
         disable_empty_line_validation: state.disableEmptyLineValidation,
         imported_files: state.importedFiles, lines: state.lines,
         prompt_header: state.aiInstructionHeader,
+        ai_translation_format: state.aiTranslationFormat || DEFAULT_AI_TRANSLATION_FORMAT,
         glossary_prompt: state.glossaryPrompt,
         ai_check_prompt: state.aiCheckPrompt,
         glossary_text: state.glossaryText,
@@ -1015,6 +1040,9 @@
         imported_files: p.imported_files || [],
         lines: (p.lines || []).map(normalizeLineDict),
         prompt_header: p.prompt_header || DEFAULT_PROMPT_HEADER,
+        ai_translation_format: p.ai_translation_format != null
+          ? normalizeAiTranslationFormat(p.ai_translation_format)
+          : AI_TRANSLATION_FORMAT_NUMBERED,
         glossary_prompt: p.glossary_prompt || DEFAULT_GLOSSARY_PROMPT,
         ai_check_prompt: p.ai_check_prompt || DEFAULT_AI_CHECK_PROMPT,
         glossary_text: p.glossary_text || "",
@@ -1072,6 +1100,7 @@
     ui.copyGlossaryCount.textContent = state.selectedLines.size;
     ui.copyAiCheckCount.textContent = translatedSelectionCount;
     renderGlossaryPreview();
+    if (ui.pasteArea) ui.pasteArea.placeholder = getTranslationPastePlaceholder();
   }
 
   function isTranslated(line) {
@@ -2153,6 +2182,156 @@
       .replace(/\{\{targetLang\}\}/g, state.targetLang || "Indonesian");
   }
 
+  function normalizeAiTranslationFormat(value) {
+    return value === AI_TRANSLATION_FORMAT_NUMBERED
+      ? AI_TRANSLATION_FORMAT_NUMBERED
+      : AI_TRANSLATION_FORMAT_BLOCK;
+  }
+
+  function getDefaultPromptHeaderForFormat(format) {
+    return format === AI_TRANSLATION_FORMAT_NUMBERED
+      ? DEFAULT_PROMPT_HEADER_NUMBERED
+      : DEFAULT_PROMPT_HEADER_BLOCK;
+  }
+
+  function unescapeStoredNewlines(text) {
+    return String(text || "").replace(/\\n/g, "\n");
+  }
+
+  function escapeStoredNewlines(text) {
+    return String(text || "").replace(/\r?\n/g, "\\n").trim();
+  }
+
+  function formatLineForAiExport(line) {
+    const parts = [`[line ${line.line_num}]`];
+    if (String(line.luca_command || "").toUpperCase() === "SELECT") {
+      parts.push("type: choice");
+    }
+    const speaker = String(line.name || "").trim();
+    if (speaker) parts.push(`speaker: ${speaker}`);
+    parts.push(`text: ${unescapeStoredNewlines(line.message)}`);
+    return parts.join("\n");
+  }
+
+  function getSelectedTranslationText(includeTranslated = true) {
+    const sel = state.lines.filter(l => state.selectedLines.has(l.line_num) && (includeTranslated || !isTranslated(l)));
+    if (normalizeAiTranslationFormat(state.aiTranslationFormat) === AI_TRANSLATION_FORMAT_BLOCK) {
+      return sel.map(formatLineForAiExport).join("\n\n");
+    }
+    return getSelectedTranslationPlainText(includeTranslated);
+  }
+
+  function getSelectedTranslationPlainText(includeTranslated = true) {
+    const sel = state.lines.filter(l => state.selectedLines.has(l.line_num) && (includeTranslated || !isTranslated(l)));
+    return sel.map(l => {
+      const dN = l.name || "";
+      return dN ? `${l.line_num}. ${dN}: ${l.message}` : `${l.line_num}. ${l.message}`;
+    }).join("\n");
+  }
+
+  function buildSelectedTranslationExport(includeTranslated = true) {
+    const body = getSelectedTranslationText(includeTranslated);
+    if (!body) return "";
+    if (normalizeAiTranslationFormat(state.aiTranslationFormat) === AI_TRANSLATION_FORMAT_BLOCK) {
+      return `<lines>\n${body}\n</lines>`;
+    }
+    return body;
+  }
+
+  function getTranslationPastePlaceholder() {
+    if (normalizeAiTranslationFormat(state.aiTranslationFormat) === AI_TRANSLATION_FORMAT_BLOCK) {
+      return `[line 12]\nspeaker: 沙季\ntext: Selamat pagi\n\n[line 13]\nspeaker: 悠太\ntext: Mau ngapain hari ini?`;
+    }
+    return `12. 沙季: Selamat pagi\n13. 悠太: Mau ngapain hari ini?`;
+  }
+
+  function detectTranslationPasteFormat(text) {
+    const clean = stripPlaintextFences(text).trim();
+    if (!clean) return normalizeAiTranslationFormat(state.aiTranslationFormat);
+    if (/^\s*\[line\s+\d+\]\s*$/im.test(clean)) return AI_TRANSLATION_FORMAT_BLOCK;
+    if (/^\s*\d+\s*[.)]\s*/m.test(clean)) return AI_TRANSLATION_FORMAT_NUMBERED;
+    return normalizeAiTranslationFormat(state.aiTranslationFormat);
+  }
+
+  function parseTranslationBlocks(text) {
+    const lines = stripPlaintextFences(text).split(/\r?\n/);
+    const blocks = [];
+    let current = null;
+    let inText = false;
+    for (const rawLine of lines) {
+      const trimmed = rawLine.trim();
+      if (!trimmed || trimmed === "```" || trimmed === "```plaintext" || trimmed === "```text") continue;
+      const header = trimmed.match(/^\[line\s+(\d+)\]$/i);
+      if (header) {
+        if (current) blocks.push(current);
+        current = { num: Number(header[1]), name: null, msg: "" };
+        inText = false;
+        continue;
+      }
+      if (!current) throw new Error(`Baris tanpa header [line N]: "${trimmed.slice(0, 50)}"`);
+      const speakerMatch = trimmed.match(/^speaker\s*:\s*(.*)$/i);
+      if (speakerMatch) {
+        inText = false;
+        current.name = speakerMatch[1].trim() || null;
+        continue;
+      }
+      const textMatch = trimmed.match(/^text\s*:\s*(.*)$/i);
+      if (textMatch) {
+        inText = true;
+        current.msg = textMatch[1];
+        continue;
+      }
+      if (/^type\s*:/i.test(trimmed)) {
+        inText = false;
+        continue;
+      }
+      if (inText) {
+        current.msg = current.msg ? `${current.msg}\n${rawLine}` : rawLine;
+        continue;
+      }
+      throw new Error(`Format field rusak pada line ${current.num}: "${trimmed.slice(0, 50)}"`);
+    }
+    if (current) blocks.push(current);
+    if (!blocks.length) throw new Error("Tidak ada blok [line N] yang valid.");
+    return blocks.map(item => ({
+      num: item.num,
+      name: item.name,
+      msg: escapeStoredNewlines(item.msg),
+      rawMsg: item.msg,
+    }));
+  }
+
+  function parseTranslationNumberedPaste(text) {
+    const rawLines = stripPlaintextFences(text).split(/\r?\n/);
+    const parsed = [];
+    const errors = [];
+    for (let i = 0; i < rawLines.length; i++) {
+      const txt = rawLines[i].trim();
+      if (!txt) continue;
+      const match = txt.match(/^\s*(\d+)\s*[.)]\s*(.*)$/);
+      if (!match) {
+        errors.push(`[Baris ${i + 1}] Format rusak (Harus "Angka. Teks") -> "${txt.substring(0, 25)}..."`);
+        continue;
+      }
+      const num = Number(match[1]);
+      let name = null;
+      let msg = match[2].trim();
+      const rawMsg = msg;
+      const colonIdx = msg.indexOf(":");
+      const jpColonIdx = msg.indexOf("：");
+      let splitIdx = -1;
+      if (colonIdx !== -1 && jpColonIdx !== -1) splitIdx = Math.min(colonIdx, jpColonIdx);
+      else if (colonIdx !== -1) splitIdx = colonIdx;
+      else if (jpColonIdx !== -1) splitIdx = jpColonIdx;
+      if (splitIdx !== -1) {
+        name = msg.substring(0, splitIdx).trim();
+        msg = msg.substring(splitIdx + 1).trim();
+      }
+      parsed.push({ num, name, msg: escapeStoredNewlines(msg), rawMsg });
+    }
+    return { parsed, errors };
+  }
+
   function rebuildDisplayState() {
     state.lineByNum.clear();
     const grouped = new Map(state.importedFiles.map(f => [f, []]));
@@ -3063,16 +3242,8 @@
     return /^[\u3400-\u9fff]{2,4}(?:[\s　・･][\u3400-\u9fff]{1,4})?$/.test(base.trim());
   }
 
-  function getSelectedTranslationText(includeTranslated = true) {
-    const sel = state.lines.filter(l => state.selectedLines.has(l.line_num) && (includeTranslated || !isTranslated(l)));
-    return sel.map(l => {
-      const dN = l.name || "";
-      return dN ? `${l.line_num}. ${dN}: ${l.message}` : `${l.line_num}. ${l.message}`;
-    }).join("\n");
-  }
-
   function renderGlossaryPreview() {
-    const selectedText = getSelectedTranslationText();
+    const selectedText = getSelectedTranslationPlainText();
     const matches = selectedText ? getGlossaryMatches(selectedText) : [];
     if (!matches.length) {
       ui.glossaryPreviewWrap.hidden = true;
@@ -3086,7 +3257,7 @@
   async function onCopyForGlossaryAi() {
     const sel = state.lines.filter(l => state.selectedLines.has(l.line_num));
     if (!sel.length) return;
-    const out = getSelectedTranslationText().split("\n").filter(Boolean);
+    const out = getSelectedTranslationPlainText().split("\n").filter(Boolean);
     const basePrompt = applyPromptVariables((state.glossaryPrompt || DEFAULT_GLOSSARY_PROMPT).trim());
     const promptText = `${basePrompt}\n\n${out.join("\n")}\n`;
     try {
@@ -3464,6 +3635,7 @@
     return String(text || "")
       .split(/\r?\n/)
       .filter(line => !/^\s*```(?:plaintext|text)?\s*$/i.test(line.trim()))
+      .filter(line => !/^\s*<\/?lines>\s*$/i.test(line.trim()))
       .join("\n");
   }
 
@@ -3620,7 +3792,7 @@
       }
     }
 
-    const joinedText = getSelectedTranslationText(false);
+    const joinedText = buildSelectedTranslationExport(false);
     const glossaryBlock = getGlossaryPrompt(joinedText);
     const baseHeader = applyPromptVariables((state.aiInstructionHeader || DEFAULT_PROMPT_HEADER).trim());
     const p = `${baseHeader}${glossaryBlock}${contextBlock}\n\n${joinedText}\n`;
@@ -3823,36 +3995,33 @@
 
   function onApplyTranslation() {
     if (!state.lines.length) return;
-    const rawLines = ui.pasteArea.value.split(/\r?\n/);
-    const parsed = [], errors = [], seen = new Set();
+    const rawText = ui.pasteArea.value.trim();
+    if (!rawText) return alert("Teks di kotak kosong atau tidak valid.");
+
+    const pasteFormat = detectTranslationPasteFormat(rawText);
     const selectedUntranslated = new Set(state.lines.filter(l => state.selectedLines.has(l.line_num) && !isTranslated(l)).map(l => l.line_num));
     const expectedCount = selectedUntranslated.size;
-    for (let i = 0; i < rawLines.length; i++) {
-      const txt = rawLines[i].trim();
-      if (!txt) continue;
-      const match = txt.match(/^\s*(\d+)\s*[.)]\s*(.*)$/);
-      if (!match) {
-        errors.push(`[Baris ${i+1}] Format rusak (Harus "Angka. Teks") -> "${txt.substring(0,25)}..."`);
-        continue;
+    let parsed = [];
+    let errors = [];
+
+    try {
+      if (pasteFormat === AI_TRANSLATION_FORMAT_BLOCK) {
+        parsed = parseTranslationBlocks(rawText);
+      } else {
+        const numbered = parseTranslationNumberedPaste(rawText);
+        parsed = numbered.parsed;
+        errors = numbered.errors;
       }
-      const num = Number(match[1]);
-      if (seen.has(num)) errors.push(`[#${num}] Duplikat nomor baris.`);
-      seen.add(num);
-      let name = null;
-      let msg = match[2].trim();
-      const rawMsg = msg;
-      const colonIdx = msg.indexOf(':');
-      const jpColonIdx = msg.indexOf('：');
-      let splitIdx = -1;
-      if (colonIdx !== -1 && jpColonIdx !== -1) splitIdx = Math.min(colonIdx, jpColonIdx);
-      else if (colonIdx !== -1) splitIdx = colonIdx;
-      else if (jpColonIdx !== -1) splitIdx = jpColonIdx;
-      if (splitIdx !== -1) {
-        name = msg.substring(0, splitIdx).trim();
-        msg = msg.substring(splitIdx + 1).trim();
-      }
-      parsed.push({ num, name, msg, rawMsg });
+    } catch (err) {
+      return alert("Gagal parse terjemahan:\n\n" + err.message);
     }
+
+    const seen = new Set();
+    for (const item of parsed) {
+      if (seen.has(item.num)) errors.push(`[#${item.num}] Duplikat nomor baris.`);
+      seen.add(item.num);
+    }
+
     if (!parsed.length && !errors.length) return alert("Teks di kotak kosong atau tidak valid.");
     if (parsed.length > 0) {
       if (parsed.length !== expectedCount) {
@@ -3872,21 +4041,21 @@
       if (!l) { errors.push(`[#${it.num}] Tidak ada di JSON asli.`); continue; }
       const oN = !!(l.name || "").trim();
       let tN = !!(it.name || "").trim();
-      if (!oN && tN) { it.msg = it.rawMsg; it.name = null; tN = false; }
-      
+      if (!oN && tN) { it.msg = escapeStoredNewlines(it.rawMsg || it.msg); it.name = null; tN = false; }
+
       if (!ignoreNames) {
         if (oN && !tN) errors.push(`[#${it.num}] Nama karakter hilang.`);
         else if (!oN && tN) errors.push(`[#${it.num}] Tiba-tiba ada nama karakter.`);
       }
-      
+
       if (!it.msg && !state.disableEmptyLineValidation) errors.push(`[#${it.num}] Pesannya kosong.`);
       else updates.push({ l, it });
     }
     if (errors.length) {
-      return alert("TRANSLASI DITOLAK:\n\n" + errors.slice(0, 10).join("\n") + (errors.length > 10 ? `\n\n... (+${errors.length-10} error lain)` : ""));
+      return alert("TRANSLASI DITOLAK:\n\n" + errors.slice(0, 10).join("\n") + (errors.length > 10 ? `\n\n... (+${errors.length - 10} error lain)` : ""));
     }
     pushUndoSnapshot();
-    for (const {l, it} of updates) {
+    for (const { l, it } of updates) {
       l.trans_message = it.msg;
       l.is_translated = !!(it.msg || state.disableEmptyLineValidation);
       if (it.name && !ignoreNames) l.trans_name = it.name;
@@ -4239,6 +4408,9 @@
     ui.settingsTargetLangSelect.value = state.targetLang || "Indonesian";
     ui.settingsRegexFilterInput.value = state.regexFilter || "";
     ui.settingsDisableEmptyLineValidation.checked = !!state.disableEmptyLineValidation;
+    if (ui.settingsAiTranslationFormatSelect) {
+      ui.settingsAiTranslationFormatSelect.value = normalizeAiTranslationFormat(state.aiTranslationFormat);
+    }
     ui.settingsPromptInput.value = state.aiInstructionHeader;
     ui.settingsGlossaryPromptInput.value = state.glossaryPrompt;
     ui.settingsAiCheckPromptInput.value = state.aiCheckPrompt;
@@ -4294,6 +4466,7 @@
     }
     
     const aiInstructionHeader = ui.settingsPromptInput.value.trim();
+    const aiTranslationFormat = normalizeAiTranslationFormat(ui.settingsAiTranslationFormatSelect?.value);
     const glossaryPrompt = ui.settingsGlossaryPromptInput.value.trim();
     const aiCheckPrompt = ui.settingsAiCheckPromptInput.value.trim();
     const epubTags = ui.settingsEpubTagsInput.value.trim() || "p";
@@ -4314,6 +4487,7 @@
     state.regexFilter = regexFilter;
     state.disableEmptyLineValidation = disableEmptyLineValidation;
     state.aiInstructionHeader = aiInstructionHeader;
+    state.aiTranslationFormat = aiTranslationFormat;
     state.glossaryPrompt = glossaryPrompt;
     state.aiCheckPrompt = aiCheckPrompt;
     state.epubTags = epubTags;
