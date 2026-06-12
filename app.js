@@ -2,10 +2,10 @@
   "use strict";
   const AI_TRANSLATION_FORMAT_BLOCK = "block";
   const AI_TRANSLATION_FORMAT_NUMBERED = "numbered";
-  const DEFAULT_AI_TRANSLATION_FORMAT = AI_TRANSLATION_FORMAT_BLOCK;
+  const DEFAULT_AI_TRANSLATION_FORMAT = AI_TRANSLATION_FORMAT_NUMBERED;
   const DEFAULT_PROMPT_HEADER_NUMBERED = `Rewrite entire text to Native {{targetLang}}. Do not change prefix number. Euphemism prohibited. Use of "Bahasa Jakarta Selatan" is prohibited. Put results inside \`\`\`plaintext block.`;
   const DEFAULT_PROMPT_HEADER_BLOCK = `Rewrite entire text to native {{targetLang}}. Keep [line N] and type unchanged. Do not add, remove, or renumber blocks. Euphemism prohibited. Use of "Bahasa Jakarta Selatan" is prohibited. Put results inside \`\`\`plaintext block using the same [line N] / speaker / text format.`;
-  const DEFAULT_PROMPT_HEADER = DEFAULT_PROMPT_HEADER_BLOCK;
+  const DEFAULT_PROMPT_HEADER = DEFAULT_PROMPT_HEADER_NUMBERED;
   const DEFAULT_GLOSSARY_PROMPT = `Extract important names and story-specific terminology from the following text to build a typed glossary.\nFormat the output STRICTLY as:\n[type] [{{sourceLang}} term] = [{{targetLang}} term] {short description}\n\nAllowed types:\n[character], [place], [organization], [item], [ability], [title], [concept], [term]\n\nDescription examples:\n{male name}, {female name}, {family name}, {given name}, {place name}, {school}, {food}, {honorific}, {concept}\n\nExample:\n[character] 浅村 悠太 = Asamura Yuuta {male name}\n[character] 綾瀬 沙季 = Ayase Saki {female name}\n[place] 渋谷 = Shibuya {place name}\n[item] 炬燵 = Kotatsu {household item}\n[term] 義妹 = adik tiri perempuan {family term}\n\nRules:\n1. Do NOT translate the text itself.\n2. Only output the typed glossary list.\n3. Do NOT include common everyday words, ordinary verbs, generic adjectives, or basic nouns unless they are proper nouns, recurring key terms, culturally specific terms, or story-specific concepts.\n4. Prefer character names, family names, given names, place names, organization names, titles, unique items, abilities, honorifics, relationship terms, and recurring setting-specific terminology.\n5. Prefer specific types over [term].\n6. Include gender for character names when inferable from context; otherwise use {character name}.\n7. Put results inside \`\`\`plaintext block.`;
   const DEFAULT_AI_CHECK_PROMPT = `Check the existing {{targetLang}} translation against the original {{sourceLang}} text.\nOnly return lines that need correction. Do not return lines that are already good.\n\nUse this STRICT format for each correction:\n[line 12]\nreason: why this line needs correction\nname: corrected character name, or blank if unchanged/not applicable\ntext: corrected {{targetLang}} translation without the speaker name prefix\n\nRules:\n1. Keep the original line number exactly.\n2. Give a short, concrete reason.\n3. Use name only for corrected character names; leave it blank when unchanged.\n4. Put only the corrected message in text. Do NOT repeat the speaker name in text.\n5. Correct only the {{targetLang}} translation, not the {{sourceLang}} original.\n6. Respect provided glossary entries.\n7. Put results inside \`\`\`plaintext block.`;
   const DEFAULT_NAME_TRANSLATION_PROMPT = `Translate or romanize all character names from {{sourceLang}} into natural {{targetLang}} name forms.\nUse the dialogue context only to infer reading, gender, relationship, or naming style.\n\nFormat the output STRICTLY as:\n[character] [{{sourceLang}} name] = [{{targetLang}} name] {short description}\n\nRules:\n1. Keep every source name exactly as given.\n2. Return one line for every name.\n3. Do NOT translate dialogue context.\n4. Do NOT add commentary or markdown outside the result.\n5. Put results inside \`\`\`plaintext block.`;
@@ -2232,10 +2232,7 @@
   function buildSelectedTranslationExport(includeTranslated = true) {
     const body = getSelectedTranslationText(includeTranslated);
     if (!body) return "";
-    if (normalizeAiTranslationFormat(state.aiTranslationFormat) === AI_TRANSLATION_FORMAT_BLOCK) {
-      return `<lines>\n${body}\n</lines>`;
-    }
-    return body;
+    return `<lines>\n${body}\n</lines>`;
   }
 
   function getTranslationPastePlaceholder() {
@@ -3795,7 +3792,11 @@
     const joinedText = buildSelectedTranslationExport(false);
     const glossaryBlock = getGlossaryPrompt(joinedText);
     const baseHeader = applyPromptVariables((state.aiInstructionHeader || DEFAULT_PROMPT_HEADER).trim());
-    const p = `${baseHeader}${glossaryBlock}${contextBlock}\n\n${joinedText}\n`;
+    const sections = [baseHeader];
+    if (glossaryBlock) sections.push(glossaryBlock.trim());
+    if (contextBlock) sections.push(contextBlock.trim());
+    sections.push(joinedText.trim());
+    const p = sections.join("\n\n");
     try {
       await navigator.clipboard.writeText(p);
       flashHint(`Disalin ${sel.length} baris.`);
