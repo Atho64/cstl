@@ -4382,13 +4382,17 @@
       if (isTranslated(line)) fName = (line.trans_name || "").trim() || line.name;
       if (query && regex) {
         let isMatch = false;
-        regex.lastIndex = 0;
-        if ((scope === 'all' || scope === 'message') && line.message && regex.test(line.message)) isMatch = true;
+        
+        if (!onlyTrans && (scope === 'all' || scope === 'message') && line.message) {
+            regex.lastIndex = 0;
+            if (regex.test(line.message)) isMatch = true;
+        }
         if (!isMatch && (scope === 'all' || scope === 'message') && line.trans_message) {
             regex.lastIndex = 0;
             if (regex.test(line.trans_message)) isMatch = true;
         }
-        if (!isMatch && (scope === 'all' || scope === 'name') && dName) {
+        
+        if (!isMatch && !onlyTrans && (scope === 'all' || scope === 'name') && dName) {
             regex.lastIndex = 0;
             if (regex.test(dName)) isMatch = true;
         }
@@ -4396,6 +4400,7 @@
             regex.lastIndex = 0;
             if (regex.test(fName)) isMatch = true;
         }
+        
         if (!isMatch) continue;
       }
       state.proofreadMatches.push({
