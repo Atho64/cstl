@@ -285,6 +285,9 @@
       const isImportBtn = e.target.closest('#btnDropdownImport');
       if (isImportBtn) {
         e.preventDefault();
+        const rect = isImportBtn.getBoundingClientRect();
+        ui.dropdownImportMenu.style.top = (rect.bottom + 4) + 'px';
+        ui.dropdownImportMenu.style.left = rect.left + 'px';
         ui.dropdownImportMenu.classList.toggle("show");
       } else {
         if (!e.target.closest('.dropdown') && ui.dropdownImportMenu) {

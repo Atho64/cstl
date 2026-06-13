@@ -21,7 +21,7 @@
 
 /* Dropdown CSS from LuKazuu */
 .dropdown { position: relative; display: inline-block; }
-.dropdown-content { display: none; position: absolute; background: var(--panel); min-width: 150px; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5); z-index: 100; border: 1px solid rgba(255, 255, 255, 0.3); border-radius: 8px; overflow: hidden; top: calc(100% + 4px); left: 0; }
+.dropdown-content { display: none; position: fixed; background: var(--panel); min-width: 150px; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5); z-index: 1000; border: 1px solid rgba(255, 255, 255, 0.3); border-radius: 8px; overflow: hidden; top: 0; left: 0; }
 .dropdown-content.show { display: flex; flex-direction: column; }
 .dropdown-right { right: 0; left: auto; }
 
@@ -248,14 +248,13 @@ html, body {
   padding: 8px 12px; 
   border-bottom: 1px solid var(--line); 
   background: var(--panel); 
-  overflow: visible;
 }
 
 .toolbar-scroll { 
   display: flex; 
   align-items: center; 
   gap: 8px; 
-  overflow: visible;
+  overflow-x: auto;
   scrollbar-width: none; 
 }
 
