@@ -5,12 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#0f172a" />
   <title>Copas Tool</title>
+  <link rel="icon" type="image/svg+xml" href="./icon.svg" />
+  <link rel="apple-touch-icon" href="./icon.svg" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="./styles.css" />
+  <link rel="stylesheet" href="./styles.css?v=11" />
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-  <script defer src="./app.js?v=M12"></script>
+  <script defer src="./app.js?v=M18"></script>
 </head>
 <body>
   <div id="dashboardView" class="dashboard-shell open">
@@ -22,6 +24,7 @@
       <div class="actions">
         <button id="btnNewProject" class="btn btn-primary">Buat Proyek Baru</button>
         <button id="btnRestoreProject" class="btn btn-outline">Pulihkan Proyek</button>
+        <button id="btnDashboardSettings" class="btn btn-outline" title="Pengaturan Default Proyek">⚙ Default</button>
       </div>
     </header>
     <main class="dashboard-content">
@@ -38,13 +41,20 @@
       <div class="toolbar-scroll">
         <button id="btnBackToDashboard" class="btn btn-outline"><- Dashboard</button>
         <span class="toolbar-sep"></span>
-        <button id="btnImportFile" class="btn">Impor File</button>
-        <button id="btnImportFolder" class="btn">Impor Folder</button>
-        <button id="btnImportZip" class="btn">Impor ZIP</button>
-        <button id="btnImportLucaTxt" class="btn btn-luca">Impor TXT</button>
-        <button id="btnImportLucaTxtFolder" class="btn btn-luca">Impor TXT Folder</button>
-        <button id="btnImportTranslatedFile" class="btn">Impor TL File</button>
-        <button id="btnImportTranslatedFolder" class="btn">Impor TL Folder</button>
+        <div class="dropdown">
+          <button id="btnDropdownImport" class="btn dropdown-toggle">Impor ▾</button>
+          <div id="dropdownImportMenu" class="dropdown-content">
+            <button id="btnImportFile" class="dropdown-item">Impor File</button>
+            <button id="btnImportFolder" class="dropdown-item">Impor Folder</button>
+            <button id="btnImportZip" class="dropdown-item">Impor ZIP</button>
+            <hr class="dropdown-divider">
+            <button id="btnImportLucaTxt" class="dropdown-item text-luca">Impor TXT (Luca)</button>
+            <button id="btnImportLucaTxtFolder" class="dropdown-item text-luca">Impor TXT Folder (Luca)</button>
+            <hr class="dropdown-divider">
+            <button id="btnImportTranslatedFile" class="dropdown-item">Impor TL File</button>
+            <button id="btnImportTranslatedFolder" class="dropdown-item">Impor TL Folder</button>
+          </div>
+        </div>
         <button id="btnExport" class="btn" disabled>Ekspor</button>
         <span class="toolbar-sep"></span>
         <button id="btnProofread" class="btn" disabled>Cari</button>
@@ -207,6 +217,79 @@
   <input id="importTranslatedFolderInput" type="file" accept=".json,.epub,.txt" webkitdirectory directory multiple hidden />
   <input id="restoreProjectInput" type="file" accept=".cstl" hidden />
   <input id="glossaryFileInput" type="file" accept=".txt,.glossary,.md" hidden />
+
+  <!-- Dashboard Default Settings Modal -->
+  <div id="dashboardSettingsModal" class="modal-backdrop">
+    <div class="modal modal-wide">
+      <h3>⚙ Pengaturan Default Proyek Baru</h3>
+      <p class="hint mt-0">Pengaturan ini akan otomatis diterapkan ke setiap proyek baru yang dibuat. Disimpan di browser.</p>
+
+      <div class="mt-2">
+        <label class="section-label text-white m-0">Bahasa</label>
+        <div class="flex-center gap-4 wrap mt-1">
+          <div class="flex-col grow">
+            <label class="hint m-0" for="dsSourceLang">Bahasa Sumber</label>
+            <select id="dsSourceLang" class="text-input w-full">
+              <option value="Japanese">Japanese</option>
+              <option value="English">English</option>
+              <option value="Chinese">Chinese</option>
+              <option value="Korean">Korean</option>
+            </select>
+          </div>
+          <div class="flex-col grow">
+            <label class="hint m-0" for="dsTargetLang">Bahasa Target</label>
+            <select id="dsTargetLang" class="text-input w-full">
+              <option value="Indonesian">Indonesian</option>
+              <option value="English">English</option>
+              <option value="Japanese">Japanese</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-2">
+        <label class="section-label text-white m-0">Format & Batch</label>
+        <div class="flex-center gap-4 wrap mt-1">
+          <div class="flex-col grow">
+            <label class="hint m-0" for="dsAiFormat">Format AI</label>
+            <select id="dsAiFormat" class="text-input w-full">
+              <option value="numbered">Numbered List</option>
+              <option value="block">Block [line N]</option>
+            </select>
+          </div>
+          <div class="flex-col grow">
+            <label class="hint m-0" for="dsContextLines">Context Lines</label>
+            <input id="dsContextLines" type="number" class="text-input w-full" min="0" max="50" value="10" />
+          </div>
+        </div>
+        <div class="flex-center gap-4 wrap mt-1">
+          <div class="flex-col grow">
+            <label class="hint m-0" for="dsSelectionBatch">Batch Terjemahan</label>
+            <input id="dsSelectionBatch" type="number" class="text-input w-full" min="1" max="1000" value="100" />
+          </div>
+          <div class="flex-col grow">
+            <label class="hint m-0" for="dsGlossaryBatch">Batch Glosarium</label>
+            <input id="dsGlossaryBatch" type="number" class="text-input w-full" min="1" max="2000" value="500" />
+          </div>
+          <div class="flex-col grow">
+            <label class="hint m-0" for="dsAiCheckBatch">Batch AI Check</label>
+            <input id="dsAiCheckBatch" type="number" class="text-input w-full" min="1" max="1000" value="250" />
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-2">
+        <label class="section-label text-white m-0">Filter Regex</label>
+        <input id="dsRegexFilter" type="text" class="text-input w-full mt-1" placeholder="Kosongkan jika tidak perlu" />
+      </div>
+
+      <div class="modal-actions">
+        <button id="btnDashboardSettingsSave" class="btn btn-primary">Simpan Default</button>
+        <button id="btnDashboardSettingsReset" class="btn btn-outline">Reset ke Bawaan</button>
+        <button id="btnDashboardSettingsCancel" class="btn">Batal</button>
+      </div>
+    </div>
+  </div>
 
   <div id="settingsModal" class="modal-backdrop">
     <div class="modal modal-wide">

@@ -245,7 +245,9 @@
   function cacheElements() {
     const ids = [
       "dashboardView", "workspaceView", "projectList", "projectFilterInput", "btnNewProject", "btnRestoreProject",
-      "btnBackToDashboard", "projectNameDisplay", "restoreProjectInput", "btnImportFile",
+      "btnBackToDashboard", "projectNameDisplay", "restoreProjectInput", "btnDropdownImport", "dropdownImportMenu", "btnImportFile",
+      "btnDashboardSettings", "dashboardSettingsModal", "btnDashboardSettingsSave", "btnDashboardSettingsReset", "btnDashboardSettingsCancel",
+      "dsSourceLang", "dsTargetLang", "dsAiFormat", "dsContextLines", "dsSelectionBatch", "dsGlossaryBatch", "dsAiCheckBatch", "dsRegexFilter",
       "btnImportFolder", "btnImportZip", "btnImportTranslatedFile", "btnImportTranslatedFolder", "btnExport", "btnProofread", "btnSettings",
       "previewViewport", "previewContainer", "progressFill", "progressText", "btnSelectAll",
       "btnClearSelection", "copyCount", "btnCopyForAi", "copyStatus", "pasteArea", "btnApply", "checkIgnorePasteNames",
@@ -279,12 +281,30 @@
   }
 
   function bindEvents() {
+    document.addEventListener("click", e => {
+      const isImportBtn = e.target.closest('#btnDropdownImport');
+      if (isImportBtn) {
+        e.preventDefault();
+        ui.dropdownImportMenu.classList.toggle("show");
+      } else {
+        if (!e.target.closest('.dropdown') && ui.dropdownImportMenu) {
+          ui.dropdownImportMenu.classList.remove("show");
+        }
+      }
+    });
+
     document.addEventListener("keydown", onSelectionHistoryKeydown);
     ui.btnNewProject.addEventListener("click", createNewProject);
     ui.projectFilterInput.addEventListener("input", () => renderDashboardProjects());
     ui.btnBackToDashboard.addEventListener("click", closeProject);
     ui.btnRestoreProject.addEventListener("click", () => ui.restoreProjectInput.click());
     ui.restoreProjectInput.addEventListener("change", onRestoreProject);
+
+    // Dashboard default settings
+    ui.btnDashboardSettings.addEventListener("click", openDashboardSettings);
+    ui.btnDashboardSettingsSave.addEventListener("click", saveDashboardSettings);
+    ui.btnDashboardSettingsReset.addEventListener("click", resetDashboardSettings);
+    ui.btnDashboardSettingsCancel.addEventListener("click", () => ui.dashboardSettingsModal.classList.remove("open"));
     ui.btnImportFile.addEventListener("click", () => ui.importFileInput.click());
     ui.btnImportFolder.addEventListener("click", () => ui.importFolderInput.click());
     ui.btnImportZip.addEventListener("click", () => ui.importZipInput.click());
@@ -726,10 +746,71 @@
     ui.projectList.appendChild(frag);
   }
 
+  const DS_STORAGE_KEY = "cstl_default_settings";
+
+  function getDefaultSettings() {
+    try {
+      const saved = localStorage.getItem(DS_STORAGE_KEY);
+      if (saved) return JSON.parse(saved);
+    } catch(e) {}
+    return {
+      sourceLang: "Japanese",
+      targetLang: "Indonesian",
+      aiFormat: DEFAULT_AI_TRANSLATION_FORMAT,
+      contextLines: 10,
+      selectionBatch: DEFAULT_SELECTION_BATCH_SIZE,
+      glossaryBatch: DEFAULT_GLOSSARY_BATCH_SIZE,
+      aiCheckBatch: DEFAULT_AI_CHECK_BATCH_SIZE,
+      regexFilter: ""
+    };
+  }
+
+  function openDashboardSettings() {
+    const d = getDefaultSettings();
+    ui.dsSourceLang.value = d.sourceLang;
+    ui.dsTargetLang.value = d.targetLang;
+    ui.dsAiFormat.value = d.aiFormat;
+    ui.dsContextLines.value = d.contextLines;
+    ui.dsSelectionBatch.value = d.selectionBatch;
+    ui.dsGlossaryBatch.value = d.glossaryBatch;
+    ui.dsAiCheckBatch.value = d.aiCheckBatch;
+    ui.dsRegexFilter.value = d.regexFilter || "";
+    ui.dashboardSettingsModal.classList.add("open");
+  }
+
+  function saveDashboardSettings() {
+    const d = {
+      sourceLang: ui.dsSourceLang.value,
+      targetLang: ui.dsTargetLang.value,
+      aiFormat: ui.dsAiFormat.value,
+      contextLines: parseInt(ui.dsContextLines.value) || 10,
+      selectionBatch: parseInt(ui.dsSelectionBatch.value) || DEFAULT_SELECTION_BATCH_SIZE,
+      glossaryBatch: parseInt(ui.dsGlossaryBatch.value) || DEFAULT_GLOSSARY_BATCH_SIZE,
+      aiCheckBatch: parseInt(ui.dsAiCheckBatch.value) || DEFAULT_AI_CHECK_BATCH_SIZE,
+      regexFilter: ui.dsRegexFilter.value || ""
+    };
+    localStorage.setItem(DS_STORAGE_KEY, JSON.stringify(d));
+    ui.dashboardSettingsModal.classList.remove("open");
+  }
+
+  function resetDashboardSettings() {
+    localStorage.removeItem(DS_STORAGE_KEY);
+    const d = getDefaultSettings();
+    ui.dsSourceLang.value = d.sourceLang;
+    ui.dsTargetLang.value = d.targetLang;
+    ui.dsAiFormat.value = d.aiFormat;
+    ui.dsContextLines.value = d.contextLines;
+    ui.dsSelectionBatch.value = d.selectionBatch;
+    ui.dsGlossaryBatch.value = d.glossaryBatch;
+    ui.dsAiCheckBatch.value = d.aiCheckBatch;
+    ui.dsRegexFilter.value = d.regexFilter;
+  }
+
   async function createNewProject() {
     const name = prompt("Masukkan nama proyek baru:");
     if (!name || !name.trim()) return;
     const id = "proj_" + Date.now() + PROJECT_EXT;
+    const d = getDefaultSettings();
     const initialData = {
       version: APP_VERSION,
       projectName: name.trim(),
@@ -742,19 +823,21 @@
       lucaRawFiles: {},
       lucaRawBuffers: {},
       updatedAt: Date.now(),
-      regex_filter: "",
+      source_lang: d.sourceLang,
+      target_lang: d.targetLang,
+      regex_filter: d.regexFilter || "",
       disable_empty_line_validation: false,
       imported_files: [],
       lines: [],
       prompt_header: DEFAULT_PROMPT_HEADER,
-      ai_translation_format: DEFAULT_AI_TRANSLATION_FORMAT,
+      ai_translation_format: d.aiFormat,
       glossary_prompt: DEFAULT_GLOSSARY_PROMPT,
       ai_check_prompt: DEFAULT_AI_CHECK_PROMPT,
       glossary_text: "",
-      context_lines: 10,
-      selection_batch_size: DEFAULT_SELECTION_BATCH_SIZE,
-      glossary_batch_size: DEFAULT_GLOSSARY_BATCH_SIZE,
-      ai_check_batch_size: DEFAULT_AI_CHECK_BATCH_SIZE,
+      context_lines: d.contextLines,
+      selection_batch_size: d.selectionBatch,
+      glossary_batch_size: d.glossaryBatch,
+      ai_check_batch_size: d.aiCheckBatch,
       selection_batch_prev_shortcut: DEFAULT_SELECTION_BATCH_PREV_SHORTCUT,
       selection_batch_next_shortcut: DEFAULT_SELECTION_BATCH_NEXT_SHORTCUT
     };

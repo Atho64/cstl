@@ -19,6 +19,36 @@
   box-sizing: border-box; 
 }
 
+/* Dropdown CSS from LuKazuu */
+.dropdown { position: relative; display: inline-block; }
+.dropdown-content { display: none; position: absolute; background: var(--panel); min-width: 150px; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5); z-index: 100; border: 1px solid rgba(255, 255, 255, 0.3); border-radius: 8px; overflow: hidden; top: calc(100% + 4px); left: 0; }
+.dropdown-content.show { display: flex; flex-direction: column; }
+.dropdown-right { right: 0; left: auto; }
+
+.dropdown-item {
+  background: transparent;
+  color: var(--text);
+  padding: 10px 14px;
+  text-align: left;
+  border: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+  white-space: nowrap;
+}
+.dropdown-item:last-child { border-bottom: none; }
+.dropdown-item:hover { background: rgba(255, 255, 255, 0.05); }
+
+.dropdown-divider {
+  height: 1px;
+  margin: 4px 0;
+  overflow: hidden;
+  background-color: rgba(255, 255, 255, 0.1);
+  border: none;
+}
+
 input, textarea, button, select { 
   font-family: inherit; 
 }
@@ -218,13 +248,14 @@ html, body {
   padding: 8px 12px; 
   border-bottom: 1px solid var(--line); 
   background: var(--panel); 
+  overflow: visible;
 }
 
 .toolbar-scroll { 
   display: flex; 
   align-items: center; 
   gap: 8px; 
-  overflow-x: auto; 
+  overflow: visible;
   scrollbar-width: none; 
 }
 
@@ -266,7 +297,7 @@ html, body {
   font-weight: 500; 
   cursor: pointer; 
   white-space: nowrap; 
-  transition: all 0.2s ease;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
 }
 
 .btn-sm { 
@@ -284,22 +315,43 @@ html, body {
   padding: 6px 24px; 
 }
 
-.btn:hover:not(:disabled) { background: #334155; }
+.btn:hover:not(:disabled) {
+  background: #334155;
+  border-color: rgba(255, 255, 255, 0.15);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.btn:active:not(:disabled) {
+  transform: scale(0.96);
+  box-shadow: none;
+}
+
 .btn:disabled { opacity: 0.3; cursor: not-allowed; }
 
 .btn-primary { background: var(--primary); border-color: var(--primary); color: #fff; }
-.btn-primary:hover:not(:disabled) { background: var(--primary-hover); }
+.btn-primary:hover:not(:disabled) { background: var(--primary-hover); border-color: var(--primary-hover); box-shadow: 0 2px 12px rgba(59, 130, 246, 0.4); }
 
 .btn-success { background: var(--success); border-color: var(--success); color: #fff; }
-.btn-success:hover:not(:disabled) { background: var(--success-hover); }
+.btn-success:hover:not(:disabled) { background: var(--success-hover); box-shadow: 0 2px 12px rgba(16, 185, 129, 0.4); }
 
 .btn-danger { background: var(--danger); border-color: var(--danger); color: #fff; }
-.btn-danger:hover:not(:disabled) { background: var(--danger-hover); }
+.btn-danger:hover:not(:disabled) { background: var(--danger-hover); box-shadow: 0 2px 12px rgba(239, 68, 68, 0.4); }
 
 .btn-luca { background: #d97706; border-color: #d97706; color: #fff; }
-.btn-luca:hover:not(:disabled) { background: #b45309; }
+.btn-luca:hover:not(:disabled) { background: #b45309; box-shadow: 0 2px 12px rgba(217, 119, 6, 0.4); }
 
 .btn-outline { background: transparent; border-color: var(--muted); }
+.btn-outline:hover:not(:disabled) { border-color: rgba(255, 255, 255, 0.3); background: rgba(255, 255, 255, 0.05); }
+
+/* Dropdown toggle active state */
+.dropdown-toggle.active,
+.dropdown-content.show + .dropdown-toggle,
+.dropdown:has(.dropdown-content.show) .dropdown-toggle {
+  background: #334155;
+  border-color: rgba(96, 165, 250, 0.5);
+  box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.15);
+  color: #93c5fd;
+}
 
 .split-layout { 
   display: grid; 
@@ -684,6 +736,7 @@ html, body {
 .modal-backdrop { 
   position: fixed; 
   inset: 0; 
+  z-index: 50;
   display: none; 
   align-items: flex-start; 
   justify-content: center; 
@@ -734,6 +787,11 @@ html, body {
   gap: 6px; 
   font-size: 13px; 
   cursor: pointer; 
+}
+
+
+.text-luca {
+  color: #fbbf24;
 }
 
 @media (max-width: 768px) {
