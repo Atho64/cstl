@@ -4382,25 +4382,19 @@
       if (isTranslated(line)) fName = (line.trans_name || "").trim() || line.name;
       if (query && regex) {
         let isMatch = false;
-        
-        if (!onlyTrans && (scope === 'all' || scope === 'message') && line.message) {
-            regex.lastIndex = 0;
-            if (regex.test(line.message)) isMatch = true;
-        }
-        if (!isMatch && (scope === 'all' || scope === 'message') && line.trans_message) {
-            regex.lastIndex = 0;
-            if (regex.test(line.trans_message)) isMatch = true;
-        }
-        
-        if (!isMatch && !onlyTrans && (scope === 'all' || scope === 'name') && dName) {
-            regex.lastIndex = 0;
-            if (regex.test(dName)) isMatch = true;
-        }
-        if (!isMatch && (scope === 'all' || scope === 'name') && fName) {
-            regex.lastIndex = 0;
-            if (regex.test(fName)) isMatch = true;
-        }
-        
+
+        // onlyTrans=true  -> search ONLY translated fields
+        // onlyTrans=false -> search ONLY original fields
+        const searchOrigMsg   = !onlyTrans && (scope === 'all' || scope === 'message');
+        const searchTransMsg  =  onlyTrans && (scope === 'all' || scope === 'message');
+        const searchOrigName  = !onlyTrans && (scope === 'all' || scope === 'name');
+        const searchTransName =  onlyTrans && (scope === 'all' || scope === 'name');
+
+        if (!isMatch && searchOrigMsg  && line.message)       { regex.lastIndex = 0; if (regex.test(line.message))       isMatch = true; }
+        if (!isMatch && searchTransMsg && line.trans_message)  { regex.lastIndex = 0; if (regex.test(line.trans_message)) isMatch = true; }
+        if (!isMatch && searchOrigName && dName)               { regex.lastIndex = 0; if (regex.test(dName))              isMatch = true; }
+        if (!isMatch && searchTransName && fName)              { regex.lastIndex = 0; if (regex.test(fName))              isMatch = true; }
+
         if (!isMatch) continue;
       }
       state.proofreadMatches.push({
@@ -4444,14 +4438,18 @@
     const transDiv = document.createElement("div");
     transDiv.className = "translated";
     if (!r.isTrans) transDiv.classList.add("cell-muted");
-    if (onlyTrans) {
-      origDiv.textContent = r.origName ? `${r.origName}: ${r.origMsg}` : r.origMsg;
-      if (r.isTrans) transDiv.appendChild(buildNodes(r.transName, r.transMsg, true));
-      else transDiv.textContent = "——";
-    } else {
+    // Original text: highlight only when onlyTrans=false (we searched originals)
+    if (!onlyTrans) {
       origDiv.appendChild(buildNodes(r.origName, r.origMsg, true));
-      if (r.isTrans) transDiv.textContent = r.transName ? `${r.transName}: ${r.transMsg}` : r.transMsg;
-      else transDiv.textContent = "——";
+    } else {
+      origDiv.textContent = r.origName ? `${r.origName}: ${r.origMsg}` : r.origMsg;
+    }
+    // Translation text: highlight only when onlyTrans=true (we searched translated)
+    if (r.isTrans) {
+      if (onlyTrans) transDiv.appendChild(buildNodes(r.transName, r.transMsg, true));
+      else transDiv.textContent = r.transName ? `${r.transName}: ${r.transMsg}` : (r.transMsg || "——");
+    } else {
+      transDiv.textContent = "——";
     }
     contentWrap.append(fileMeta, origDiv, transDiv);
     row.appendChild(contentWrap);
