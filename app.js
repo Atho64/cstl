@@ -4338,18 +4338,23 @@
     if (!query) return document.createTextNode(text);
     let regex;
     try {
-      regex = buildSearchRegex(query, isRegex, isCase, isExact, true);
+      regex = buildSearchRegex(query, isRegex, isCase, isExact, false);
     } catch(e) { return document.createTextNode(text); }
     const frag = document.createDocumentFragment();
-    const parts = text.split(regex);
-    for (let i = 0; i < parts.length; i++) {
-      if (i % 2 === 1) {
-        const mark = document.createElement("mark");
-        mark.className = "highlight"; mark.textContent = parts[i];
-        frag.appendChild(mark);
-      } else if (parts[i]) {
-        frag.appendChild(document.createTextNode(parts[i]));
+    let lastIndex = 0;
+    for (const match of text.matchAll(regex)) {
+      if (match[0].length === 0) continue;
+      if (match.index > lastIndex) {
+        frag.appendChild(document.createTextNode(text.slice(lastIndex, match.index)));
       }
+      const mark = document.createElement("mark");
+      mark.className = "highlight";
+      mark.textContent = match[0];
+      frag.appendChild(mark);
+      lastIndex = match.index + match[0].length;
+    }
+    if (lastIndex < text.length) {
+      frag.appendChild(document.createTextNode(text.slice(lastIndex)));
     }
     return frag;
   }
@@ -4375,14 +4380,22 @@
       const dName = line.name || "";
       let fName = null;
       if (isTranslated(line)) fName = (line.trans_name || "").trim() || line.name;
-      const targetMsg = onlyTrans ? line.trans_message : line.message;
-      const targetName = onlyTrans ? fName : dName;
       if (query && regex) {
         let isMatch = false;
         regex.lastIndex = 0;
-        if ((scope === 'all' || scope === 'message') && targetMsg && regex.test(targetMsg)) isMatch = true;
-        regex.lastIndex = 0;
-        if (!isMatch && (scope === 'all' || scope === 'name') && targetName && regex.test(targetName)) isMatch = true;
+        if ((scope === 'all' || scope === 'message') && line.message && regex.test(line.message)) isMatch = true;
+        if (!isMatch && (scope === 'all' || scope === 'message') && line.trans_message) {
+            regex.lastIndex = 0;
+            if (regex.test(line.trans_message)) isMatch = true;
+        }
+        if (!isMatch && (scope === 'all' || scope === 'name') && dName) {
+            regex.lastIndex = 0;
+            if (regex.test(dName)) isMatch = true;
+        }
+        if (!isMatch && (scope === 'all' || scope === 'name') && fName) {
+            regex.lastIndex = 0;
+            if (regex.test(fName)) isMatch = true;
+        }
         if (!isMatch) continue;
       }
       state.proofreadMatches.push({
