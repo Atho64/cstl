@@ -3295,7 +3295,7 @@
     if (sourceParts.length >= 2 && sourceParts.length === targetParts.length) {
       for (let i = 0; i < sourceParts.length; i++) {
         if (sourceParts[i] && targetParts[i] && sourceParts[i] !== targetParts[i]) {
-          entries.set(sourceParts[i], { target: targetParts[i], type, desc: i === 0 ? `family name${desc.includes("female") ? ", female" : desc.includes("male") ? ", male" : ""}` : `given name${desc.includes("female") ? ", female" : desc.includes("male") ? ", male" : ""}` });
+          entries.set(sourceParts[i], { target: targetParts[i], type, desc: i === 0 ? "family name" : `given name${desc.includes("female") ? " (female)" : desc.includes("male") ? " (male)" : ""}` });
         }
       }
     }
