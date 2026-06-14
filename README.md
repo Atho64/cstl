@@ -4,7 +4,7 @@
   <img src="./icon.svg" width="110" height="110" alt="CSTL Logo"/>
 
   [![Live](https://img.shields.io/badge/Live-atho64.github.io%2Fcstl-blue?style=for-the-badge)](https://atho64.github.io/cstl/)
-  ![Version](https://img.shields.io/badge/Version-M12-purple?style=for-the-badge)
+  ![Version](https://img.shields.io/badge/Version-M13-purple?style=for-the-badge)
 </div>
 
 Tool bantu terjemahan visual novel yang jalan di browser. Dibuat karena capek bolak-balik copy-paste manual antara file script dan AI. Semua workflow dari impor, terjemah pakai AI, kelola nama karakter, sampai ekspor bisa dilakukan di satu tempat.

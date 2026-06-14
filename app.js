@@ -2,9 +2,30 @@
   "use strict";
   const AI_TRANSLATION_FORMAT_BLOCK = "block";
   const AI_TRANSLATION_FORMAT_NUMBERED = "numbered";
+  const AI_TRANSLATION_FORMAT_XML = "xml";
+  const AI_TRANSLATION_FORMAT_JSONL = "jsonl";
   const DEFAULT_AI_TRANSLATION_FORMAT = AI_TRANSLATION_FORMAT_NUMBERED;
-  const DEFAULT_PROMPT_HEADER_NUMBERED = `Rewrite entire text to Native {{targetLang}}. Do not change prefix number. Translate the name at the beginning. Euphemism prohibited. Use of "Bahasa Jakarta Selatan" is prohibited. Put results inside \`\`\`plaintext block.`;
-  const DEFAULT_PROMPT_HEADER_BLOCK = `Rewrite entire text to native {{targetLang}}. Keep [line N] and type unchanged. Translate the speaker names. Do not add, remove, or renumber blocks. Euphemism prohibited. Use of "Bahasa Jakarta Selatan" is prohibited. Put results inside \`\`\`plaintext block using the same [line N] / speaker / text format.`;
+  const DEFAULT_PROMPT_HEADER_NUMBERED = `Translate entire text to Native {{targetLang}}, accurate and natural. Translate names at the beginning. Do not change prefix numbers. No euphemisms. No informal/slang pronouns (lo, lu, gue, gua, etc.). Output in \`\`\`plaintext block.
+
+Example:
+12. Spica: "Aku duluan ya."`;
+  const DEFAULT_PROMPT_HEADER_BLOCK = `Translate entire text to Native {{targetLang}}, accurate and natural. Translate speaker names. Keep [line N] and type field unchanged. Do not add, remove, or renumber blocks. No euphemisms. No informal/slang pronouns (lo, lu, gue, gua, etc.). Output in \`\`\`plaintext block using the same [line N] / speaker / text format.
+
+Example:
+[line 12]
+speaker: Spica
+text: "Aku duluan ya."`;
+  const DEFAULT_PROMPT_HEADER_XML = `Translate entire text to Native {{targetLang}}, accurate and natural. Translate speaker attribute values and content inside <text> tags. Keep all XML tags, attributes, and structure exactly as-is. Do not add, remove, or renumber <line> elements. No euphemisms. No informal/slang pronouns (lo, lu, gue, gua, etc.). Output in \`\`\`xml block.
+
+Example:
+<line num="12" speaker="Spica">
+  <text>"Aku duluan ya."</text>
+</line>`;
+  const DEFAULT_PROMPT_HEADER_JSONL = `Translate entire text to Native {{targetLang}}, accurate and natural. Translate "speaker" and "text" values only. Keep "num" and all other fields unchanged. Do not add or remove lines. No euphemisms. No informal/slang pronouns (lo, lu, gue, gua, etc.). Output in \`\`\`jsonl block.
+
+Example:
+{"num":12,"speaker":"Spica","text":"\"Aku duluan ya.\""}`;
+
   const DEFAULT_PROMPT_HEADER = DEFAULT_PROMPT_HEADER_NUMBERED;
   const DEFAULT_GLOSSARY_PROMPT = `Extract important names and story-specific terminology from the following text to build a typed glossary.\nFormat the output STRICTLY as:\n[type] [{{sourceLang}} term] = [{{targetLang}} term] {short description}\n\nAllowed types:\n[character], [place], [organization], [item], [ability], [title], [concept], [term]\n\nDescription examples:\n{male name}, {female name}, {family name}, {given name}, {place name}, {school}, {food}, {honorific}, {concept}\n\nExample:\n[character] 浅村 悠太 = Asamura Yuuta {male name}\n[character] 綾瀬 沙季 = Ayase Saki {female name}\n[place] 渋谷 = Shibuya {place name}\n[item] 炬燵 = Kotatsu {household item}\n[term] 義妹 = adik tiri perempuan {family term}\n\nRules:\n1. Do NOT translate the text itself.\n2. Only output the typed glossary list.\n3. Do NOT include common everyday words, ordinary verbs, generic adjectives, or basic nouns unless they are proper nouns, recurring key terms, culturally specific terms, or story-specific concepts.\n4. Prefer character names, family names, given names, place names, organization names, titles, unique items, abilities, honorifics, relationship terms, and recurring setting-specific terminology.\n5. Prefer specific types over [term].\n6. Include gender for character names when inferable from context; otherwise use {character name}.\n7. Put results inside \`\`\`plaintext block.`;
   const DEFAULT_AI_CHECK_PROMPT = `Check the existing {{targetLang}} translation against the original {{sourceLang}} text.\nOnly return lines that need correction. Do not return lines that are already good.\n\nUse this STRICT format for each correction:\n[line 12]\nreason: why this line needs correction\nname: corrected character name, or blank if unchanged/not applicable\ntext: corrected {{targetLang}} translation without the speaker name prefix\n\nRules:\n1. Keep the original line number exactly.\n2. Give a short, concrete reason.\n3. Use name only for corrected character names; leave it blank when unchanged.\n4. Put only the corrected message in text. Do NOT repeat the speaker name in text.\n5. Correct only the {{targetLang}} translation, not the {{sourceLang}} original.\n6. Respect provided glossary entries.\n7. Put results inside \`\`\`plaintext block.`;
@@ -29,6 +50,9 @@
     targetLang: "Indonesian",
     regexFilter: "",
     disableEmptyLineValidation: false,
+    checkKanaResidue: false,
+    checkSimilarity: false,
+    similarityThreshold: 0.7,
     currentProjectId: null,
     projectName: "",
     projectType: "",
@@ -60,6 +84,7 @@
     displayRows: [],
     lineByNum: new Map(),
     proofreadMatches: [],
+    qaMatches: [],
     aiCheckCorrections: [],
     dashboardProjects: [],
   };
@@ -69,6 +94,7 @@
   let saveTimeout = null;
   let mainScroller = null;
   let proofreadScroller = null;
+  let qaScroller = null;
   let hintToken = 0;
 
   class VirtualScroller {
@@ -258,7 +284,7 @@
       "glossaryFileInput", "settingsModal", "settingsPromptInput", "settingsGlossaryPromptInput", "settingsAiCheckPromptInput", "settingsEpubTagsInput",
       "settingsLucaWrap", "settingsLucaProfileSelect", "settingsLucaMcWrap", "settingsLucaMcDisplayNameInput", "settingsLucaExportLangWrap", "settingsLucaExportLangSelect", "settingsSourceLangSelect", "settingsTargetLangSelect", "settingsRegexFilterInput",
       "settingsDisableEmptyLineValidation", "settingsAiTranslationFormatSelect", "settingsGlossaryInput", "settingsContextLinesInput", "settingsSelectionBatchSizeInput", "settingsGlossaryBatchSizeInput", "settingsAiCheckBatchSizeInput", "settingsSelectionPrevShortcutInput", "settingsSelectionNextShortcutInput", "btnSettingsReset", "btnSettingsGlossaryReset", "btnSettingsAiCheckReset", "btnSettingsCancel", "btnSettingsSave", "lineEditorModal", "lineEditorTitle",
-      "tabTranslate", "tabGlossary", "viewTranslate", "viewGlossary", "btnCopyForGlossaryAi", "pasteGlossaryArea", "btnSaveGlossary", "btnImportGlossaryFile", "btnExportGlossaryFile", "copyGlossaryCount",
+      "tabTranslate", "tabGlossary", "viewTranslate", "viewGlossary", "btnCopyForGlossaryAi", "pasteGlossaryArea", "btnSaveGlossary", "btnImportGlossaryFile", "btnExportGlossaryFile", "copyGlossaryCount", "btnDeleteTranslation", "deleteTranslationCount", "tabDelete", "viewDelete",
       "tabAiCheck", "viewAiCheck", "btnCopyForAiCheck", "copyAiCheckCount", "aiCheckStatus", "pasteAiCheckArea", "btnParseAiCheck", "btnApplyAiCheck", "btnClearAiCheck", "aiCheckResults",
       "vndbInput", "btnImportVndbNames", "vndbStatus",
       "btnExtractEpubRubyNames", "epubRubyStatus", "anilistInput", "btnImportAnilistNames", "anilistStatus",
@@ -267,7 +293,9 @@
       "btnLineCancel", "btnLineSave", "proofreadModal", "proofreadSearchInput", "proofreadScope",
       "proofreadRegexCheck", "proofreadCaseCheck", "proofreadExactCheck", "proofreadTranslatedOnlyCheck",
       "btnProofreadReset", "proofreadStatus", "proofreadContainer", "btnProofreadClose",
-      "proofreadReplaceInput", "btnProofreadReplaceAll", "rangeFromInput", "rangeToInput", "btnSelectRange"
+      "proofreadReplaceInput", "btnProofreadReplaceAll", "rangeFromInput", "rangeToInput", "btnSelectRange",
+      "settingsCheckKanaResidue", "settingsCheckSimilarity", "settingsSimilarityThreshold", "settingsSimilarityThresholdWrap",
+      "btnQaCheck", "qaModal", "qaCheckGlossary", "qaCheckKana", "qaCheckSimilarity", "btnRunQa", "btnQaReset", "qaStats", "qaResults", "btnQaClose"
     ];
     for (const id of ids) {
       ui[id] = document.getElementById(id);
@@ -276,8 +304,12 @@
 
   function initScrollers() {
     mainScroller = new VirtualScroller(ui.previewViewport, ui.previewContainer, 85, renderMainRow);
+    
     const proofreadViewport = ui.proofreadContainer.closest('.proofread-results-wrap');
     proofreadScroller = new VirtualScroller(proofreadViewport, ui.proofreadContainer, 90, renderProofreadRow);
+
+    const qaViewport = ui.qaResults.closest('.proofread-results-wrap');
+    qaScroller = new VirtualScroller(qaViewport, ui.qaResults, 90, renderQaRow);
   }
 
   function bindEvents() {
@@ -334,14 +366,15 @@
     ui.btnSaveGlossary.addEventListener("click", onSaveGlossary);
     ui.btnImportGlossaryFile.addEventListener("click", () => ui.glossaryFileInput.click());
     ui.btnExportGlossaryFile.addEventListener("click", onExportGlossaryFile);
+    ui.btnDeleteTranslation.addEventListener("click", onDeleteTranslation);
     ui.btnImportVndbNames.addEventListener("click", onImportVndbNames);
     ui.btnExtractEpubRubyNames.addEventListener("click", onExtractEpubRubyNames);
     ui.btnImportAnilistNames.addEventListener("click", onImportAnilistNames);
 
     ui.tabTranslate.addEventListener("click", () => switchWorkspaceTab("translate"));
-    
     ui.tabGlossary.addEventListener("click", () => switchWorkspaceTab("glossary"));
     ui.tabAiCheck.addEventListener("click", () => switchWorkspaceTab("aiCheck"));
+    ui.tabDelete.addEventListener("click", () => switchWorkspaceTab("delete"));
     ui.btnCopyForAiCheck.addEventListener("click", onCopyForAiCheck);
     ui.btnParseAiCheck.addEventListener("click", onParseAiCheck);
     ui.btnApplyAiCheck.addEventListener("click", onApplyAiCheckCorrections);
@@ -399,10 +432,13 @@
       ui.settingsAiTranslationFormatSelect.addEventListener("change", () => {
         const format = ui.settingsAiTranslationFormatSelect.value || DEFAULT_AI_TRANSLATION_FORMAT;
         const currentDefault = getDefaultPromptHeaderForFormat(format);
-        const otherDefault = getDefaultPromptHeaderForFormat(
-          format === AI_TRANSLATION_FORMAT_BLOCK ? AI_TRANSLATION_FORMAT_NUMBERED : AI_TRANSLATION_FORMAT_BLOCK
-        );
-        if (ui.settingsPromptInput.value.trim() === otherDefault.trim()) {
+        const allDefaults = [
+          DEFAULT_PROMPT_HEADER_NUMBERED,
+          DEFAULT_PROMPT_HEADER_BLOCK,
+          DEFAULT_PROMPT_HEADER_XML,
+          DEFAULT_PROMPT_HEADER_JSONL,
+        ];
+        if (allDefaults.some(d => ui.settingsPromptInput.value.trim() === d.trim())) {
           ui.settingsPromptInput.value = currentDefault;
         }
       });
@@ -415,6 +451,11 @@
     });
     ui.btnSettingsCancel.addEventListener("click", () => closeModal(ui.settingsModal));
     ui.btnSettingsSave.addEventListener("click", onSavePromptSettings);
+    if (ui.settingsCheckSimilarity) {
+      ui.settingsCheckSimilarity.addEventListener("change", () => {
+        ui.settingsSimilarityThresholdWrap.style.display = ui.settingsCheckSimilarity.checked ? "flex" : "none";
+      });
+    }
     if (ui.settingsLucaProfileSelect) {
       ui.settingsLucaProfileSelect.addEventListener("change", () => {
         if (state.lines.length > 0) return;
@@ -438,6 +479,12 @@
     ui.proofreadCaseCheck.addEventListener("change", renderProofreadResults);
     ui.proofreadExactCheck.addEventListener("change", renderProofreadResults);
     ui.proofreadTranslatedOnlyCheck.addEventListener("change", renderProofreadResults);
+    
+    ui.btnQaCheck.addEventListener("click", onOpenQa);
+    ui.btnQaClose.addEventListener("click", () => closeModal(ui.qaModal));
+    ui.btnQaReset.addEventListener("click", onResetQa);
+    ui.btnRunQa.addEventListener("click", runQaCheck);
+
     bindShortcutCaptureInput(ui.settingsSelectionPrevShortcutInput);
     bindShortcutCaptureInput(ui.settingsSelectionNextShortcutInput);
   }
@@ -449,6 +496,7 @@
       { name: "translate", tab: ui.tabTranslate, view: ui.viewTranslate },
       { name: "glossary", tab: ui.tabGlossary, view: ui.viewGlossary },
       { name: "aiCheck", tab: ui.tabAiCheck, view: ui.viewAiCheck },
+      { name: "delete", tab: ui.tabDelete, view: ui.viewDelete },
     ];
     for (const item of tabs) {
       const active = item.name === tabName;
@@ -830,6 +878,9 @@
       target_lang: d.targetLang,
       regex_filter: d.regexFilter || "",
       disable_empty_line_validation: false,
+      check_kana_residue: false,
+      check_similarity: false,
+      similarity_threshold: 0.7,
       imported_files: [],
       lines: [],
       prompt_header: DEFAULT_PROMPT_HEADER,
@@ -977,6 +1028,9 @@
         lucaRawBuffers: state.lucaRawBuffers,
         regex_filter: state.regexFilter,
         disable_empty_line_validation: state.disableEmptyLineValidation,
+        check_kana_residue: state.checkKanaResidue,
+        check_similarity: state.checkSimilarity,
+        similarity_threshold: state.similarityThreshold,
         imported_files: state.importedFiles,
         lines: state.lines,
         prompt_header: state.aiInstructionHeader,
@@ -1013,6 +1067,10 @@
     clearLucaFileLineBytesCache();
     state.regexFilter = data.regex_filter || "";
     state.disableEmptyLineValidation = !!data.disable_empty_line_validation;
+    state.checkKanaResidue = !!data.check_kana_residue;
+    state.checkSimilarity = !!data.check_similarity;
+    state.similarityThreshold = (typeof data.similarity_threshold === "number" && data.similarity_threshold > 0 && data.similarity_threshold < 1)
+      ? data.similarity_threshold : 0.7;
     state.lines = (data.lines || []).map(normalizeLineDict);
     state.importedFiles = data.imported_files || [];
     state.aiInstructionHeader = data.prompt_header || DEFAULT_PROMPT_HEADER;
@@ -1057,6 +1115,9 @@
         lucaRawBuffers: state.lucaRawBuffers,
         regex_filter: state.regexFilter,
         disable_empty_line_validation: state.disableEmptyLineValidation,
+        check_kana_residue: state.checkKanaResidue,
+        check_similarity: state.checkSimilarity,
+        similarity_threshold: state.similarityThreshold,
         imported_files: state.importedFiles, lines: state.lines,
         prompt_header: state.aiInstructionHeader,
         ai_translation_format: state.aiTranslationFormat || DEFAULT_AI_TRANSLATION_FORMAT,
@@ -1123,6 +1184,9 @@
         updatedAt: Date.now(),
         regex_filter: p.regex_filter || "",
         disable_empty_line_validation: !!p.disable_empty_line_validation,
+        check_kana_residue: !!p.check_kana_residue,
+        check_similarity: !!p.check_similarity,
+        similarity_threshold: (typeof p.similarity_threshold === "number" && p.similarity_threshold > 0 && p.similarity_threshold < 1) ? p.similarity_threshold : 0.7,
         imported_files: p.imported_files || [],
         lines: (p.lines || []).map(normalizeLineDict),
         prompt_header: p.prompt_header || DEFAULT_PROMPT_HEADER,
@@ -1156,6 +1220,7 @@
     const translatedSelectionCount = state.lines.filter(l => state.selectedLines.has(l.line_num) && isTranslated(l)).length;
     ui.btnExport.disabled = !hasData;
     ui.btnProofread.disabled = !hasData;
+    ui.btnQaCheck.disabled = !hasData;
     ui.btnImportTranslatedFile.disabled = !hasData;
     ui.btnImportTranslatedFolder.disabled = !hasData;
     ui.btnSelectAll.disabled = !hasData;
@@ -1178,12 +1243,14 @@
     ui.btnClearAiCheck.disabled = !ui.pasteAiCheckArea.value.trim() && state.aiCheckCorrections.length === 0;
     ui.btnImportGlossaryFile.disabled = !state.currentProjectId;
     ui.btnExportGlossaryFile.disabled = !state.glossaryText.trim();
+    ui.btnDeleteTranslation.disabled = translatedSelectionCount === 0;
     ui.rangeFromInput.disabled = !hasData;
     ui.rangeToInput.disabled = !hasData;
     ui.btnSelectRange.disabled = !hasData;
     ui.copyCount.textContent = untranslatedSelectionCount;
     ui.copyNameCount.textContent = nameCount;
     ui.copyGlossaryCount.textContent = state.selectedLines.size;
+    ui.deleteTranslationCount.textContent = translatedSelectionCount;
     ui.copyAiCheckCount.textContent = translatedSelectionCount;
     renderGlossaryPreview();
     if (ui.pasteArea) ui.pasteArea.placeholder = getTranslationPastePlaceholder();
@@ -1306,7 +1373,7 @@
 
   function isSelectableForActiveTab(line) {
     if (!line || line._hidden) return false;
-    if (state.activeWorkspaceTab === "aiCheck") return isTranslated(line);
+    if (state.activeWorkspaceTab === "aiCheck" || state.activeWorkspaceTab === "delete") return isTranslated(line);
     if (state.activeWorkspaceTab === "translate") return !isTranslated(line);
     return true;
   }
@@ -2269,15 +2336,18 @@
   }
 
   function normalizeAiTranslationFormat(value) {
-    return value === AI_TRANSLATION_FORMAT_NUMBERED
-      ? AI_TRANSLATION_FORMAT_NUMBERED
-      : AI_TRANSLATION_FORMAT_BLOCK;
+    if (value === AI_TRANSLATION_FORMAT_NUMBERED) return AI_TRANSLATION_FORMAT_NUMBERED;
+    if (value === AI_TRANSLATION_FORMAT_BLOCK)    return AI_TRANSLATION_FORMAT_BLOCK;
+    if (value === AI_TRANSLATION_FORMAT_XML)      return AI_TRANSLATION_FORMAT_XML;
+    if (value === AI_TRANSLATION_FORMAT_JSONL)    return AI_TRANSLATION_FORMAT_JSONL;
+    return AI_TRANSLATION_FORMAT_NUMBERED;
   }
 
   function getDefaultPromptHeaderForFormat(format) {
-    return format === AI_TRANSLATION_FORMAT_NUMBERED
-      ? DEFAULT_PROMPT_HEADER_NUMBERED
-      : DEFAULT_PROMPT_HEADER_BLOCK;
+    if (format === AI_TRANSLATION_FORMAT_BLOCK)  return DEFAULT_PROMPT_HEADER_BLOCK;
+    if (format === AI_TRANSLATION_FORMAT_XML)    return DEFAULT_PROMPT_HEADER_XML;
+    if (format === AI_TRANSLATION_FORMAT_JSONL)  return DEFAULT_PROMPT_HEADER_JSONL;
+    return DEFAULT_PROMPT_HEADER_NUMBERED;
   }
 
   function unescapeStoredNewlines(text) {
@@ -2299,11 +2369,66 @@
     return parts.join("\n");
   }
 
+  // Dice coefficient pada character bigrams — cepat dan efektif untuk deteksi terjemahan yang tidak berubah.
+  function stringSimilarity(a, b) {
+    const s1 = String(a || "");
+    const s2 = String(b || "");
+    if (s1 === s2) return 1;
+    if (s1.length < 2 || s2.length < 2) return 0;
+    const getBigrams = s => {
+      const map = new Map();
+      for (let i = 0; i < s.length - 1; i++) {
+        const bg = s[i] + s[i + 1];
+        map.set(bg, (map.get(bg) || 0) + 1);
+      }
+      return map;
+    };
+    const bg1 = getBigrams(s1);
+    const bg2 = getBigrams(s2);
+    let intersection = 0;
+    for (const [bg, count] of bg1) {
+      if (bg2.has(bg)) intersection += Math.min(count, bg2.get(bg));
+    }
+    const total = s1.length - 1 + s2.length - 1;
+    return total > 0 ? (2 * intersection) / total : 0;
+  }
+
+  function escapeXml(str) {
+    return String(str || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function formatLineForAiExportXml(line) {
+    const attrs = [`num="${line.line_num}"`];
+    if (String(line.luca_command || "").toUpperCase() === "SELECT") {
+      attrs.push('type="choice"');
+    }
+    const speaker = String(line.name || "").trim();
+    if (speaker) attrs.push(`speaker="${escapeXml(speaker)}"`);
+    const text = escapeXml(unescapeStoredNewlines(line.message));
+    return `  <line ${attrs.join(" ")}>\n    <text>${text}</text>\n  </line>`;
+  }
+
+  function formatLineForAiExportJsonl(line) {
+    const obj = { num: line.line_num };
+    if (String(line.luca_command || "").toUpperCase() === "SELECT") {
+      obj.type = "choice";
+    }
+    const speaker = String(line.name || "").trim();
+    if (speaker) obj.speaker = speaker;
+    obj.text = unescapeStoredNewlines(line.message);
+    return JSON.stringify(obj);
+  }
+
   function getSelectedTranslationText(includeTranslated = true) {
     const sel = state.lines.filter(l => state.selectedLines.has(l.line_num) && (includeTranslated || !isTranslated(l)));
-    if (normalizeAiTranslationFormat(state.aiTranslationFormat) === AI_TRANSLATION_FORMAT_BLOCK) {
-      return sel.map(formatLineForAiExport).join("\n\n");
-    }
+    const fmt = normalizeAiTranslationFormat(state.aiTranslationFormat);
+    if (fmt === AI_TRANSLATION_FORMAT_BLOCK)  return sel.map(formatLineForAiExport).join("\n\n");
+    if (fmt === AI_TRANSLATION_FORMAT_XML)    return sel.map(formatLineForAiExportXml).join("\n");
+    if (fmt === AI_TRANSLATION_FORMAT_JSONL)  return sel.map(formatLineForAiExportJsonl).join("\n");
     return getSelectedTranslationPlainText(includeTranslated);
   }
 
@@ -2318,12 +2443,26 @@
   function buildSelectedTranslationExport(includeTranslated = true) {
     const body = getSelectedTranslationText(includeTranslated);
     if (!body) return "";
+    const fmt = normalizeAiTranslationFormat(state.aiTranslationFormat);
+    if (fmt === AI_TRANSLATION_FORMAT_XML) {
+      return `<?xml version="1.0" encoding="UTF-8"?>\n<lines>\n${body}\n</lines>`;
+    }
+    if (fmt === AI_TRANSLATION_FORMAT_JSONL) {
+      return body;
+    }
     return `<lines>\n${body}\n</lines>`;
   }
 
   function getTranslationPastePlaceholder() {
-    if (normalizeAiTranslationFormat(state.aiTranslationFormat) === AI_TRANSLATION_FORMAT_BLOCK) {
+    const fmt = normalizeAiTranslationFormat(state.aiTranslationFormat);
+    if (fmt === AI_TRANSLATION_FORMAT_BLOCK) {
       return `[line 12]\nspeaker: 沙季\ntext: Selamat pagi\n\n[line 13]\nspeaker: 悠太\ntext: Mau ngapain hari ini?`;
+    }
+    if (fmt === AI_TRANSLATION_FORMAT_XML) {
+      return `<?xml version="1.0" encoding="UTF-8"?>\n<lines>\n  <line num="12" speaker="沙季">\n    <text>Selamat pagi</text>\n  </line>\n  <line num="13">\n    <text>Mau ngapain hari ini?</text>\n  </line>\n</lines>`;
+    }
+    if (fmt === AI_TRANSLATION_FORMAT_JSONL) {
+      return `{"num":12,"speaker":"沙季","text":"Selamat pagi"}\n{"num":13,"text":"Mau ngapain hari ini?"}`;
     }
     return `12. 沙季: Selamat pagi\n13. 悠太: Mau ngapain hari ini?`;
   }
@@ -2333,7 +2472,66 @@
     if (!clean) return normalizeAiTranslationFormat(state.aiTranslationFormat);
     if (/^\s*\[line\s+\d+\]\s*$/im.test(clean)) return AI_TRANSLATION_FORMAT_BLOCK;
     if (/^\s*\d+\s*[.)]\s*/m.test(clean)) return AI_TRANSLATION_FORMAT_NUMBERED;
+    if (/(?:<\?xml\b|<lines\b|<line\s+num=)/i.test(clean)) return AI_TRANSLATION_FORMAT_XML;
+    if (/^\s*\{"num"\s*:\s*\d+/m.test(clean)) return AI_TRANSLATION_FORMAT_JSONL;
     return normalizeAiTranslationFormat(state.aiTranslationFormat);
+  }
+
+  function parseTranslationXml(text) {
+    // Hanya strip baris code fence (```xml, ```), jangan hapus <lines> atau <?xml?>
+    // karena DOMParser butuh root element yang utuh.
+    const stripped = String(text || "")
+      .split(/\r?\n/)
+      .filter(line => !/^\s*```(?:xml)?\s*$/i.test(line.trim()))
+      .join("\n")
+      .trim();
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(stripped, "application/xml");
+    const parseErr = doc.querySelector("parsererror");
+    if (parseErr) throw new Error("XML tidak valid: " + parseErr.textContent.slice(0, 100));
+    const lineEls = doc.querySelectorAll("line");
+    if (!lineEls.length) throw new Error("Tidak ada elemen <line> yang valid di XML.");
+    const result = [];
+    for (const el of lineEls) {
+      const num = parseInt(el.getAttribute("num"), 10);
+      if (isNaN(num)) throw new Error(`Elemen <line> tanpa atribut num yang valid.`);
+      const speaker = (el.getAttribute("speaker") || "").trim() || null;
+      const textEl = el.querySelector("text");
+      if (!textEl) throw new Error(`[#${num}] Tidak ada elemen <text>.`);
+      const rawMsg = textEl.textContent;
+      result.push({ num, name: speaker, msg: escapeStoredNewlines(rawMsg), rawMsg });
+    }
+    return result;
+  }
+
+  function parseTranslationJsonl(text) {
+    const stripped = stripPlaintextFences(text).trim();
+    const rawLines = stripped.split(/\r?\n/);
+    const parsed = [];
+    const errors = [];
+    for (let i = 0; i < rawLines.length; i++) {
+      const txt = rawLines[i].trim();
+      if (!txt) continue;
+      let obj;
+      try {
+        obj = JSON.parse(txt);
+      } catch (e) {
+        errors.push(`[Baris ${i + 1}] JSON tidak valid: "${txt.substring(0, 40)}"`);
+        continue;
+      }
+      if (typeof obj.num !== "number" || isNaN(obj.num)) {
+        errors.push(`[Baris ${i + 1}] Field "num" tidak ada atau bukan angka.`);
+        continue;
+      }
+      if (typeof obj.text !== "string") {
+        errors.push(`[Baris ${i + 1} / #${obj.num}] Field "text" tidak ada.`);
+        continue;
+      }
+      const speaker = (obj.speaker || "").trim() || null;
+      const rawMsg = obj.text;
+      parsed.push({ num: obj.num, name: speaker, msg: escapeStoredNewlines(rawMsg), rawMsg });
+    }
+    return { parsed, errors };
   }
 
   function parseTranslationBlocks(text) {
@@ -3374,6 +3572,32 @@
     return String(name || "glossary").replace(/[<>:"\/\\|?*]/g, "_").trim() || "glossary";
   }
 
+  function onDeleteTranslation() {
+    let deletedCount = 0;
+    for (const line of state.lines) {
+      if (state.selectedLines.has(line.line_num)) {
+        if (line.trans_message || line.trans_name || line.is_translated) {
+          line.trans_message = "";
+          line.trans_name = "";
+          line.is_translated = false;
+          deletedCount++;
+        }
+      }
+    }
+    
+    if (deletedCount > 0) {
+      state.selectedLines.clear();
+      recordSelectionHistory();
+      rebuildDisplayState();
+      renderPreviewRows();
+      updateButtonStates();
+      queueAutoSave();
+      flashHint(`${deletedCount} baris terjemahan berhasil dihapus.`);
+    } else {
+      flashHint("Tidak ada terjemahan yang bisa dihapus pada baris yang dicentang.");
+    }
+  }
+
   function onExportGlossaryFile() {
     const glossary = serializeGlossaryMap(parseGlossaryToMap(state.glossaryText));
     if (!glossary.trim()) return alert("Smart Glossary masih kosong.");
@@ -3419,14 +3643,62 @@
 
   function collectVndbGlossaryEntries(characters) {
     const entries = new Map();
+    
+    function processPair(jpFull, enFull, desc) {
+      if (!jpFull || !enFull || !containsJapanese(jpFull)) return;
+      
+      const jpClean = jpFull.trim();
+      const enClean = enFull.trim();
+      if (!jpClean || !enClean) return;
+      
+      // 1. Full name (remove spaces for Japanese)
+      const jpNoSpace = jpClean.replace(/\s+/g, "");
+      if (jpNoSpace && jpNoSpace !== enClean) {
+        addNameGlossaryEntry(entries, jpNoSpace, enClean, "character", desc);
+      }
+      
+      // 2. Extract First/Last names if both have exactly 2 parts separated by spaces
+      const jpParts = jpClean.split(/\s+/).filter(Boolean);
+      const enParts = enClean.split(/\s+/).filter(Boolean);
+      
+      if (jpParts.length === 2 && enParts.length === 2) {
+        if (jpParts[0] !== enParts[0]) addNameGlossaryEntry(entries, jpParts[0], enParts[0], "character", "family name");
+        if (jpParts[1] !== enParts[1]) addNameGlossaryEntry(entries, jpParts[1], enParts[1], "character", desc);
+      }
+    }
+
     for (const ch of characters) {
       const target = String(ch.name || "").trim();
       if (!target) continue;
       const desc = genderToDescription(ch.gender);
-      const sources = [ch.original, ...(Array.isArray(ch.aliases) ? ch.aliases : [])]
-        .map(v => String(v || "").trim())
-        .filter(v => v && v !== target && containsJapanese(v));
-      for (const source of sources) addNameGlossaryEntry(entries, source, target, "character", desc);
+      
+      // Process primary name
+      processPair(ch.original, target, desc);
+      
+      // Process aliases
+      if (Array.isArray(ch.aliases) && ch.aliases.length > 0) {
+        const jpAliases = [];
+        const enAliases = [];
+        for (const a of ch.aliases) {
+          if (containsJapanese(a)) jpAliases.push(String(a));
+          else enAliases.push(String(a));
+        }
+        
+        // If we have matching numbers of JP and EN aliases, pair them by index
+        if (jpAliases.length > 0 && jpAliases.length === enAliases.length) {
+          for (let i = 0; i < jpAliases.length; i++) {
+            processPair(jpAliases[i], enAliases[i], desc);
+          }
+        } else {
+          // Fallback: just map JP aliases to primary target as full name only to avoid bad splitting
+          for (const a of jpAliases) {
+            const jpNoSpace = String(a).replace(/\s+/g, "");
+            if (jpNoSpace && jpNoSpace !== target) {
+              addNameGlossaryEntry(entries, jpNoSpace, target, "character", desc);
+            }
+          }
+        }
+      }
     }
     return entries;
   }
@@ -3717,8 +3989,9 @@
   function stripPlaintextFences(text) {
     return String(text || "")
       .split(/\r?\n/)
-      .filter(line => !/^\s*```(?:plaintext|text)?\s*$/i.test(line.trim()))
+      .filter(line => !/^\s*```(?:plaintext|text|xml|jsonl)?\s*$/i.test(line.trim()))
       .filter(line => !/^\s*<\/?lines>\s*$/i.test(line.trim()))
+      .filter(line => !/^\s*<\?xml\b[^>]*>\s*$/i.test(line.trim()))
       .join("\n");
   }
 
@@ -4094,6 +4367,12 @@
     try {
       if (pasteFormat === AI_TRANSLATION_FORMAT_BLOCK) {
         parsed = parseTranslationBlocks(rawText);
+      } else if (pasteFormat === AI_TRANSLATION_FORMAT_XML) {
+        parsed = parseTranslationXml(rawText);
+      } else if (pasteFormat === AI_TRANSLATION_FORMAT_JSONL) {
+        const jsonlResult = parseTranslationJsonl(rawText);
+        parsed = jsonlResult.parsed;
+        errors = jsonlResult.errors;
       } else {
         const numbered = parseTranslationNumberedPaste(rawText);
         parsed = numbered.parsed;
@@ -4136,7 +4415,23 @@
       }
 
       if (!it.msg && !state.disableEmptyLineValidation) errors.push(`[#${it.num}] Pesannya kosong.`);
-      else updates.push({ l, it });
+      else {
+        if (state.checkKanaResidue) {
+          const rawForCheck = unescapeStoredNewlines(it.msg);
+          if (/[\u3040-\u309F\u30A0-\u30FF]/.test(rawForCheck)) {
+            errors.push(`[#${it.num}] Kana residue: masih ada karakter hiragana/katakana di terjemahan.`);
+          }
+        }
+        if (state.checkSimilarity && it.msg) {
+          const origRaw = unescapeStoredNewlines(l.message || "");
+          const transRaw = unescapeStoredNewlines(it.msg);
+          const sim = stringSimilarity(origRaw, transRaw);
+          if (sim >= state.similarityThreshold) {
+            errors.push(`[#${it.num}] Similarity: terjemahan terlalu mirip dengan teks asli (${Math.round(sim * 100)}% ≥ ${Math.round(state.similarityThreshold * 100)}%).`);
+          }
+        }
+        updates.push({ l, it });
+      }
     }
     if (errors.length) {
       return alert("TRANSLASI DITOLAK:\n\n" + errors.slice(0, 10).join("\n") + (errors.length > 10 ? `\n\n... (+${errors.length - 10} error lain)` : ""));
@@ -4506,11 +4801,195 @@
     } else alert(`Tidak ada kata yang cocok dengan pencarian.`);
   }
 
+  // --- QA Validation Engine ---
+  
+  function parseGlossaryMap() {
+    const list = [];
+    if (!state.glossaryText) return list;
+    const lines = String(state.glossaryText).split(/\r?\n/);
+    for (const line of lines) {
+      const match = line.match(/^\[.*?\]\s*(.*?)\s*=\s*(.*?)\s*\{.*\}$/);
+      if (match) {
+        const src = match[1].trim();
+        const tgt = match[2].trim();
+        if (src && tgt) {
+          list.push({ src, tgt });
+        }
+      }
+    }
+    return list;
+  }
+
+  function onOpenQa() {
+    openModal(ui.qaModal);
+    if (state.qaMatches.length === 0) {
+      ui.qaStats.textContent = "Status: Siap dijalankan.";
+    }
+  }
+
+  function onResetQa() {
+    ui.qaCheckGlossary.checked = true;
+    ui.qaCheckKana.checked = true;
+    ui.qaCheckSimilarity.checked = true;
+    state.qaMatches = [];
+    qaScroller.setItems([]);
+    ui.qaStats.textContent = "Status: Siap dijalankan.";
+  }
+
+  function runQaCheck() {
+    ui.qaStats.textContent = "Status: Sedang memeriksa...";
+    state.qaMatches = [];
+    
+    const checkKana = ui.qaCheckKana.checked;
+    const checkSim = ui.qaCheckSimilarity.checked;
+    const checkGloss = ui.qaCheckGlossary.checked;
+    
+    const glossaryMap = checkGloss ? parseGlossaryMap() : [];
+    const simThreshold = state.similarityThreshold || 0.7;
+    
+    let kanaCount = 0;
+    let simCount = 0;
+    let glossCount = 0;
+
+    for (const l of state.lines) {
+      if (!isTranslated(l) || !l.trans_message) continue;
+
+      const origRawMsg = unescapeStoredNewlines(l.message || "");
+      const transRawMsg = unescapeStoredNewlines(l.trans_message);
+      const origRawName = unescapeStoredNewlines(l.name || "");
+      const transRawName = unescapeStoredNewlines(l.trans_name || "");
+      
+      const errors = [];
+      const kanaRegex = /[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]/;
+      
+      if (checkKana) {
+        if (kanaRegex.test(transRawMsg) || (transRawName && kanaRegex.test(transRawName))) {
+          errors.push("Kana/Kanji Residue");
+          kanaCount++;
+        }
+      }
+      
+      if (checkSim) {
+        let flagged = false;
+        if (origRawMsg.length >= 2 || transRawMsg.length >= 2) {
+          const simMsg = stringSimilarity(origRawMsg, transRawMsg);
+          if (simMsg >= simThreshold) {
+            errors.push(`Sim: Teks (${Math.round(simMsg * 100)}%)`);
+            flagged = true;
+          }
+        }
+        if (origRawName && transRawName && (origRawName.length >= 2 || transRawName.length >= 2)) {
+          const simName = stringSimilarity(origRawName, transRawName);
+          if (simName >= simThreshold) {
+            errors.push(`Sim: Nama (${Math.round(simName * 100)}%)`);
+            flagged = true;
+          }
+        }
+        if (flagged) simCount++;
+      }
+      
+      if (checkGloss) {
+        let missingTerms = [];
+        const combinedOrig = (origRawName ? origRawName + "\n" : "") + origRawMsg;
+        const combinedTrans = (transRawName ? transRawName + "\n" : "") + transRawMsg;
+        
+        for (const entry of glossaryMap) {
+          if (combinedOrig.includes(entry.src)) {
+            // Pengecekan berbasis batas kata (word boundary)
+            const re = new RegExp("\\b" + escapeRegex(entry.tgt) + "\\b", "i");
+            if (!re.test(combinedTrans)) {
+              missingTerms.push(entry.src);
+            }
+          }
+        }
+        if (missingTerms.length > 0) {
+          errors.push(`Glossary (${missingTerms.join(", ")})`);
+          glossCount++;
+        }
+      }
+      
+      if (errors.length > 0) {
+        state.qaMatches.push({
+          num: l.line_num,
+          file: l.file,
+          origName: l.name,
+          origMsg: l.message,
+          transName: l.trans_name,
+          transMsg: l.trans_message,
+          errors: errors
+        });
+      }
+    }
+    
+    const total = kanaCount + simCount + glossCount;
+    ui.qaStats.textContent = `Selesai. Ditemukan ${total} pelanggaran pada ${state.qaMatches.length} baris (Kana: ${kanaCount}, Similarity: ${simCount}, Glossary: ${glossCount}).`;
+    qaScroller.setItems(state.qaMatches);
+  }
+
+  function renderQaRow(r) {
+    const row = document.createElement("div");
+    row.className = "preview-row";
+    const contentWrap = document.createElement("div");
+    contentWrap.className = "text-content";
+    
+    const titleEl = document.createElement("div");
+    titleEl.className = "hint m-0 label-bold mb-1 flex-center gap-10";
+    titleEl.textContent = r.file + ` (Baris ${r.num})`;
+    
+    for (const err of r.errors) {
+      const badge = document.createElement("span");
+      badge.className = "badge";
+      if (err.startsWith("Kana")) badge.style.background = "var(--danger)";
+      else if (err.startsWith("Sim")) badge.style.background = "#f59e0b"; // orange
+      else badge.style.background = "var(--primary)";
+      badge.textContent = err;
+      titleEl.appendChild(badge);
+    }
+    
+    const buildNodes = (name, msg) => {
+      const wrap = document.createDocumentFragment();
+      if (name) {
+        wrap.appendChild(document.createTextNode(name + ": "));
+      }
+      const mSpan = document.createElement("span");
+      mSpan.className = "text-muted";
+      mSpan.textContent = msg || "";
+      wrap.appendChild(mSpan);
+      const div = document.createElement("div");
+      div.appendChild(wrap);
+      return div;
+    };
+    
+    contentWrap.appendChild(titleEl);
+    contentWrap.appendChild(buildNodes(r.origName, r.origMsg));
+    // get updated translation dynamically
+    const l = state.lineByNum.get(r.num);
+    const tName = l ? l.trans_name : r.transName;
+    const tMsg = l ? l.trans_message : r.transMsg;
+    contentWrap.appendChild(buildNodes(tName, tMsg));
+    
+    row.appendChild(contentWrap);
+    row.style.cursor = "pointer";
+    row.addEventListener("click", () => {
+      closeModal(ui.qaModal);
+      openLineEditor(r.num);
+    });
+    return row;
+  }
+
+  // --- End QA Validation ---
+
   function onOpenSettings() {
     ui.settingsSourceLangSelect.value = state.sourceLang || "Japanese";
     ui.settingsTargetLangSelect.value = state.targetLang || "Indonesian";
     ui.settingsRegexFilterInput.value = state.regexFilter || "";
     ui.settingsDisableEmptyLineValidation.checked = !!state.disableEmptyLineValidation;
+    if (ui.settingsCheckKanaResidue) ui.settingsCheckKanaResidue.checked = !!state.checkKanaResidue;
+    if (ui.settingsCheckSimilarity) {
+      ui.settingsCheckSimilarity.checked = !!state.checkSimilarity;
+      ui.settingsSimilarityThreshold.value = Math.round((state.similarityThreshold || 0.7) * 100);
+      ui.settingsSimilarityThresholdWrap.style.display = state.checkSimilarity ? "flex" : "none";
+    }
     if (ui.settingsAiTranslationFormatSelect) {
       ui.settingsAiTranslationFormatSelect.value = normalizeAiTranslationFormat(state.aiTranslationFormat);
     }
@@ -4559,6 +5038,11 @@
     const targetLang = ui.settingsTargetLangSelect.value || "Indonesian";
     const regexFilter = ui.settingsRegexFilterInput.value;
     const disableEmptyLineValidation = ui.settingsDisableEmptyLineValidation.checked;
+    const checkKanaResidue = !!(ui.settingsCheckKanaResidue?.checked);
+    const checkSimilarity = !!(ui.settingsCheckSimilarity?.checked);
+    const simThresholdRaw = parseInt(ui.settingsSimilarityThreshold?.value);
+    const similarityThreshold = (!isNaN(simThresholdRaw) && simThresholdRaw >= 1 && simThresholdRaw <= 99)
+      ? simThresholdRaw / 100 : 0.7;
     
     if (regexFilter) {
       try {
@@ -4589,6 +5073,9 @@
     state.targetLang = targetLang;
     state.regexFilter = regexFilter;
     state.disableEmptyLineValidation = disableEmptyLineValidation;
+    state.checkKanaResidue = checkKanaResidue;
+    state.checkSimilarity = checkSimilarity;
+    state.similarityThreshold = similarityThreshold;
     state.aiInstructionHeader = aiInstructionHeader;
     state.aiTranslationFormat = aiTranslationFormat;
     state.glossaryPrompt = glossaryPrompt;

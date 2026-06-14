@@ -12,14 +12,14 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./styles.css?v=12" />
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-  <script defer src="./app.js?v=M23"></script>
+  <script defer src="./app.js?v=M24"></script>
 </head>
 <body>
   <div id="dashboardView" class="dashboard-shell open">
     <header class="dashboard-hero">
-      <div class="hero-left">
-        <h1 class="hero-title">Copas Tool</h1>
-        <span class="hero-badge">vM12</span>
+      <div class="logo-wrap">
+        <h1 class="logo">CS<span>TL</span></h1>
+        <span class="hero-badge">vM13</span>
       </div>
       <div class="actions">
         <button id="btnNewProject" class="btn btn-primary">Buat Proyek Baru</button>
@@ -58,6 +58,7 @@
         <button id="btnExport" class="btn" disabled>Ekspor</button>
         <span class="toolbar-sep"></span>
         <button id="btnProofread" class="btn" disabled>Cari</button>
+        <button id="btnQaCheck" class="btn" disabled>Validasi QC</button>
         <button id="btnSettings" class="btn">Setting</button>
       </div>
       <span class="grow"></span>
@@ -99,6 +100,9 @@
           <button id="tabTranslate" class="btn btn-primary grow">Translate</button>
           <button id="tabGlossary" class="btn btn-outline grow">Glossary Extractor</button>
           <button id="tabAiCheck" class="btn btn-outline grow">AI Check</button>
+        </div>
+        <div class="tabs-wrap mb-2" style="display: flex; gap: 8px;">
+          <button id="tabDelete" class="btn btn-outline grow text-danger" style="border-color: rgba(239, 68, 68, 0.3);">Hapus Terjemahan</button>
         </div>
 
         <div id="viewTranslate">
@@ -143,6 +147,14 @@
               </thead>
               <tbody id="nameTableBody"></tbody>
             </table>
+          </div>
+        </div>
+
+        <div id="viewDelete" style="display: none;">
+          <div class="card-box" style="border-color: rgba(239, 68, 68, 0.3);">
+            <label class="section-label mt-0 text-danger">Hapus Terjemahan (Per Baris)</label>
+            <p class="hint">Menghapus hasil terjemahan pada baris yang saat ini dicentang dan mengembalikannya ke teks asli.</p>
+            <button id="btnDeleteTranslation" class="btn btn-danger w-full" disabled>Hapus Terjemahan (<span id="deleteTranslationCount">0</span> Baris)</button>
           </div>
         </div>
 
@@ -255,6 +267,8 @@
             <select id="dsAiFormat" class="text-input w-full">
               <option value="numbered">Numbered List</option>
               <option value="block">Block [line N]</option>
+              <option value="xml">XML (BETA)</option>
+              <option value="jsonl">JSONL (BETA)</option>
             </select>
           </div>
           <div class="flex-col grow">
@@ -329,11 +343,35 @@
         <p class="hint mt-1">Jika aktif, paste atau edit baris dengan terjemahan kosong tetap bisa disimpan sebagai sudah diterjemahkan.</p>
       </div>
       <div class="mt-3">
+        <label class="section-label text-white m-0">Validasi Terjemahan Tambahan</label>
+        <p class="hint mt-1">Validasi ekstra yang dijalankan saat menerapkan terjemahan. Nonaktif secara default.</p>
+        <div class="mt-2">
+          <label class="checkbox-line">
+            <input id="settingsCheckKanaResidue" type="checkbox" />
+            Kana/Kanji Residue — tolak terjemahan yang masih mengandung karakter Jepang
+          </label>
+        </div>
+        <div class="mt-2">
+          <label class="checkbox-line">
+            <input id="settingsCheckSimilarity" type="checkbox" />
+            Similarity — tolak terjemahan yang terlalu mirip dengan teks asli
+          </label>
+          <div id="settingsSimilarityThresholdWrap" class="flex-center gap-4 mt-1" style="display: none;">
+            <label class="hint m-0" for="settingsSimilarityThreshold">Threshold kemiripan:</label>
+            <input id="settingsSimilarityThreshold" type="number" class="text-input" min="1" max="99" value="70" style="width: 72px;" />
+            <span class="hint m-0">% (terjemahan ditolak jika kemiripan ≥ nilai ini)</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-3">
         <label class="section-label text-white m-0" for="settingsAiTranslationFormatSelect">Format Copy/Paste Terjemahan AI</label>
         <p class="hint mt-1">Format block memisahkan nomor baris, speaker, dan teks sehingga lebih aman untuk dialogue VN, JSON, dan LucaSystem. Paste parser otomatis mendeteksi format lama maupun baru.</p>
         <select id="settingsAiTranslationFormatSelect" class="text-input w-full mt-1">
           <option value="numbered">Numbered 12. Name: text</option>
           <option value="block">Block [line N] / speaker / text (BETA)</option>
+          <option value="xml">XML &lt;line num="N" speaker="..."&gt; (BETA)</option>
+          <option value="jsonl">JSONL {"num":N,"speaker":"...","text":"..."} (BETA)</option>
         </select>
       </div>
       <div class="mt-3">
@@ -507,6 +545,36 @@
       <div class="modal-actions">
         <span class="grow"></span>
         <button id="btnProofreadClose" class="btn btn-primary">Tutup</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="qaModal" class="modal-backdrop">
+    <div class="modal modal-xl">
+      <h3>Validasi Quality Control (QC)</h3>
+      <div class="card-box mb-2">
+        <div class="flex-col gap-10">
+          <label class="label-bold">Filter Pengecekan:</label>
+          <div class="proofread-filters flex gap-12 wrap">
+            <label class="checkbox-line"><input id="qaCheckGlossary" type="checkbox" checked />Glossary Not Applied</label>
+            <label class="checkbox-line"><input id="qaCheckKana" type="checkbox" checked />Kana/Kanji Residue</label>
+            <label class="checkbox-line"><input id="qaCheckSimilarity" type="checkbox" checked />Similarity</label>
+          </div>
+          <div class="flex gap-12 mt-1">
+            <button id="btnRunQa" class="btn btn-primary">Jalankan Validasi</button>
+            <button id="btnQaReset" class="btn">Reset</button>
+          </div>
+        </div>
+      </div>
+      <div class="card-box mb-2">
+        <div id="qaStats" class="mono text-muted mb-1">Status: Siap dijalankan.</div>
+        <div class="proofread-results-wrap mt-2">
+          <div id="qaResults" class="preview-container"></div>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <span class="grow"></span>
+        <button id="btnQaClose" class="btn btn-primary">Tutup</button>
       </div>
     </div>
   </div>
