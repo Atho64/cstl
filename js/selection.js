@@ -201,3 +201,24 @@ export function onSelectionHistoryKeydown(event) {
   const direction = event.key === "ArrowUp" ? -1 : 1;
   if (restoreSelectionHistory(direction)) event.preventDefault();
 }
+
+// ─── Tab Switching ────────────────────────────────────────────────────────────
+
+export function switchWorkspaceTab(tabName) {
+  state.activeWorkspaceTab = tabName;
+  pruneSelectionForActiveTab();
+  const tabs = [
+    { name: "translate", tab: ui.tabTranslate, view: ui.viewTranslate },
+    { name: "glossary",  tab: ui.tabGlossary,  view: ui.viewGlossary  },
+    { name: "aiCheck",   tab: ui.tabAiCheck,   view: ui.viewAiCheck   },
+    { name: "delete",    tab: ui.tabDelete,     view: ui.viewDelete    },
+  ];
+  for (const item of tabs) {
+    const active = item.name === tabName;
+    item.tab.classList.toggle("btn-primary", active);
+    item.tab.classList.toggle("btn-outline", !active);
+    item.view.style.display = active ? "block" : "none";
+  }
+  // Lazy import to avoid circular dep with render.js
+  import('./render.js').then(m => { m.renderPreviewRows(); m.updateButtonStates(); });
+}
