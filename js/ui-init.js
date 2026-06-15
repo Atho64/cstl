@@ -79,6 +79,7 @@ export function cacheElements() {
     "btnProofreadReset", "proofreadStatus", "proofreadContainer", "btnProofreadClose",
     "proofreadReplaceInput", "btnProofreadReplaceAll", "rangeFromInput", "rangeToInput", "btnSelectRange",
     "settingsCheckKanaResidue", "settingsCheckSimilarity", "settingsSimilarityThreshold", "settingsSimilarityThresholdWrap",
+  "settingsContextTypeSelect",
     "btnQaCheck", "qaModal", "qaCheckGlossary", "qaCheckKana", "qaCheckSimilarity", "btnRunQa", "btnQaReset", "qaStats", "qaResults", "btnQaClose"
   ];
   for (const id of ids) {

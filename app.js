@@ -5,23 +5,23 @@
   const AI_TRANSLATION_FORMAT_XML = "xml";
   const AI_TRANSLATION_FORMAT_JSONL = "jsonl";
   const DEFAULT_AI_TRANSLATION_FORMAT = AI_TRANSLATION_FORMAT_NUMBERED;
-  const DEFAULT_PROMPT_HEADER_NUMBERED = `Translate entire text to Native {{targetLang}}, accurate and natural. Translate names at the beginning. Do not change prefix numbers. No euphemisms. No informal/slang pronouns (lo, lu, gue, gua, etc.). Output in \`\`\`plaintext block.
+  const DEFAULT_PROMPT_HEADER_NUMBERED = `Translate entire text to Native {{targetLang}}, accurate and natural. Translate names at the beginning. Do not change prefix numbers. Keep Japanese honorifics (-san, -kun, -chan, etc.). No euphemisms. No informal/slang pronouns (lo, lu, gue, gua, etc.). Output in \`\`\`plaintext block.
 
 Example:
 12. Spica: "Aku duluan ya."`;
-  const DEFAULT_PROMPT_HEADER_BLOCK = `Translate entire text to Native {{targetLang}}, accurate and natural. Translate speaker names. Keep [line N] and type field unchanged. Do not add, remove, or renumber blocks. No euphemisms. No informal/slang pronouns (lo, lu, gue, gua, etc.). Output in \`\`\`plaintext block using the same [line N] / speaker / text format.
+  const DEFAULT_PROMPT_HEADER_BLOCK = `Translate entire text to Native {{targetLang}}, accurate and natural. Translate speaker names. Keep [line N] and type field unchanged. Do not add, remove, or renumber blocks. Keep Japanese honorifics (-san, -kun, -chan, etc.). No euphemisms. No informal/slang pronouns (lo, lu, gue, gua, etc.). Output in \`\`\`plaintext block using the same [line N] / speaker / text format.
 
 Example:
 [line 12]
 speaker: Spica
 text: "Aku duluan ya."`;
-  const DEFAULT_PROMPT_HEADER_XML = `Translate entire text to Native {{targetLang}}, accurate and natural. Translate speaker attribute values and content inside <text> tags. Keep all XML tags, attributes, and structure exactly as-is. Do not add, remove, or renumber <line> elements. No euphemisms. No informal/slang pronouns (lo, lu, gue, gua, etc.). Output in \`\`\`xml block.
+  const DEFAULT_PROMPT_HEADER_XML = `Translate entire text to Native {{targetLang}}, accurate and natural. Translate speaker attribute values and content inside <text> tags. Keep all XML tags, attributes, and structure exactly as-is. Do not add, remove, or renumber <line> elements. Keep Japanese honorifics (-san, -kun, -chan, etc.). No euphemisms. No informal/slang pronouns (lo, lu, gue, gua, etc.). Output in \`\`\`xml block.
 
 Example:
 <line num="12" speaker="Spica">
   <text>"Aku duluan ya."</text>
 </line>`;
-  const DEFAULT_PROMPT_HEADER_JSONL = `Translate entire text to Native {{targetLang}}, accurate and natural. Translate "speaker" and "text" values only. Keep "num" and all other fields unchanged. Do not add or remove lines. No euphemisms. No informal/slang pronouns (lo, lu, gue, gua, etc.). Output in \`\`\`jsonl block.
+  const DEFAULT_PROMPT_HEADER_JSONL = `Translate entire text to Native {{targetLang}}, accurate and natural. Translate "speaker" and "text" values only. Keep "num" and all other fields unchanged. Do not add or remove lines. Keep Japanese honorifics (-san, -kun, -chan, etc.). No euphemisms. No informal/slang pronouns (lo, lu, gue, gua, etc.). Output in \`\`\`jsonl block.
 
 Example:
 {"num":12,"speaker":"Spica","text":"\"Aku duluan ya.\""}`;
@@ -71,6 +71,7 @@ Example:
     aiCheckPrompt: DEFAULT_AI_CHECK_PROMPT,
     glossaryText: "",
     contextLines: 10,
+      contextType: "raw",
     selectionBatchSize: DEFAULT_SELECTION_BATCH_SIZE,
     glossaryBatchSize: DEFAULT_GLOSSARY_BATCH_SIZE,
     aiCheckBatchSize: DEFAULT_AI_CHECK_BATCH_SIZE,
@@ -295,7 +296,8 @@ Example:
       "btnProofreadReset", "proofreadStatus", "proofreadContainer", "btnProofreadClose",
       "proofreadReplaceInput", "btnProofreadReplaceAll", "rangeFromInput", "rangeToInput", "btnSelectRange",
       "settingsCheckKanaResidue", "settingsCheckSimilarity", "settingsSimilarityThreshold", "settingsSimilarityThresholdWrap",
-      "btnQaCheck", "qaModal", "qaCheckGlossary", "qaCheckKana", "qaCheckSimilarity", "btnRunQa", "btnQaReset", "qaStats", "qaResults", "btnQaClose"
+        "settingsContextTypeSelect",
+        "btnQaCheck", "qaModal", "qaCheckGlossary", "qaCheckKana", "qaCheckSimilarity", "btnRunQa", "btnQaReset", "qaStats", "qaResults", "btnQaClose"
     ];
     for (const id of ids) {
       ui[id] = document.getElementById(id);
@@ -889,6 +891,7 @@ Example:
       ai_check_prompt: DEFAULT_AI_CHECK_PROMPT,
       glossary_text: "",
       context_lines: d.contextLines,
+      context_type: d.contextType,
       selection_batch_size: d.selectionBatch,
       glossary_batch_size: d.glossaryBatch,
       ai_check_batch_size: d.aiCheckBatch,
@@ -1039,6 +1042,7 @@ Example:
         ai_check_prompt: state.aiCheckPrompt,
         glossary_text: state.glossaryText,
         context_lines: state.contextLines,
+        context_type: state.contextType,
         selection_batch_size: state.selectionBatchSize,
         glossary_batch_size: state.glossaryBatchSize,
         ai_check_batch_size: state.aiCheckBatchSize,
@@ -1081,6 +1085,7 @@ Example:
     state.aiCheckPrompt = data.ai_check_prompt || DEFAULT_AI_CHECK_PROMPT;
     state.glossaryText = data.glossary_text || "";
     state.contextLines = data.context_lines !== undefined ? data.context_lines : 10;
+    state.contextType = data.context_type || "raw";
     state.selectionBatchSize = normalizeSelectionBatchSize(data.selection_batch_size);
     state.glossaryBatchSize = normalizeSelectionBatchSize(data.glossary_batch_size, DEFAULT_GLOSSARY_BATCH_SIZE);
     state.aiCheckBatchSize = normalizeSelectionBatchSize(data.ai_check_batch_size, DEFAULT_AI_CHECK_BATCH_SIZE);
@@ -1125,6 +1130,7 @@ Example:
         ai_check_prompt: state.aiCheckPrompt,
         glossary_text: state.glossaryText,
         context_lines: state.contextLines,
+        context_type: state.contextType,
         selection_batch_size: state.selectionBatchSize,
         glossary_batch_size: state.glossaryBatchSize,
         ai_check_batch_size: state.aiCheckBatchSize,
@@ -1197,6 +1203,7 @@ Example:
         ai_check_prompt: p.ai_check_prompt || DEFAULT_AI_CHECK_PROMPT,
         glossary_text: p.glossary_text || "",
         context_lines: p.context_lines !== undefined ? p.context_lines : 10,
+        context_type: p.context_type || "raw",
         selection_batch_size: normalizeSelectionBatchSize(p.selection_batch_size),
         glossary_batch_size: normalizeSelectionBatchSize(p.glossary_batch_size, DEFAULT_GLOSSARY_BATCH_SIZE),
         ai_check_batch_size: normalizeSelectionBatchSize(p.ai_check_batch_size, DEFAULT_AI_CHECK_BATCH_SIZE),
@@ -4139,9 +4146,15 @@ Example:
         const ctxLines = state.lines.slice(startIdx, firstSelIdx);
         const ctxOut = [];
         for (const l of ctxLines) {
-          const dN = l.name || "";
-          ctxOut.push(dN ? `${dN}: ${l.message}` : `${l.message}`);
-        }
+            const dN = l.name ? `${l.name}: ` : "";
+            if (state.contextType === "raw") {
+              ctxOut.push(`${dN}${l.message}`);
+            } else if (state.contextType === "both") {
+              ctxOut.push(`[Original] ${dN}${l.message}\n[Translated] ${dN}${l.trans_message || ""}`);
+            } else {
+              ctxOut.push(`${dN}${l.trans_message || l.message}`);
+            }
+          }
         if (ctxOut.length > 0) {
           contextBlock = `\n\n<Context>\nThese lines are for context only. Do NOT translate them.\n${ctxOut.join("\n")}\n</Context>`;
         }
@@ -4999,7 +5012,10 @@ Example:
     ui.settingsEpubTagsInput.value = state.epubTags || "p";
     ui.settingsGlossaryInput.value = state.glossaryText || "";
     ui.settingsContextLinesInput.value = state.contextLines;
-    ui.settingsSelectionBatchSizeInput.value = state.selectionBatchSize;
+      if (ui.settingsContextTypeSelect) {
+        ui.settingsContextTypeSelect.value = state.contextType || "raw";
+      }
+      ui.settingsSelectionBatchSizeInput.value = state.selectionBatchSize;
     ui.settingsGlossaryBatchSizeInput.value = state.glossaryBatchSize;
     ui.settingsAiCheckBatchSizeInput.value = state.aiCheckBatchSize;
     ui.settingsSelectionPrevShortcutInput.value = state.selectionBatchPrevShortcut;
@@ -5059,7 +5075,8 @@ Example:
     const epubTags = ui.settingsEpubTagsInput.value.trim() || "p";
     const glossaryText = ui.settingsGlossaryInput.value.trim();
     const contextLines = parseInt(ui.settingsContextLinesInput.value) || 0;
-    const selectionBatchSize = normalizeSelectionBatchSize(ui.settingsSelectionBatchSizeInput.value);
+      const contextType = ui.settingsContextTypeSelect ? ui.settingsContextTypeSelect.value : "raw";
+      const selectionBatchSize = normalizeSelectionBatchSize(ui.settingsSelectionBatchSizeInput.value);
     const glossaryBatchSize = normalizeSelectionBatchSize(ui.settingsGlossaryBatchSizeInput.value, DEFAULT_GLOSSARY_BATCH_SIZE);
     const aiCheckBatchSize = normalizeSelectionBatchSize(ui.settingsAiCheckBatchSizeInput.value, DEFAULT_AI_CHECK_BATCH_SIZE);
     const prevShortcut = normalizeShortcutString(ui.settingsSelectionPrevShortcutInput.value, DEFAULT_SELECTION_BATCH_PREV_SHORTCUT);
@@ -5083,7 +5100,8 @@ Example:
     state.epubTags = epubTags;
     state.glossaryText = glossaryText;
     state.contextLines = contextLines;
-    state.selectionBatchSize = selectionBatchSize;
+      state.contextType = contextType;
+      state.selectionBatchSize = selectionBatchSize;
     state.glossaryBatchSize = glossaryBatchSize;
     state.aiCheckBatchSize = aiCheckBatchSize;
     state.selectionBatchPrevShortcut = prevShortcut;

@@ -39,6 +39,9 @@ export function onOpenSettings() {
   ui.settingsEpubTagsInput.value = state.epubTags || "p";
   ui.settingsGlossaryInput.value = state.glossaryText || "";
   ui.settingsContextLinesInput.value = state.contextLines;
+  if (ui.settingsContextTypeSelect) {
+    ui.settingsContextTypeSelect.value = state.contextType || "raw";
+  }
   ui.settingsSelectionBatchSizeInput.value = state.selectionBatchSize;
   ui.settingsGlossaryBatchSizeInput.value = state.glossaryBatchSize;
   ui.settingsAiCheckBatchSizeInput.value = state.aiCheckBatchSize;
@@ -99,6 +102,7 @@ export function onSavePromptSettings() {
   const epubTags = ui.settingsEpubTagsInput.value.trim() || "p";
   const glossaryText = ui.settingsGlossaryInput.value.trim();
   const contextLines = parseInt(ui.settingsContextLinesInput.value) || 0;
+  const contextType = ui.settingsContextTypeSelect ? ui.settingsContextTypeSelect.value : "raw";
   const selectionBatchSize = normalizeSelectionBatchSize(ui.settingsSelectionBatchSizeInput.value);
   const glossaryBatchSize = normalizeSelectionBatchSize(ui.settingsGlossaryBatchSizeInput.value, DEFAULT_GLOSSARY_BATCH_SIZE);
   const aiCheckBatchSize = normalizeSelectionBatchSize(ui.settingsAiCheckBatchSizeInput.value, DEFAULT_AI_CHECK_BATCH_SIZE);
@@ -123,6 +127,7 @@ export function onSavePromptSettings() {
   state.epubTags = epubTags;
   state.glossaryText = glossaryText;
   state.contextLines = contextLines;
+  state.contextType = contextType;
   state.selectionBatchSize = selectionBatchSize;
   state.glossaryBatchSize = glossaryBatchSize;
   state.aiCheckBatchSize = aiCheckBatchSize;

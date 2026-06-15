@@ -27,8 +27,15 @@ export async function onCopyForAi() {
       const ctxLines = state.lines.slice(startIdx, firstSelIdx);
       const ctxOut = [];
       for (const l of ctxLines) {
-        const dN = l.name || "";
-        ctxOut.push(dN ? `${dN}: ${l.message}` : `${l.message}`);
+        const origNameStr = l.name ? `${l.name}: ` : "";
+        const transNameStr = (l.trans_name || l.name) ? `${(l.trans_name || l.name).trim()}: ` : "";
+        if (state.contextType === "raw") {
+          ctxOut.push(`${origNameStr}${l.message}`);
+        } else if (state.contextType === "both") {
+          ctxOut.push(`[Original] ${origNameStr}${l.message}\n[Translated] ${transNameStr}${l.trans_message || ""}`);
+        } else {
+          ctxOut.push(`${transNameStr}${l.trans_message || l.message}`);
+        }
       }
       if (ctxOut.length > 0) {
         contextBlock = `\n\n<Context>\nThese lines are for context only. Do NOT translate them.\n${ctxOut.join("\n")}\n</Context>`;

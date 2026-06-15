@@ -40,6 +40,7 @@ export const state = {
   aiCheckPrompt: DEFAULT_AI_CHECK_PROMPT,
   glossaryText: "",
   contextLines: 10,
+  contextType: "raw",
   selectionBatchSize: DEFAULT_SELECTION_BATCH_SIZE,
   glossaryBatchSize: DEFAULT_GLOSSARY_BATCH_SIZE,
   aiCheckBatchSize: DEFAULT_AI_CHECK_BATCH_SIZE,

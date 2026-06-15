@@ -15,6 +15,22 @@ import { WINDOWS_FILE_ORDER_COLLATOR, APP_VERSION } from './constants.js';
 import { flashHint } from './render.js';
 import { getOpfsRoot } from './state.js';
 
+export function onCopyForAi(ctxLines) {
+  const ctxOut = [];
+  for (const l of ctxLines) {
+    const dN = l.name ? `${l.name}: ` : "";
+    if (state.contextType === "raw") {
+      ctxOut.push(`${dN}${l.message}`);
+    } else if (state.contextType === "both") {
+      ctxOut.push(`[Original] ${dN}${l.message}\n[Translated] ${dN}${l.trans_message || ""}`);
+    } else {
+      ctxOut.push(`${dN}${l.trans_message || l.message}`);
+    }
+  }
+  navigator.clipboard.writeText(ctxOut.join("\n\n"));
+  flashHint("Teks disalin ke clipboard!");
+}
+
 export function confirmExportWithUntranslatedReport() {
   const untranslated = state.lines.filter(l => !isTranslated(l));
   if (!untranslated.length) return true;

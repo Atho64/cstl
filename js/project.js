@@ -248,6 +248,7 @@ export async function createNewProject() {
     ai_check_prompt: DEFAULT_AI_CHECK_PROMPT,
     glossary_text: "",
     context_lines: d.contextLines,
+    context_type: d.contextType,
     selection_batch_size: d.selectionBatch,
     glossary_batch_size: d.glossaryBatch,
     ai_check_batch_size: d.aiCheckBatch,
@@ -349,6 +350,7 @@ export function queueAutoSave() {
       ai_check_prompt: state.aiCheckPrompt,
       glossary_text: state.glossaryText,
       context_lines: state.contextLines,
+      context_type: state.contextType,
       selection_batch_size: state.selectionBatchSize,
       glossary_batch_size: state.glossaryBatchSize,
       ai_check_batch_size: state.aiCheckBatchSize,
@@ -392,6 +394,7 @@ export function openProject(id, data) {
   state.aiCheckPrompt = data.ai_check_prompt || DEFAULT_AI_CHECK_PROMPT;
   state.glossaryText = data.glossary_text || "";
   state.contextLines = data.context_lines !== undefined ? data.context_lines : 10;
+  state.contextType = data.context_type || "raw";
   state.selectionBatchSize = normalizeSelectionBatchSize(data.selection_batch_size);
   state.glossaryBatchSize = normalizeSelectionBatchSize(data.glossary_batch_size, DEFAULT_GLOSSARY_BATCH_SIZE);
   state.aiCheckBatchSize = normalizeSelectionBatchSize(data.ai_check_batch_size, DEFAULT_AI_CHECK_BATCH_SIZE);
@@ -436,6 +439,7 @@ export function closeProject() {
       ai_check_prompt: state.aiCheckPrompt,
       glossary_text: state.glossaryText,
       context_lines: state.contextLines,
+      context_type: state.contextType,
       selection_batch_size: state.selectionBatchSize,
       glossary_batch_size: state.glossaryBatchSize,
       ai_check_batch_size: state.aiCheckBatchSize,
@@ -508,6 +512,7 @@ export async function onRestoreProject(ev) {
       ai_check_prompt: p.ai_check_prompt || DEFAULT_AI_CHECK_PROMPT,
       glossary_text: p.glossary_text || "",
       context_lines: p.context_lines !== undefined ? p.context_lines : 10,
+      context_type: p.context_type || "raw",
       selection_batch_size: normalizeSelectionBatchSize(p.selection_batch_size),
       glossary_batch_size: normalizeSelectionBatchSize(p.glossary_batch_size, DEFAULT_GLOSSARY_BATCH_SIZE),
       ai_check_batch_size: normalizeSelectionBatchSize(p.ai_check_batch_size, DEFAULT_AI_CHECK_BATCH_SIZE),

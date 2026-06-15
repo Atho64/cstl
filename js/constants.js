@@ -5,23 +5,23 @@ export const AI_TRANSLATION_FORMAT_NUMBERED = "numbered";
 export const AI_TRANSLATION_FORMAT_XML = "xml";
 export const AI_TRANSLATION_FORMAT_JSONL = "jsonl";
 export const DEFAULT_AI_TRANSLATION_FORMAT = AI_TRANSLATION_FORMAT_NUMBERED;
-export const DEFAULT_PROMPT_HEADER_NUMBERED = `Translate entire text to Native {{targetLang}}, accurate and natural. Translate names at the beginning. Do not change prefix numbers. No euphemisms. No informal/slang pronouns (lo, lu, gue, gua, etc.). Output in \`\`\`plaintext block.
+export const DEFAULT_PROMPT_HEADER_NUMBERED = `Translate entire text to Native {{targetLang}}, accurate and natural. Translate names at the beginning. Do not change prefix numbers. Keep Japanese honorifics (-san, -kun, -chan, etc.). No euphemisms. No informal/slang pronouns (lo, lu, gue, gua, etc.). Output in \`\`\`plaintext block.
 
 Example:
 12. Spica: "Aku duluan ya."`;
-export const DEFAULT_PROMPT_HEADER_BLOCK = `Translate entire text to Native {{targetLang}}, accurate and natural. Translate speaker names. Keep [line N] and type field unchanged. Do not add, remove, or renumber blocks. No euphemisms. No informal/slang pronouns (lo, lu, gue, gua, etc.). Output in \`\`\`plaintext block using the same [line N] / speaker / text format.
+export const DEFAULT_PROMPT_HEADER_BLOCK = `Translate entire text to Native {{targetLang}}, accurate and natural. Translate speaker names. Keep [line N] and type field unchanged. Do not add, remove, or renumber blocks. Keep Japanese honorifics (-san, -kun, -chan, etc.). No euphemisms. No informal/slang pronouns (lo, lu, gue, gua, etc.). Output in \`\`\`plaintext block using the same [line N] / speaker / text format.
 
 Example:
 [line 12]
 speaker: Spica
 text: "Aku duluan ya."`;
-export const DEFAULT_PROMPT_HEADER_XML = `Translate entire text to Native {{targetLang}}, accurate and natural. Translate speaker attribute values and content inside <text> tags. Keep all XML tags, attributes, and structure exactly as-is. Do not add, remove, or renumber <line> elements. No euphemisms. No informal/slang pronouns (lo, lu, gue, gua, etc.). Output in \`\`\`xml block.
+export const DEFAULT_PROMPT_HEADER_XML = `Translate entire text to Native {{targetLang}}, accurate and natural. Translate speaker attribute values and content inside <text> tags. Keep all XML tags, attributes, and structure exactly as-is. Do not add, remove, or renumber <line> elements. Keep Japanese honorifics (-san, -kun, -chan, etc.). No euphemisms. No informal/slang pronouns (lo, lu, gue, gua, etc.). Output in \`\`\`xml block.
 
 Example:
 <line num="12" speaker="Spica">
   <text>"Aku duluan ya."</text>
 </line>`;
-export const DEFAULT_PROMPT_HEADER_JSONL = `Translate entire text to Native {{targetLang}}, accurate and natural. Translate "speaker" and "text" values only. Keep "num" and all other fields unchanged. Do not add or remove lines. No euphemisms. No informal/slang pronouns (lo, lu, gue, gua, etc.). Output in \`\`\`jsonl block.
+export const DEFAULT_PROMPT_HEADER_JSONL = `Translate entire text to Native {{targetLang}}, accurate and natural. Translate "speaker" and "text" values only. Keep "num" and all other fields unchanged. Do not add or remove lines. Keep Japanese honorifics (-san, -kun, -chan, etc.). No euphemisms. No informal/slang pronouns (lo, lu, gue, gua, etc.). Output in \`\`\`jsonl block.
 
 Example:
 {"num":12,"speaker":"Spica","text":"\"Aku duluan ya.\""}`;

@@ -438,6 +438,15 @@
         <input id="settingsContextLinesInput" class="text-input w-full" type="number" min="0" value="10" />
       </div>
       <div class="mt-3">
+        <label class="section-label text-white m-0">Sumber Teks Konteks (Context Source)</label>
+        <p class="hint mt-1">Teks apa yang akan dikirim ke AI sebagai konteks baris sebelumnya.</p>
+        <select id="settingsContextTypeSelect" class="text-input w-full">
+          <option value="raw">Teks Asli Jepang (Default)</option>
+          <option value="translated">Teks Terjemahan</option>
+          <option value="both">Keduanya (Asli & Terjemahan)</option>
+        </select>
+      </div>
+      <div class="mt-3">
         <label class="section-label text-white m-0">Ukuran Batch Shortcut</label>
         <p class="hint mt-1">Jumlah baris yang dipilih oleh shortcut batch di tiap tab.</p>
         <div class="flex-center gap-4 wrap mt-1">
