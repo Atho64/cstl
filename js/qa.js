@@ -4,8 +4,9 @@ import { state, ui, getQaScroller } from './state.js';
 import { isTranslated } from './state.js';
 import { stringSimilarity, escapeRegex, unescapeStoredNewlines } from './string-utils.js';
 import { parseGlossaryToMap } from './glossary.js';
-import { openLineEditor } from './line-editor.js';
+import { openLineEditor } from './render.js';
 import { openModal, closeModal } from './project.js';
+
 
 export function onOpenQa() {
   openModal(ui.qaModal);

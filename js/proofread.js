@@ -3,11 +3,10 @@
 import { state, ui, getProofreadScroller } from './state.js';
 import { isTranslated } from './state.js';
 import { escapeRegex, unescapeStoredNewlines, escapeStoredNewlines } from './string-utils.js';
-import { rebuildDisplayState, renderPreviewRows, syncCheckboxUI, flashHint } from './render.js';
-import { queueAutoSave, updateButtonStates } from './project.js';
+import { rebuildDisplayState, renderPreviewRows, syncCheckboxUI, flashHint, updateButtonStates, pushUndoSnapshot, openLineEditor, refreshAll } from './render.js';
+import { queueAutoSave, openModal, closeModal } from './project.js';
 import { MAX_UNDO_STEPS } from './constants.js';
-import { openLineEditor } from './line-editor.js';
-import { openModal, refreshAll } from './project.js';
+
 
 export function onOpenProofread() { openModal(ui.proofreadModal); renderProofreadResults(); }
 export function onResetProofread() {
