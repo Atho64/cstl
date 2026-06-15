@@ -6,12 +6,13 @@ import { unescapeStoredNewlines } from './string-utils.js';
 import {
   buildLucaExportText, applyLucaMessageExport, applyLucaSelectExport,
   getLucaFileLineBytes, patchMessageQuotedArgBytes, normalizeTomoyoMessageLineBytes,
-  splitLucaArgs, getActiveLucaProfile, buildSafeFileName,
+  splitLucaArgs, getActiveLucaProfile,
   countTomoyoBadEmbeddedPrefixes, buildTomoyoQuotedArgBytes, normalizeTomoyoMessageLinesInArray,
 } from './luca-engine.js';
+import { buildSafeFileName } from './glossary.js';
 import { base64ToArrayBuffer, joinLinesToBuffer, arrayBufferToBase64, latin1BytesToString } from './binary-utils.js';
 import { WINDOWS_FILE_ORDER_COLLATOR, APP_VERSION } from './constants.js';
-import { flashHint } from './project.js';
+import { flashHint } from './render.js';
 import { getOpfsRoot } from './state.js';
 
 export function confirmExportWithUntranslatedReport() {

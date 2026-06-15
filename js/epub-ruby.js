@@ -3,9 +3,10 @@
 import { state, ui } from './state.js';
 import { addNameGlossaryEntry, mergeGlossaryEntries, hasKanji, isLikelyRubyNameCandidate, parseGlossaryToMap, serializeGlossaryMap } from './glossary.js';
 import { normalizeKana, kanaToRomaji } from './string-utils.js';
-import { flashHint, queueAutoSave } from './project.js';
+import { flashHint, updateButtonStates } from './render.js';
 import { getOpfsRoot } from './state.js';
-import { updateButtonStates } from './render.js';
+import { queueAutoSave } from './project.js';
+
 
 export function getRubyBaseText(rubyEl) {
   const clone = rubyEl.cloneNode(true);

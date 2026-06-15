@@ -3,7 +3,8 @@
 import { state, ui } from './state.js';
 import { addNameGlossaryEntry, mergeGlossaryEntries, genderToDescription } from './glossary.js';
 import { containsJapanese } from './string-utils.js';
-import { flashHint, queueAutoSave } from './project.js';
+import { flashHint } from './render.js';
+import { queueAutoSave } from './project.js';
 
 export function extractVndbId(input) {
   const match = String(input || "").trim().match(/(?:^|\/)(v\d+)(?:[/?#].*)?$/i);
