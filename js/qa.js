@@ -81,12 +81,12 @@ export function runQaCheck() {
       const combinedOrig = (origRawName ? origRawName + "\n" : "") + origRawMsg;
       const combinedTrans = (transRawName ? transRawName + "\n" : "") + transRawMsg;
       
-      for (const entry of glossaryMap) {
-        if (combinedOrig.includes(entry.src)) {
-          // Pengecekan berbasis batas kata (word boundary)
-          const re = new RegExp("\\b" + escapeRegex(entry.tgt) + "\\b", "i");
+      for (const [src, entry] of glossaryMap) {
+        if (!entry.target) continue;
+        if (combinedOrig.includes(src)) {
+          const re = new RegExp("\\b" + escapeRegex(entry.target) + "\\b", "i");
           if (!re.test(combinedTrans)) {
-            missingTerms.push(entry.src);
+            missingTerms.push(src);
           }
         }
       }

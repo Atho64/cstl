@@ -35,10 +35,8 @@ import {
   openDashboardSettings, saveDashboardSettings, resetDashboardSettings,
   openModal, closeModal, loadDashboardProjects,
 } from './project.js';
-import {
-  getDefaultPromptHeaderForFormat, DEFAULT_LUCA_PROFILE,
-} from './ai-format.js';
-import { getLucaProfile, populateLucaExportSlotSelect } from './luca-engine.js';
+import { getDefaultPromptHeaderForFormat } from './ai-format.js';
+import { getLucaProfile, populateLucaExportSlotSelect, DEFAULT_LUCA_PROFILE } from './luca-engine.js';
 import { bindShortcutCaptureInput } from './shortcuts.js';
 import { getMainScroller } from './state.js';
 

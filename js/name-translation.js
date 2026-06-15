@@ -3,7 +3,7 @@
 import { state, ui } from './state.js';
 import { truncateForPrompt, stripDecorativeWrapping, stripPlaintextFences, matchKnownName } from './string-utils.js';
 import { addNameGlossaryEntry, mergeGlossaryEntries, parseGlossaryToMap, serializeGlossaryMap } from './glossary.js';
-import { flashHint, rebuildDisplayState, renderPreviewRows, renderNameTable, updateButtonStates, pushUndoSnapshot } from './render.js';
+import { flashHint, rebuildDisplayState, renderPreviewRows, renderNameTable, updateButtonStates, pushUndoSnapshot, collectCharacterNameRows, refreshAll } from './render.js';
 import { queueAutoSave } from './project.js';
 import { applyPromptVariables } from './ai-format.js';
 import { DEFAULT_NAME_TRANSLATION_PROMPT } from './constants.js';

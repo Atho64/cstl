@@ -1,12 +1,14 @@
-﻿// @module import-translated.js — Import translated file/folder: match and apply
+// @module import-translated.js — Import translated file/folder: match and apply
 
 import { state, ui } from './state.js';
 import { normalizeLineDict, isTranslated, getOpfsRoot } from './state.js';
-import { unescapeStoredNewlines, escapeStoredNewlines, normalizeFileBaseName } from './string-utils.js';
-import { parseLucaTxt, getLucaProfile, normalizeLucaHeavyQuoteFields } from './luca-engine.js';
+import { unescapeStoredNewlines, escapeStoredNewlines, normalizeFileBaseName, windowsFileOrderCompare, getFileOrderPath } from './string-utils.js';
+import { parseLucaTxt, getLucaProfile, getActiveLucaProfile, normalizeLucaHeavyQuoteFields, parseLucaTxtText, isQuotedLucaArg, unquoteLuca, splitLucaChoices, getLucaCommandRe, splitLucaArgs, parseJsonFromFileObject } from './luca-engine.js';
 import { WINDOWS_FILE_ORDER_COLLATOR } from './constants.js';
-import { refreshAll, flashHint } from './render.js';
+import { decodeArrayBuffer } from './binary-utils.js';
+import { refreshAll, flashHint, pushUndoSnapshot } from './render.js';
 import { queueAutoSave } from './project.js';
+import { pruneSelectionForActiveTab, recordSelectionHistory } from './selection.js';
 
 export function groupCurrentLinesByFile() {
     const grouped = new Map();

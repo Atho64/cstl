@@ -2,7 +2,7 @@
 
 import { state, ui, getProofreadScroller } from './state.js';
 import { isTranslated } from './state.js';
-import { escapeRegex, unescapeStoredNewlines, escapeStoredNewlines } from './string-utils.js';
+import { escapeRegex, unescapeStoredNewlines, escapeStoredNewlines, containsJapanese } from './string-utils.js';
 import { rebuildDisplayState, renderPreviewRows, syncCheckboxUI, flashHint, updateButtonStates, pushUndoSnapshot, openLineEditor, refreshAll } from './render.js';
 import { queueAutoSave, openModal, closeModal } from './project.js';
 import { MAX_UNDO_STEPS } from './constants.js';
@@ -196,8 +196,3 @@ export function onProofreadReplaceAll() {
   } else alert(`Tidak ada kata yang cocok dengan pencarian.`);
 }
 
-// ─── Private helpers (not exported) ──────────────────────────────────────────
-
-function containsJapanese(text) {
-  return /[\u3040-\u30ff\u3400-\u9fff]/.test(text);
-}

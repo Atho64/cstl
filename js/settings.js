@@ -14,7 +14,8 @@ import { getDefaultPromptHeaderForFormat, normalizeAiTranslationFormat } from '.
 import { normalizeSelectionBatchSize } from './selection.js';
 import { normalizeShortcutString, isReservedShortcut, bindShortcutCaptureInput } from './shortcuts.js';
 import { getLucaExportSlotOptions, populateLucaExportSlotSelect, getActiveLucaProfile, DEFAULT_LUCA_PROFILE } from './luca-engine.js';
-import { refreshAll, renderGlossaryPreview } from './render.js';
+import { refreshAll } from './render.js';
+import { renderGlossaryPreview } from './glossary.js';
 import { queueAutoSave, openModal, closeModal, DS_STORAGE_KEY } from './project.js';
 
 

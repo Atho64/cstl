@@ -2,6 +2,9 @@
 
 import { ui } from './state.js';
 
+// Lazy to avoid circular dep: shortcuts ← ui-init → render
+function flashHint(msg, keepAlive) { import('./render.js').then(m => m.flashHint(msg, keepAlive)); }
+
 export function normalizeShortcutKeyName(key) {
   const raw = String(key || "").trim();
   const lower = raw.toLowerCase();

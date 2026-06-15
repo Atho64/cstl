@@ -1,13 +1,14 @@
-﻿// @module import-source.js — Import source files: JSON, EPUB, ZIP, LucaTxt
+// @module import-source.js — Import source files: JSON, EPUB, ZIP, LucaTxt
 
 import { state, ui, getOpfsRoot } from './state.js';
 import { normalizeLineDict } from './state.js';
 import { decodeArrayBuffer, arrayBufferToBase64, splitBufferToLines } from './binary-utils.js';
-import { parseLucaTxt, getLucaProfile, normalizeLucaHeavyQuoteFields, parseJsonEntries } from './luca-engine.js';
+import { parseLucaTxt, getLucaProfile, getActiveLucaProfile, normalizeLucaHeavyQuoteFields, parseJsonEntries, parseJsonFromFileObject, clearLucaFileLineBytesCache } from './luca-engine.js';
 import { WINDOWS_FILE_ORDER_COLLATOR } from './constants.js';
 import { normalizeFileBaseName, windowsFileOrderCompare, getFileOrderPath } from './string-utils.js';
 import { refreshAll, flashHint } from './render.js';
 import { queueAutoSave } from './project.js';
+import { resetSelectionHistory } from './selection.js';
 
 export async function handleImportLucaTxtLogic(files) {
     flashHint("Memproses file TXT... Mohon tunggu.", true);
