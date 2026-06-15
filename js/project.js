@@ -12,8 +12,8 @@ import {
 import {
   DEFAULT_LUCA_PROFILE,
   clearLucaFileLineBytesCache,
-  normalizeAiTranslationFormat,
 } from './luca-engine.js';
+import { normalizeAiTranslationFormat } from './ai-format.js';
 import {
   arrayBufferToBase64,
   readEpubSourceForBackup,
