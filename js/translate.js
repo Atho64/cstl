@@ -4,14 +4,14 @@ import { state, ui, normalizeLineDict } from './state.js';
 import { isTranslated } from './state.js';
 import {
   buildSelectedTranslationExport, detectTranslationPasteFormat,
-  parseTranslationBlocks, parseTranslationXml, parseTranslationJsonl,
+  parseTranslationBlocks, parseTranslationXml, parseTranslationJsonl, parseTranslationJsonArray,
   parseTranslationNumberedPaste, applyPromptVariables,
 } from './ai-format.js';
 import { unescapeStoredNewlines, escapeStoredNewlines, stringSimilarity } from './string-utils.js';
 import { rebuildDisplayState, renderPreviewRows, syncCheckboxUI, flashHint, updateButtonStates, pushUndoSnapshot, refreshAll } from './render.js';
 import { queueAutoSave } from './project.js';
 import { getGlossaryMatches, getGlossaryPrompt } from './glossary.js';
-import { AI_TRANSLATION_FORMAT_BLOCK, AI_TRANSLATION_FORMAT_XML, AI_TRANSLATION_FORMAT_JSONL, DEFAULT_PROMPT_HEADER } from './constants.js';
+import { AI_TRANSLATION_FORMAT_BLOCK, AI_TRANSLATION_FORMAT_XML, AI_TRANSLATION_FORMAT_JSONL, AI_TRANSLATION_FORMAT_JSON_ARRAY, DEFAULT_PROMPT_HEADER } from './constants.js';
 
 
 export async function onCopyForAi() {
@@ -75,6 +75,10 @@ export function onApplyTranslation() {
       parsed = parseTranslationBlocks(rawText);
     } else if (pasteFormat === AI_TRANSLATION_FORMAT_XML) {
       parsed = parseTranslationXml(rawText);
+    } else if (pasteFormat === AI_TRANSLATION_FORMAT_JSON_ARRAY) {
+      const arrResult = parseTranslationJsonArray(rawText);
+      parsed = arrResult.parsed;
+      errors = arrResult.errors;
     } else if (pasteFormat === AI_TRANSLATION_FORMAT_JSONL) {
       const jsonlResult = parseTranslationJsonl(rawText);
       parsed = jsonlResult.parsed;

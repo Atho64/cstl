@@ -3,9 +3,9 @@
 import { state } from './state.js';
 import {
   AI_TRANSLATION_FORMAT_BLOCK, AI_TRANSLATION_FORMAT_NUMBERED,
-  AI_TRANSLATION_FORMAT_XML, AI_TRANSLATION_FORMAT_JSONL,
+  AI_TRANSLATION_FORMAT_XML, AI_TRANSLATION_FORMAT_JSONL, AI_TRANSLATION_FORMAT_JSON_ARRAY,
   DEFAULT_PROMPT_HEADER_NUMBERED, DEFAULT_PROMPT_HEADER_BLOCK,
-  DEFAULT_PROMPT_HEADER_XML, DEFAULT_PROMPT_HEADER_JSONL,
+  DEFAULT_PROMPT_HEADER_XML, DEFAULT_PROMPT_HEADER_JSONL, DEFAULT_PROMPT_HEADER_JSON_ARRAY,
 } from './constants.js';
 import { unescapeStoredNewlines, escapeStoredNewlines, escapeXml, stripPlaintextFences } from './string-utils.js';
 import { getLineDisplayName } from './luca-engine.js';
@@ -23,6 +23,7 @@ export function normalizeAiTranslationFormat(value) {
   if (value === AI_TRANSLATION_FORMAT_BLOCK)    return AI_TRANSLATION_FORMAT_BLOCK;
   if (value === AI_TRANSLATION_FORMAT_XML)      return AI_TRANSLATION_FORMAT_XML;
   if (value === AI_TRANSLATION_FORMAT_JSONL)    return AI_TRANSLATION_FORMAT_JSONL;
+  if (value === AI_TRANSLATION_FORMAT_JSON_ARRAY)  return AI_TRANSLATION_FORMAT_JSON_ARRAY;
   return AI_TRANSLATION_FORMAT_NUMBERED;
 }
 
@@ -30,6 +31,7 @@ export function getDefaultPromptHeaderForFormat(format) {
   if (format === AI_TRANSLATION_FORMAT_BLOCK)  return DEFAULT_PROMPT_HEADER_BLOCK;
   if (format === AI_TRANSLATION_FORMAT_XML)    return DEFAULT_PROMPT_HEADER_XML;
   if (format === AI_TRANSLATION_FORMAT_JSONL)  return DEFAULT_PROMPT_HEADER_JSONL;
+  if (format === AI_TRANSLATION_FORMAT_JSON_ARRAY) return DEFAULT_PROMPT_HEADER_JSON_ARRAY;
   return DEFAULT_PROMPT_HEADER_NUMBERED;
 }
 
@@ -55,6 +57,16 @@ export function formatLineForAiExportXml(line) {
   return `  <line ${attrs.join(" ")}>\n    <text>${text}</text>\n  </line>`;
 }
 
+export function formatLineForAiExportJsonArray(line) {
+  const speaker = (line.name || "").trim();
+  const text = line.message || "";
+  if (speaker) {
+    return `[${line.line_num},${JSON.stringify(speaker)},${JSON.stringify(text)}]`;
+  } else {
+    return `[${line.line_num},${JSON.stringify(text)}]`;
+  }
+}
+
 export function formatLineForAiExportJsonl(line) {
   const obj = { num: line.line_num };
   if (String(line.luca_command || "").toUpperCase() === "SELECT") {
@@ -72,6 +84,7 @@ export function getSelectedTranslationText(includeTranslated = true) {
   if (fmt === AI_TRANSLATION_FORMAT_BLOCK)  return sel.map(formatLineForAiExport).join("\n\n");
   if (fmt === AI_TRANSLATION_FORMAT_XML)    return sel.map(formatLineForAiExportXml).join("\n");
   if (fmt === AI_TRANSLATION_FORMAT_JSONL)  return sel.map(formatLineForAiExportJsonl).join("\n");
+  if (fmt === AI_TRANSLATION_FORMAT_JSON_ARRAY) return sel.map(formatLineForAiExportJsonArray).join("\n");
   return getSelectedTranslationPlainText(includeTranslated);
 }
 
@@ -107,6 +120,9 @@ export function getTranslationPastePlaceholder() {
   if (fmt === AI_TRANSLATION_FORMAT_JSONL) {
     return `{"num":12,"speaker":"沙季","text":"Selamat pagi"}\n{"num":13,"text":"Mau ngapain hari ini?"}`;
   }
+  if (fmt === AI_TRANSLATION_FORMAT_JSON_ARRAY) {
+    return `[12,"沙季","Selamat pagi"]\n[13,"Mau ngapain hari ini?"]`;
+  }
   return `12. 沙季: Selamat pagi\n13. 悠太: Mau ngapain hari ini?`;
 }
 
@@ -117,6 +133,7 @@ export function detectTranslationPasteFormat(text) {
   if (/^\s*\d+\s*[.)]\s*/m.test(clean)) return AI_TRANSLATION_FORMAT_NUMBERED;
   if (/(?:<\?xml\b|<lines\b|<line\s+num=)/i.test(clean)) return AI_TRANSLATION_FORMAT_XML;
   if (/^\s*\{"num"\s*:\s*\d+/m.test(clean)) return AI_TRANSLATION_FORMAT_JSONL;
+  if (/^\s*\[\s*\d+\s*,/m.test(clean)) return AI_TRANSLATION_FORMAT_JSON_ARRAY;
   return normalizeAiTranslationFormat(state.aiTranslationFormat);
 }
 
@@ -145,6 +162,32 @@ export function parseTranslationXml(text) {
     result.push({ num, name: speaker, msg: escapeStoredNewlines(rawMsg), rawMsg });
   }
   return result;
+}
+
+export function parseTranslationJsonArray(text) {
+  const parsed = [];
+  const errors = [];
+  const clean = stripPlaintextFences(text).trim();
+  const lines = clean.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  
+  for (let i = 0; i < lines.length; i++) {
+    const rawLine = lines[i];
+    try {
+      const arr = JSON.parse(rawLine);
+      if (Array.isArray(arr) && arr.length === 3) {
+        // [id, "name", "text"]
+        parsed.push({ num: parseInt(arr[0]), name: String(arr[1]), msg: escapeStoredNewlines(String(arr[2])), rawMsg: String(arr[2]) });
+      } else if (Array.isArray(arr) && arr.length === 2) {
+        // [id, "text"] — no speaker name
+        parsed.push({ num: parseInt(arr[0]), name: "", msg: escapeStoredNewlines(String(arr[1])), rawMsg: String(arr[1]) });
+      } else {
+        errors.push(`Baris ${i + 1}: Format array tidak valid.`);
+      }
+    } catch (e) {
+      errors.push(`Baris ${i + 1}: Gagal parse JSON (${e.message}).`);
+    }
+  }
+  return { parsed, errors };
 }
 
 export function parseTranslationJsonl(text) {

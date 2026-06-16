@@ -72,7 +72,7 @@ export function truncateForPrompt(text, maxLen = 180) {
 export function stripPlaintextFences(text) {
   return String(text || "")
     .split(/\r?\n/)
-    .filter(line => !/^\s*```(?:plaintext|text|xml|jsonl)?\s*$/i.test(line.trim()))
+    .filter(line => !/^\s*```(?:plaintext|text|xml|jsonl|json)?\s*$/i.test(line.trim()))
     .filter(line => !/^\s*<\/?lines>\s*$/i.test(line.trim()))
     .filter(line => !/^\s*<\?xml\b[^>]*>\s*$/i.test(line.trim()))
     .join("\n");

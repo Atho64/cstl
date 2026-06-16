@@ -4,6 +4,7 @@ export const AI_TRANSLATION_FORMAT_BLOCK = "block";
 export const AI_TRANSLATION_FORMAT_NUMBERED = "numbered";
 export const AI_TRANSLATION_FORMAT_XML = "xml";
 export const AI_TRANSLATION_FORMAT_JSONL = "jsonl";
+export const AI_TRANSLATION_FORMAT_JSON_ARRAY = "jsonarray";
 export const DEFAULT_AI_TRANSLATION_FORMAT = AI_TRANSLATION_FORMAT_NUMBERED;
 export const DEFAULT_PROMPT_HEADER_NUMBERED = `Translate entire text to Native {{targetLang}}, accurate and natural. Translate names at the beginning. Do not change prefix numbers. Keep Japanese honorifics (-san, -kun, -chan, etc.). No euphemisms. No informal/slang pronouns (lo, lu, gue, gua, etc.). Output in \`\`\`plaintext block.
 
@@ -21,6 +22,12 @@ Example:
 <line num="12" speaker="Spica">
   <text>"Aku duluan ya."</text>
 </line>`;
+export const DEFAULT_PROMPT_HEADER_JSON_ARRAY = `Translate entire text to Native {{targetLang}}, accurate and natural. Keep Japanese honorifics (-san, -kun, -chan, etc.). No euphemisms. No informal/slang pronouns (lo, lu, gue, gua, etc.). Output in \`\`\`jsonl block as a JSON array per line. If a line has a speaker, output [id,"name","text"]. If no speaker, output [id,"text"]. No spaces after commas.
+
+Example:
+[12,"Spica","Aku duluan ya."]
+[13,"Arisaka","Oke."]
+[14,"Sunohara di sana, berdiri sendiri."]`;
 export const DEFAULT_PROMPT_HEADER_JSONL = `Translate entire text to Native {{targetLang}}, accurate and natural. Translate "speaker" and "text" values only. Keep "num" and all other fields unchanged. Do not add or remove lines. Keep Japanese honorifics (-san, -kun, -chan, etc.). No euphemisms. No informal/slang pronouns (lo, lu, gue, gua, etc.). Output in \`\`\`jsonl block.
 
 Example:

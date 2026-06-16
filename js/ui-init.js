@@ -4,7 +4,7 @@ import { state, ui, setMainScroller, setProofreadScroller, setQaScroller } from 
 import {
   DEFAULT_AI_TRANSLATION_FORMAT, DEFAULT_GLOSSARY_PROMPT, DEFAULT_AI_CHECK_PROMPT,
   DEFAULT_PROMPT_HEADER_NUMBERED, DEFAULT_PROMPT_HEADER_BLOCK,
-  DEFAULT_PROMPT_HEADER_XML, DEFAULT_PROMPT_HEADER_JSONL,
+  DEFAULT_PROMPT_HEADER_XML, DEFAULT_PROMPT_HEADER_JSONL, DEFAULT_PROMPT_HEADER_JSON_ARRAY,
 } from './constants.js';
 import { VirtualScroller } from './virtual-scroller.js';
 import { renderMainRow, syncCheckboxUI, updateButtonStates, onSaveLineEditor, flashHint } from './render.js';
@@ -226,7 +226,7 @@ export function bindEvents() {
         DEFAULT_PROMPT_HEADER_NUMBERED,
         DEFAULT_PROMPT_HEADER_BLOCK,
         DEFAULT_PROMPT_HEADER_XML,
-        DEFAULT_PROMPT_HEADER_JSONL,
+        DEFAULT_PROMPT_HEADER_JSONL, DEFAULT_PROMPT_HEADER_JSON_ARRAY,
       ];
       if (allDefaults.some(d => ui.settingsPromptInput.value.trim() === d.trim())) {
         ui.settingsPromptInput.value = currentDefault;
