@@ -5,7 +5,7 @@ export default defineConfig({
   base: '/cstl/',
   build: {
     outDir: 'dist',
-    target: 'es2015',
+    target: 'es2020',
     rollupOptions: {
       input: 'index.html',
     },
