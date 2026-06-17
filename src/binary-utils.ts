@@ -25,7 +25,7 @@ export function base64ToBytes(b64: string): Uint8Array {
 }
 
 export function arrayBufferToBase64(buffer: ArrayBuffer): string {
-  return btoa(String.fromCharCode(...new Uint8Array(buffer as ArrayBuffer)));
+  return bytesToBase64(buffer);
 }
 
 export function base64ToArrayBuffer(b64: string): ArrayBuffer {
