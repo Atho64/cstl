@@ -134,7 +134,7 @@ export function parseJsonEntries(jsonArray: any[], fileName: string, startLineNu
   const lines: Line[] = [];
   let currentLine = startLineNum;
   for (const entry of jsonArray) {
-    if (!entry || typeof entry !== 'object' || !Object.hasOwn(entry, 'message')) continue;
+    if (!entry || typeof entry !== 'object' || !Object.prototype.hasOwnProperty.call(entry, 'message')) continue;
     lines.push({
       line_num: currentLine++, file: fileName,
       name: entry.name == null ? null : String(entry.name).replace(/\r?\n/g, '\\n').trim(),

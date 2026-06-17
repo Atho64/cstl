@@ -110,7 +110,7 @@ export function collectTranslatedJsonUpdates(pathOrName: string, jsonArray: any[
     if (!message && !state.disableEmptyLineValidation) continue;
     const line = lines[i];
     if (isSameAsOriginal(message, line.message)) continue;
-    const hasNameValue = Object.hasOwn(entry, 'name') || Object.hasOwn(entry, 'trans_name');
+    const hasNameValue = Object.prototype.hasOwnProperty.call(entry, 'name') || Object.prototype.hasOwnProperty.call(entry, 'trans_name');
     const name = hasNameValue ? normalizeTranslatedImportValue(entry.name ?? entry.trans_name) : null;
     if (hasNameValue && isSameAsOriginal(name, line.name)) {
       updates.push({ line, name: null, message, hasNameValue: false });
