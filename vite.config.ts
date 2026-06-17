@@ -13,6 +13,10 @@ export default defineConfig({
   plugins: [
     VitePWA({
       registerType: 'autoUpdate',
+      includeAssets: ['icon.jpg'],
+      workbox: {
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,jpg,jpeg,woff2}']
+      },
       manifest: {
         name: 'Copas Tool',
         short_name: 'Copas Tool',
@@ -20,6 +24,7 @@ export default defineConfig({
         theme_color: '#1a1f2b',
         background_color: '#0f131a',
         display: 'standalone',
+        start_url: '/cstl/',
         icons: [
           {
             src: 'icon.jpg',
