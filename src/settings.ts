@@ -119,6 +119,7 @@ export function onOpenGlossarySettings(): void {
 }
 
 export function onSavePromptSettings(): void {
+  // === General Settings ===
   const sourceLang = (ui.settingsSourceLangSelect as HTMLSelectElement).value || 'Japanese';
   const targetLang = (ui.settingsTargetLangSelect as HTMLSelectElement).value || 'Indonesian';
   const translationMode = (ui.settingsTranslationModeSelect as HTMLSelectElement)?.value === 'htl' ? 'htl' : 'ai';
@@ -138,12 +139,7 @@ export function onSavePromptSettings(): void {
     }
   }
 
-  const aiInstructionHeader = (ui.settingsPromptInput as HTMLTextAreaElement).value.trim();
   const aiTranslationFormat = normalizeAiTranslationFormat((ui.settingsAiTranslationFormatSelect as HTMLSelectElement)?.value);
-  const glossaryPrompt = (ui.settingsGlossaryPromptInput as HTMLTextAreaElement).value.trim();
-  const aiCheckPrompt = (ui.settingsAiCheckPromptInput as HTMLTextAreaElement).value.trim();
-  const epubTags = (ui.settingsEpubTagsInput as HTMLInputElement).value.trim() || 'p';
-  const glossaryText = (ui.settingsGlossaryInput as HTMLTextAreaElement).value.trim();
   const contextLines = parseInt((ui.settingsContextLinesInput as HTMLInputElement).value) || 0;
   const contextType = ui.settingsContextTypeSelect ? (ui.settingsContextTypeSelect as HTMLSelectElement).value : 'raw';
   const selectionBatchSize = normalizeSelectionBatchSize((ui.settingsSelectionBatchSizeInput as HTMLInputElement).value);
@@ -164,12 +160,7 @@ export function onSavePromptSettings(): void {
   state.checkKanaResidue = checkKanaResidue;
   state.checkSimilarity = checkSimilarity;
   state.similarityThreshold = similarityThreshold;
-  state.aiInstructionHeader = aiInstructionHeader;
   state.aiTranslationFormat = aiTranslationFormat;
-  state.glossaryPrompt = glossaryPrompt;
-  state.aiCheckPrompt = aiCheckPrompt;
-  state.epubTags = epubTags;
-  state.glossaryText = glossaryText;
   state.contextLines = contextLines;
   state.contextType = contextType as any;
   state.selectionBatchSize = selectionBatchSize;
@@ -177,7 +168,7 @@ export function onSavePromptSettings(): void {
   state.aiCheckBatchSize = aiCheckBatchSize;
   state.selectionBatchPrevShortcut = prevShortcut;
   state.selectionBatchNextShortcut = nextShortcut;
-  state.lucaExportLang = (ui.settingsLucaExportLangSelect as HTMLSelectElement).value || 'en';
+  state.lucaExportLang = (ui.settingsLucaExportLangSelect as HTMLSelectElement)?.value || state.lucaExportLang || 'en';
   if (ui.settingsLucaMcDisplayNameInput) {
     state.lucaMcDisplayName = (ui.settingsLucaMcDisplayNameInput as HTMLInputElement).value.trim() || DEFAULT_LUCA_MC_DISPLAY_NAME;
   }
@@ -191,10 +182,29 @@ export function onSavePromptSettings(): void {
   (ui.settingsSelectionPrevShortcutInput as HTMLInputElement).value = prevShortcut;
   (ui.settingsSelectionNextShortcutInput as HTMLInputElement).value = nextShortcut;
   closeModal(ui.settingsModal as HTMLElement);
-  if (ui.settingsPromptsModal) closeModal(ui.settingsPromptsModal as HTMLElement);
-  if (ui.settingsGlossaryModal) closeModal(ui.settingsGlossaryModal as HTMLElement);
   applyHtlMode();
   refreshAll();
+  renderGlossaryPreview();
+  queueAutoSave();
+}
+
+export function onSavePromptsSettings(): void {
+  const aiInstructionHeader = (ui.settingsPromptInput as HTMLTextAreaElement).value.trim();
+  const glossaryPrompt = (ui.settingsGlossaryPromptInput as HTMLTextAreaElement).value.trim();
+  const aiCheckPrompt = (ui.settingsAiCheckPromptInput as HTMLTextAreaElement).value.trim();
+  const epubTags = (ui.settingsEpubTagsInput as HTMLInputElement)?.value.trim() || 'p';
+  state.aiInstructionHeader = aiInstructionHeader;
+  state.glossaryPrompt = glossaryPrompt;
+  state.aiCheckPrompt = aiCheckPrompt;
+  state.epubTags = epubTags;
+  if (ui.settingsPromptsModal) closeModal(ui.settingsPromptsModal as HTMLElement);
+  queueAutoSave();
+}
+
+export function onSaveGlossarySettings(): void {
+  const glossaryText = (ui.settingsGlossaryInput as HTMLTextAreaElement).value.trim();
+  state.glossaryText = glossaryText;
+  if (ui.settingsGlossaryModal) closeModal(ui.settingsGlossaryModal as HTMLElement);
   renderGlossaryPreview();
   queueAutoSave();
 }

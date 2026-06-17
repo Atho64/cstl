@@ -67,7 +67,8 @@ export async function fetchVndbCharacters(vnId: string): Promise<any[]> {
       throw new Error(`VNDB API error ${res.status}${detail ? `: ${detail.slice(0, 120)}` : ''}`);
     }
     const data = await res.json();
-    all.push(...(Array.isArray(data.results) ? data.results : []));
+    const results = Array.isArray(data.results) ? data.results : [];
+    for(let _i=0; _i<results.length; _i++) all.push(results[_i]);
     more = !!data.more;
     page++;
     if (page > 20) throw new Error('VNDB mengembalikan terlalu banyak halaman.');
@@ -150,7 +151,8 @@ export async function fetchAnilistMediaCharacters(input: string): Promise<any> {
     const media = json.data?.Media;
     if (!media) throw new Error('Judul tidak ditemukan di AniList.');
     if (!mediaInfo) mediaInfo = media;
-    allEdges.push(...(media.characters?.edges || []));
+    const edges = media.characters?.edges || [];
+    for(let _i=0; _i<edges.length; _i++) allEdges.push(edges[_i]);
     hasNextPage = !!media.characters?.pageInfo?.hasNextPage;
     page++;
     if (page > 20) throw new Error('AniList mengembalikan terlalu banyak halaman.');

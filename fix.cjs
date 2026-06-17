@@ -1,0 +1,1 @@
+const fs = require('fs'); ['src/import-translated.ts', 'src/luca-engine.ts', 'src/vndb-anilist.ts'].forEach(f => { let c = fs.readFileSync(f, 'utf8'); c = c.replace(/([a-zA-Z0-9_]+)\.push\(\.\.\.([a-zA-Z0-9_.]+)\)/g, 'for (let _i = 0; _i < 2.length; _i++) 1.push(2[_i])'); fs.writeFileSync(f, c); });

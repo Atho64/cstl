@@ -16,7 +16,7 @@ export async function handleImportLucaTxtLogic(files: FileList | File[]): Promis
   document.body.style.cursor = 'wait';
   await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
   try {
-    let cur = state.lines.length > 0 ? Math.max(...state.lines.map(l => l.line_num)) + 1 : 1;
+    let cur = state.lines.length > 0 ? state.lines.reduce((m, l) => l.line_num > m ? l.line_num : m, 0) + 1 : 1;
     const existingFiles = new Set(state.importedFiles);
     const skippedFiles: string[] = [];
     const newLines: Line[] = [];
@@ -52,7 +52,7 @@ export async function handleImportLucaTxtLogic(files: FileList | File[]): Promis
       const parsed = parseLucaTxt(text, baseName, cur, state.lucaProfile, splitBufferToLines(bytes));
       if (parsed.length > 0) {
         existingFiles.add(baseName);
-        newLines.push(...parsed);
+        for (let i = 0; i < parsed.length; i++) newLines.push(parsed[i]);
         cur += parsed.length;
       }
       await new Promise(r => setTimeout(r, 0));
@@ -60,7 +60,7 @@ export async function handleImportLucaTxtLogic(files: FileList | File[]): Promis
 
     if (newLines.length > 0) {
       clearLucaFileLineBytesCache();
-      state.lines = [...state.lines, ...newLines];
+      state.lines = state.lines.concat(newLines);
       state.importedFiles = Array.from(existingFiles);
       state.selectedLines.clear();
       resetSelectionHistory();
@@ -97,7 +97,7 @@ export async function handleImportLogic(filesObj: FileList | File[] | File, isZi
   await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
   try {
     let cur = 1, lines: Line[] = [];
-    let maxExistingLineNum = state.lines.length > 0 ? Math.max(...state.lines.map(l => l.line_num)) : 0;
+    let maxExistingLineNum = state.lines.length > 0 ? state.lines.reduce((m, l) => l.line_num > m ? l.line_num : m, 0) : 0;
     cur = maxExistingLineNum + 1;
     const existingFiles = new Set(state.importedFiles);
     const skippedFiles: string[] = [];
@@ -115,7 +115,7 @@ export async function handleImportLogic(filesObj: FileList | File[] | File, isZi
         const p = parseJsonEntries(jsonContent, baseName, cur);
         if (p.length) {
           existingFiles.add(baseName);
-          lines.push(...p);
+          for (let i = 0; i < p.length; i++) lines.push(p[i]);
           cur += p.length;
         }
         await new Promise(r => setTimeout(r, 0));
@@ -206,7 +206,7 @@ export async function handleImportLogic(filesObj: FileList | File[] | File, isZi
           const p = parseJsonEntries(await parseJsonFromFileObject(f), baseName, cur);
           if (p.length) {
             existingFiles.add(baseName);
-            lines.push(...p);
+            for (let i = 0; i < p.length; i++) lines.push(p[i]);
             cur += p.length;
           }
           await new Promise(r => setTimeout(r, 0));
@@ -215,7 +215,7 @@ export async function handleImportLogic(filesObj: FileList | File[] | File, isZi
     }
 
     if (lines.length > 0) {
-      state.lines = [...state.lines, ...lines];
+      state.lines = state.lines.concat(lines);
       state.importedFiles = Array.from(existingFiles);
       state.selectedLines.clear();
       resetSelectionHistory();

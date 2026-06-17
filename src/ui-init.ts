@@ -17,7 +17,7 @@ import { onCopyNamesForAi, onApplyNameTranslations, onResetNameTranslations } fr
 import { onCopyForAiCheck, onParseAiCheck, onApplyAiCheckCorrections, onClearAiCheck } from './ai-check';
 import { onOpenProofread, onResetProofread, onProofreadReplaceAll, renderProofreadResults } from './proofread';
 import { onOpenQa, onResetQa, runQaCheck } from './qa';
-import { onOpenSettings, onSavePromptSettings, onOpenPromptsSettings, onOpenGlossarySettings } from './settings';
+import { onOpenSettings, onSavePromptSettings, onOpenPromptsSettings, onOpenGlossarySettings, onSavePromptsSettings, onSaveGlossarySettings } from './settings';
 import { onExport } from './export';
 import { onImportVndbNames, onImportAnilistNames } from './vndb-anilist';
 import { onExtractEpubRubyNames } from './epub-ruby';
@@ -294,8 +294,8 @@ export function bindEvents(): void {
   ui.btnSettingsPromptsCancel?.addEventListener('click', () => closeModal(ui.settingsPromptsModal as HTMLElement));
   ui.btnSettingsGlossaryCancel?.addEventListener('click', () => closeModal(ui.settingsGlossaryModal as HTMLElement));
   ui.btnSettingsSave?.addEventListener('click', onSavePromptSettings);
-  ui.btnSettingsPromptsSave?.addEventListener('click', onSavePromptSettings);
-  ui.btnSettingsGlossarySave?.addEventListener('click', onSavePromptSettings);
+  ui.btnSettingsPromptsSave?.addEventListener('click', onSavePromptsSettings);
+  ui.btnSettingsGlossarySave?.addEventListener('click', onSaveGlossarySettings);
 
   if (ui.settingsCheckSimilarity) {
     ui.settingsCheckSimilarity.addEventListener('change', () => {

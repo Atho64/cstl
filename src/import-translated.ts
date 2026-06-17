@@ -282,7 +282,7 @@ export async function handleTranslatedImport(filesObj: FileList | File[]): Promi
               : collectTranslatedJsonUpdates(name, JSON.parse(content), fileMatchMap, groupedLines, usedFiles);
             if (result.status === 'matched') {
               matchedFiles++;
-              allUpdates.push(...result.updates);
+              for(let _i=0; _i<result.updates.length; _i++) allUpdates.push(result.updates[_i]);
               if (result.importedRows !== result.projectRows) warnings.push(`${name}: jumlah baris ${result.importedRows}/${result.projectRows}.`);
               if (result.unmatchedRows?.length) warnings.push(`${name}: ${result.unmatchedRows.length} baris TXT tidak cocok dengan proyek.`);
             } else if (result.status === 'ambiguous') warnings.push(`${name}: nama file ambigu, dilewati.`);
@@ -295,7 +295,7 @@ export async function handleTranslatedImport(filesObj: FileList | File[]): Promi
           const result = collectTranslatedJsonUpdates(path, json, fileMatchMap, groupedLines, usedFiles);
           if (result.status === 'matched') {
             matchedFiles++;
-            allUpdates.push(...result.updates);
+            for(let _i=0; _i<result.updates.length; _i++) allUpdates.push(result.updates[_i]);
             if (result.importedRows !== result.projectRows) warnings.push(`${path}: jumlah baris ${result.importedRows}/${result.projectRows}.`);
           } else if (result.status === 'ambiguous') warnings.push(`${path}: nama file ambigu, dilewati.`);
           else if (result.status === 'duplicate') warnings.push(`${path}: target file sudah diimpor dari file lain, dilewati.`);
@@ -305,7 +305,7 @@ export async function handleTranslatedImport(filesObj: FileList | File[]): Promi
           const result = collectTranslatedLucaTxtUpdates(path, text, fileMatchMap, groupedLines, usedFiles);
           if (result.status === 'matched') {
             matchedFiles++;
-            allUpdates.push(...result.updates);
+            for(let _i=0; _i<result.updates.length; _i++) allUpdates.push(result.updates[_i]);
             if (result.importedRows !== result.projectRows) warnings.push(`${path}: jumlah baris ${result.importedRows}/${result.projectRows}.`);
             if (result.unmatchedRows?.length) warnings.push(`${path}: ${result.unmatchedRows.length} baris TXT tidak cocok dengan proyek.`);
           } else if (result.status === 'ambiguous') warnings.push(`${path}: nama file ambigu, dilewati.`);
@@ -316,7 +316,7 @@ export async function handleTranslatedImport(filesObj: FileList | File[]): Promi
           const result = await collectTranslatedEpubUpdates(file);
           if (result.status === 'matched') {
             matchedFiles++;
-            allUpdates.push(...result.updates);
+            for(let _i=0; _i<result.updates.length; _i++) allUpdates.push(result.updates[_i]);
             if (result.missingFiles?.length) warnings.push(`${path}: ${result.missingFiles.length} file EPUB proyek tidak ditemukan di EPUB terjemahan.`);
           } else {
             warnings.push(`${path}: hanya bisa diimpor ke proyek EPUB.`);

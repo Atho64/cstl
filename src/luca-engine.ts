@@ -574,7 +574,7 @@ export function parseLucaTxt(fileText: string, fileName: string, startLineNum: n
     } else if (command === 'SELECT') {
       const selectRows = buildLucaSelectRows(profile, args, raw, i, fileName, cur);
       if (!selectRows.length) continue;
-      lines.push(...selectRows); cur += selectRows.length;
+      for(let _i=0; _i<selectRows.length; _i++) lines.push(selectRows[_i]); cur += selectRows.length;
     }
   }
   return lines;
