@@ -58,7 +58,7 @@ export function cacheElements(): void {
   const ids = [
     'dashboardView', 'workspaceView', 'projectList', 'projectFilterInput', 'btnNewProject', 'btnRestoreProject',
     'btnBackToDashboard', 'projectNameDisplay', 'restoreProjectInput', 'btnDropdownImport', 'dropdownImportMenu', 'btnImportFile',
-    'btnDropdownDashboardSettings', 'dropdownDashboardSettingsMenu', 'btnDashboardSettings', 'dashboardSettingsModal', 'btnDashboardSettingsSave', 'btnDashboardSettingsReset', 'btnDashboardSettingsCancel', 'btnDashboardPrompts', 'dashboardPromptsModal', 'dpPromptInput', 'dpGlossaryPromptInput', 'dpAiCheckPromptInput', 'btnDashboardPromptsSave', 'btnDashboardPromptsCancel',
+    'btnDropdownDashboardSettings', 'dropdownDashboardSettingsMenu', 'btnDashboardSettings', 'dashboardSettingsModal', 'btnDashboardSettingsSave', 'btnDashboardSettingsReset', 'btnDashboardSettingsCancel', 'btnDashboardPrompts', 'dashboardPromptsModal', 'dpPromptInput', 'dpGlossaryPromptInput', 'dpAiCheckPromptInput', 'btnDashboardPromptsSave', 'btnDashboardPromptsReset', 'btnDashboardPromptsCancel',
     'dsSourceLang', 'dsTargetLang', 'dsTranslationMode', 'dsAiFormat', 'dsContextLines', 'dsSelectionBatch', 'dsGlossaryBatch', 'dsAiCheckBatch', 'dsRegexFilter',
     'btnImportFolder', 'btnImportZip', 'btnImportTranslatedFile', 'btnImportTranslatedFolder', 'btnExport', 'btnProofread', 'btnSettings',
     'previewViewport', 'previewContainer', 'progressFill', 'progressText', 'btnSelectAll',
@@ -160,6 +160,7 @@ export function bindEvents(): void {
   ui.btnDashboardSettings?.addEventListener('click', openDashboardSettings);
   ui.btnDashboardPrompts?.addEventListener('click', () => { import('./project').then(m => m.openDashboardPrompts()); });
   ui.btnDashboardPromptsSave?.addEventListener('click', () => { import('./project').then(m => m.saveDashboardPrompts()); });
+  ui.btnDashboardPromptsReset?.addEventListener('click', () => { import('./project').then(m => m.resetDashboardPrompts()); });
   ui.btnDashboardPromptsCancel?.addEventListener('click', () => (ui.dashboardPromptsModal as HTMLElement).classList.remove('open'));
   ui.btnDashboardSettingsSave?.addEventListener('click', saveDashboardSettings);
   ui.btnDashboardSettingsReset?.addEventListener('click', resetDashboardSettings);

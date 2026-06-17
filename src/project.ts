@@ -99,6 +99,13 @@ export function saveDashboardPrompts(): void {
   (ui.dashboardPromptsModal as HTMLElement).classList.remove('open');
 }
 
+export function resetDashboardPrompts(): void {
+  const d = getDefaultSettings();
+  (ui.dpPromptInput as HTMLTextAreaElement).value = getDefaultPromptHeaderForFormat(d.aiFormat);
+  (ui.dpGlossaryPromptInput as HTMLTextAreaElement).value = DEFAULT_GLOSSARY_PROMPT;
+  (ui.dpAiCheckPromptInput as HTMLTextAreaElement).value = DEFAULT_AI_CHECK_PROMPT;
+}
+
 export function resetDashboardSettings(): void {
   localStorage.removeItem(DS_STORAGE_KEY);
   const d = getDefaultSettings();
