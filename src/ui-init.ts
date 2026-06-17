@@ -320,9 +320,9 @@ export async function init(): Promise<void> {
   if (!navigator.storage || !navigator.storage.getDirectory) {
     alert('Browser kamu tidak mendukung Sistem File OPFS. Beberapa fitur tidak akan berjalan optimal.');
     (ui.projectList as HTMLElement).innerHTML = `<p class="hint" style="grid-column: 1/-1; color: var(--danger);">Browser tidak mendukung OPFS. Sistem penyimpanan tidak dapat diakses.</p>`;
-    return;
+  } else {
+    await loadDashboardProjects();
   }
 
-  await loadDashboardProjects();
   loadApiSettings();
 }
