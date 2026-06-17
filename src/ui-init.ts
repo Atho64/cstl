@@ -17,7 +17,7 @@ import { onCopyNamesForAi, onApplyNameTranslations, onResetNameTranslations } fr
 import { onCopyForAiCheck, onParseAiCheck, onApplyAiCheckCorrections, onClearAiCheck } from './ai-check';
 import { onOpenProofread, onResetProofread, onProofreadReplaceAll, renderProofreadResults } from './proofread';
 import { onOpenQa, onResetQa, runQaCheck } from './qa';
-import { onOpenSettings, onSavePromptSettings } from './settings';
+import { onOpenSettings, onSavePromptSettings, onOpenPromptsSettings, onOpenGlossarySettings } from './settings';
 import { onExport } from './export';
 import { onImportVndbNames, onImportAnilistNames } from './vndb-anilist';
 import { onExtractEpubRubyNames } from './epub-ruby';
@@ -58,7 +58,7 @@ export function cacheElements(): void {
   const ids = [
     'dashboardView', 'workspaceView', 'projectList', 'projectFilterInput', 'btnNewProject', 'btnRestoreProject',
     'btnBackToDashboard', 'projectNameDisplay', 'restoreProjectInput', 'btnDropdownImport', 'dropdownImportMenu', 'btnImportFile',
-    'btnDashboardSettings', 'dashboardSettingsModal', 'btnDashboardSettingsSave', 'btnDashboardSettingsReset', 'btnDashboardSettingsCancel',
+    'btnDropdownDashboardSettings', 'dropdownDashboardSettingsMenu', 'btnDashboardSettings', 'dashboardSettingsModal', 'btnDashboardSettingsSave', 'btnDashboardSettingsReset', 'btnDashboardSettingsCancel', 'btnDashboardPrompts', 'dashboardPromptsModal', 'dpPromptInput', 'dpGlossaryPromptInput', 'dpAiCheckPromptInput', 'btnDashboardPromptsSave', 'btnDashboardPromptsCancel',
     'dsSourceLang', 'dsTargetLang', 'dsTranslationMode', 'dsAiFormat', 'dsContextLines', 'dsSelectionBatch', 'dsGlossaryBatch', 'dsAiCheckBatch', 'dsRegexFilter',
     'btnImportFolder', 'btnImportZip', 'btnImportTranslatedFile', 'btnImportTranslatedFolder', 'btnExport', 'btnProofread', 'btnSettings',
     'previewViewport', 'previewContainer', 'progressFill', 'progressText', 'btnSelectAll',
@@ -70,6 +70,7 @@ export function cacheElements(): void {
     'glossaryFileInput', 'settingsModal', 'settingsPromptInput', 'settingsGlossaryPromptInput', 'settingsAiCheckPromptInput', 'settingsEpubTagsInput',
     'settingsLucaWrap', 'settingsLucaProfileSelect', 'settingsLucaMcWrap', 'settingsLucaMcDisplayNameInput', 'settingsLucaExportLangWrap', 'settingsLucaExportLangSelect', 'settingsSourceLangSelect', 'settingsTargetLangSelect', 'settingsTranslationModeSelect', 'settingsRegexFilterInput', 'settingsRefLangWrap', 'settingsRefLang1Select', 'settingsRefLang2Select', 'btnImportRefLang1', 'btnImportRefLang2', 'btnImportRefLang1Folder', 'btnImportRefLang2Folder', 'btnClearRefLang1', 'btnClearRefLang2', 'refLang1Input', 'refLang2Input', 'refLang1FolderInput', 'refLang2FolderInput',
     'settingsDisableEmptyLineValidation', 'settingsAiTranslationFormatSelect', 'settingsGlossaryInput', 'settingsContextLinesInput', 'settingsSelectionBatchSizeInput', 'settingsGlossaryBatchSizeInput', 'settingsAiCheckBatchSizeInput', 'settingsSelectionPrevShortcutInput', 'settingsSelectionNextShortcutInput', 'btnSettingsReset', 'btnSettingsGlossaryReset', 'btnSettingsAiCheckReset', 'btnSettingsCancel', 'btnSettingsSave', 'lineEditorModal', 'lineEditorTitle',
+    'btnDropdownSettings', 'dropdownSettingsMenu', 'btnSettingsGeneral', 'btnSettingsPrompts', 'btnSettingsGlossary', 'settingsPromptsModal', 'settingsGlossaryModal', 'btnSettingsPromptsCancel', 'btnSettingsPromptsSave', 'btnSettingsGlossaryCancel', 'btnSettingsGlossarySave',
     'tabTranslate', 'tabGlossary', 'viewTranslate', 'viewGlossary', 'btnCopyForGlossaryAi', 'pasteGlossaryArea', 'btnSaveGlossary', 'btnImportGlossaryFile', 'btnExportGlossaryFile', 'copyGlossaryCount', 'btnDeleteTranslation', 'deleteTranslationCount', 'tabDelete', 'viewDelete',
     'tabAiCheck', 'viewAiCheck', 'btnCopyForAiCheck', 'copyAiCheckCount', 'aiCheckStatus', 'pasteAiCheckArea', 'btnParseAiCheck', 'btnApplyAiCheck', 'btnClearAiCheck', 'aiCheckResults',
     'vndbInput', 'btnImportVndbNames', 'vndbStatus',
@@ -116,8 +117,35 @@ export function bindEvents(): void {
       menu.style.left = rect.left + 'px';
       menu.classList.toggle('show');
     } else {
-      if (!target.closest('.dropdown') && ui.dropdownImportMenu) {
+      if (ui.dropdownImportMenu) {
         (ui.dropdownImportMenu as HTMLElement).classList.remove('show');
+      }
+    }
+    const isDashboardSettingsBtn = target.closest('#btnDropdownDashboardSettings');
+    if (isDashboardSettingsBtn) {
+      e.preventDefault();
+      const rect = isDashboardSettingsBtn.getBoundingClientRect();
+      const menu = ui.dropdownDashboardSettingsMenu as HTMLElement;
+      menu.style.top = (rect.bottom + 4) + 'px';
+      menu.style.left = rect.left + 'px';
+      menu.classList.toggle('show');
+    } else {
+      if (ui.dropdownDashboardSettingsMenu) {
+        (ui.dropdownDashboardSettingsMenu as HTMLElement).classList.remove('show');
+      }
+    }
+
+    const isSettingsBtn = target.closest('#btnDropdownSettings');
+    if (isSettingsBtn) {
+      e.preventDefault();
+      const rect = isSettingsBtn.getBoundingClientRect();
+      const menu = ui.dropdownSettingsMenu as HTMLElement;
+      menu.style.top = (rect.bottom + 4) + 'px';
+      menu.style.left = rect.left + 'px';
+      menu.classList.toggle('show');
+    } else {
+      if (ui.dropdownSettingsMenu) {
+        (ui.dropdownSettingsMenu as HTMLElement).classList.remove('show');
       }
     }
   });
@@ -130,6 +158,9 @@ export function bindEvents(): void {
   ui.restoreProjectInput?.addEventListener('change', onRestoreProject);
 
   ui.btnDashboardSettings?.addEventListener('click', openDashboardSettings);
+  ui.btnDashboardPrompts?.addEventListener('click', () => { import('./project').then(m => m.openDashboardPrompts()); });
+  ui.btnDashboardPromptsSave?.addEventListener('click', () => { import('./project').then(m => m.saveDashboardPrompts()); });
+  ui.btnDashboardPromptsCancel?.addEventListener('click', () => (ui.dashboardPromptsModal as HTMLElement).classList.remove('open'));
   ui.btnDashboardSettingsSave?.addEventListener('click', saveDashboardSettings);
   ui.btnDashboardSettingsReset?.addEventListener('click', resetDashboardSettings);
   ui.btnDashboardSettingsCancel?.addEventListener('click', () => (ui.dashboardSettingsModal as HTMLElement).classList.remove('open'));
@@ -231,7 +262,9 @@ export function bindEvents(): void {
     }
   });
 
-  ui.btnSettings?.addEventListener('click', onOpenSettings);
+  ui.btnSettingsGeneral?.addEventListener('click', onOpenSettings);
+  ui.btnSettingsPrompts?.addEventListener('click', onOpenPromptsSettings);
+  ui.btnSettingsGlossary?.addEventListener('click', onOpenGlossarySettings);
   ui.btnSettingsReset?.addEventListener('click', () => {
     const format = (ui.settingsAiTranslationFormatSelect as HTMLSelectElement)?.value || DEFAULT_AI_TRANSLATION_FORMAT;
     (ui.settingsPromptInput as HTMLTextAreaElement).value = getDefaultPromptHeaderForFormat(format);
@@ -253,8 +286,16 @@ export function bindEvents(): void {
 
   ui.btnSettingsGlossaryReset?.addEventListener('click', () => { (ui.settingsGlossaryPromptInput as HTMLTextAreaElement).value = DEFAULT_GLOSSARY_PROMPT; });
   ui.btnSettingsAiCheckReset?.addEventListener('click', () => { (ui.settingsAiCheckPromptInput as HTMLTextAreaElement).value = DEFAULT_AI_CHECK_PROMPT; });
-  ui.btnSettingsCancel?.addEventListener('click', () => closeModal(ui.settingsModal as HTMLElement));
+  ui.btnSettingsCancel?.addEventListener('click', () => {
+    closeModal(ui.settingsModal as HTMLElement);
+    if(ui.settingsPromptsModal) closeModal(ui.settingsPromptsModal as HTMLElement);
+    if(ui.settingsGlossaryModal) closeModal(ui.settingsGlossaryModal as HTMLElement);
+  });
+  ui.btnSettingsPromptsCancel?.addEventListener('click', () => closeModal(ui.settingsPromptsModal as HTMLElement));
+  ui.btnSettingsGlossaryCancel?.addEventListener('click', () => closeModal(ui.settingsGlossaryModal as HTMLElement));
   ui.btnSettingsSave?.addEventListener('click', onSavePromptSettings);
+  ui.btnSettingsPromptsSave?.addEventListener('click', onSavePromptSettings);
+  ui.btnSettingsGlossarySave?.addEventListener('click', onSavePromptSettings);
 
   if (ui.settingsCheckSimilarity) {
     ui.settingsCheckSimilarity.addEventListener('change', () => {
@@ -294,7 +335,71 @@ export function bindEvents(): void {
   ui.btnAutoTranslate?.addEventListener('click', onAutoTranslate);
   ui.btnAutoGlossaryAi?.addEventListener('click', () => import('./auto-translate').then(m => m.onAutoGlossary()));
   ui.btnAutoAiCheck?.addEventListener('click', () => import('./auto-translate').then(m => m.onAutoAiCheck()));
-  ui.btnFloatingApiSettings?.addEventListener('click', onOpenApiSettings);
+
+  let isDraggingRobot = false;
+  let robotStartX = 0, robotStartY = 0;
+  let initialLeft = 0, initialTop = 0;
+
+  if (ui.btnFloatingApiSettings) {
+    const btn = ui.btnFloatingApiSettings as HTMLElement;
+    const onStart = (e: MouseEvent | TouchEvent) => {
+      isDraggingRobot = false;
+      const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+      const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+      robotStartX = clientX;
+      robotStartY = clientY;
+      const rect = btn.getBoundingClientRect();
+      initialLeft = rect.left;
+      initialTop = rect.top;
+
+      const onMove = (moveEvent: MouseEvent | TouchEvent) => {
+        const moveX = 'touches' in moveEvent ? moveEvent.touches[0].clientX : moveEvent.clientX;
+        const moveY = 'touches' in moveEvent ? moveEvent.touches[0].clientY : moveEvent.clientY;
+        const dx = moveX - robotStartX;
+        const dy = moveY - robotStartY;
+        if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
+          isDraggingRobot = true;
+          moveEvent.preventDefault();
+          let newLeft = initialLeft + dx;
+          let newTop = initialTop + dy;
+          newLeft = Math.max(0, Math.min(window.innerWidth - btn.offsetWidth, newLeft));
+          newTop = Math.max(0, Math.min(window.innerHeight - btn.offsetHeight, newTop));
+          btn.style.left = newLeft + 'px';
+          btn.style.top = newTop + 'px';
+          btn.style.bottom = 'auto';
+          btn.style.right = 'auto';
+        }
+      };
+
+      const onEnd = () => {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onEnd);
+        document.removeEventListener('touchmove', onMove);
+        document.removeEventListener('touchend', onEnd);
+        if (isDraggingRobot) {
+          setTimeout(() => { isDraggingRobot = false; }, 50);
+        }
+      };
+
+      document.addEventListener('mousemove', onMove, { passive: false });
+      document.addEventListener('mouseup', onEnd);
+      document.addEventListener('touchmove', onMove, { passive: false });
+      document.addEventListener('touchend', onEnd);
+    };
+
+    btn.addEventListener('mousedown', onStart);
+    btn.addEventListener('touchstart', onStart, { passive: false });
+
+    btn.addEventListener('click', (e) => {
+      if (isDraggingRobot) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
+      onOpenApiSettings();
+    });
+  }
+
   ui.btnApiSettingsCancel?.addEventListener('click', () => closeModal(ui.apiSettingsModal as HTMLElement));
   ui.btnApiSettingsSave?.addEventListener('click', onSaveApiSettings);
   ui.apiRpmInput?.addEventListener('input', updateDelayPreview);

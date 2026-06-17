@@ -10,7 +10,7 @@ import {
   DEFAULT_SELECTION_BATCH_PREV_SHORTCUT, DEFAULT_SELECTION_BATCH_NEXT_SHORTCUT,
 } from './constants';
 import { DEFAULT_LUCA_PROFILE, clearLucaFileLineBytesCache } from './luca-engine';
-import { normalizeAiTranslationFormat } from './ai-format';
+import { normalizeAiTranslationFormat, getDefaultPromptHeaderForFormat } from './ai-format';
 import { readEpubSourceForBackup, writeEpubSourceFromBackup, cloneExistingEpubSource } from './binary-utils';
 import { resetSelectionHistory, switchWorkspaceTab, normalizeSelectionBatchSize } from './selection';
 import { normalizeLineDict } from './state';
@@ -68,19 +68,35 @@ export function openDashboardSettings(): void {
 }
 
 export function saveDashboardSettings(): void {
-  const d = {
-    sourceLang: (ui.dsSourceLang as HTMLSelectElement).value,
-    targetLang: (ui.dsTargetLang as HTMLSelectElement).value,
-    translationMode: (ui.dsTranslationMode as HTMLSelectElement)?.value === 'htl' ? 'htl' : 'ai',
-    aiFormat: (ui.dsAiFormat as HTMLSelectElement).value,
-    contextLines: parseInt((ui.dsContextLines as HTMLInputElement).value) || 10,
-    selectionBatch: parseInt((ui.dsSelectionBatch as HTMLInputElement).value) || DEFAULT_SELECTION_BATCH_SIZE,
-    glossaryBatch: parseInt((ui.dsGlossaryBatch as HTMLInputElement).value) || DEFAULT_GLOSSARY_BATCH_SIZE,
-    aiCheckBatch: parseInt((ui.dsAiCheckBatch as HTMLInputElement).value) || DEFAULT_AI_CHECK_BATCH_SIZE,
-    regexFilter: (ui.dsRegexFilter as HTMLInputElement).value || '',
-  };
+  const d = getDefaultSettings();
+  d.sourceLang = (ui.dsSourceLang as HTMLSelectElement).value;
+  d.targetLang = (ui.dsTargetLang as HTMLSelectElement).value;
+  d.translationMode = (ui.dsTranslationMode as HTMLSelectElement)?.value === 'htl' ? 'htl' : 'ai';
+  d.aiFormat = (ui.dsAiFormat as HTMLSelectElement).value;
+  d.contextLines = parseInt((ui.dsContextLines as HTMLInputElement).value) || 10;
+  d.selectionBatch = parseInt((ui.dsSelectionBatch as HTMLInputElement).value) || DEFAULT_SELECTION_BATCH_SIZE;
+  d.glossaryBatch = parseInt((ui.dsGlossaryBatch as HTMLInputElement).value) || DEFAULT_GLOSSARY_BATCH_SIZE;
+  d.aiCheckBatch = parseInt((ui.dsAiCheckBatch as HTMLInputElement).value) || DEFAULT_AI_CHECK_BATCH_SIZE;
+  d.regexFilter = (ui.dsRegexFilter as HTMLInputElement).value || '';
   localStorage.setItem(DS_STORAGE_KEY, JSON.stringify(d));
   (ui.dashboardSettingsModal as HTMLElement).classList.remove('open');
+}
+
+export function openDashboardPrompts(): void {
+  const d = getDefaultSettings();
+  (ui.dpPromptInput as HTMLTextAreaElement).value = d.promptHeader !== undefined ? d.promptHeader : getDefaultPromptHeaderForFormat(d.aiFormat);
+  (ui.dpGlossaryPromptInput as HTMLTextAreaElement).value = d.glossaryPrompt !== undefined ? d.glossaryPrompt : DEFAULT_GLOSSARY_PROMPT;
+  (ui.dpAiCheckPromptInput as HTMLTextAreaElement).value = d.aiCheckPrompt !== undefined ? d.aiCheckPrompt : DEFAULT_AI_CHECK_PROMPT;
+  (ui.dashboardPromptsModal as HTMLElement).classList.add('open');
+}
+
+export function saveDashboardPrompts(): void {
+  const d = getDefaultSettings();
+  d.promptHeader = (ui.dpPromptInput as HTMLTextAreaElement).value;
+  d.glossaryPrompt = (ui.dpGlossaryPromptInput as HTMLTextAreaElement).value;
+  d.aiCheckPrompt = (ui.dpAiCheckPromptInput as HTMLTextAreaElement).value;
+  localStorage.setItem(DS_STORAGE_KEY, JSON.stringify(d));
+  (ui.dashboardPromptsModal as HTMLElement).classList.remove('open');
 }
 
 export function resetDashboardSettings(): void {
@@ -219,8 +235,8 @@ export async function createNewProject(): Promise<void> {
     source_lang: d.sourceLang, target_lang: d.targetLang, regex_filter: d.regexFilter || '',
     disable_empty_line_validation: false, check_kana_residue: false, check_similarity: false, similarity_threshold: 0.7,
     imported_files: [], lines: [],
-    prompt_header: DEFAULT_PROMPT_HEADER, ai_translation_format: d.aiFormat,
-    glossary_prompt: DEFAULT_GLOSSARY_PROMPT, ai_check_prompt: DEFAULT_AI_CHECK_PROMPT,
+    prompt_header: d.promptHeader !== undefined ? d.promptHeader : getDefaultPromptHeaderForFormat(d.aiFormat), ai_translation_format: d.aiFormat,
+    glossary_prompt: d.glossaryPrompt !== undefined ? d.glossaryPrompt : DEFAULT_GLOSSARY_PROMPT, ai_check_prompt: d.aiCheckPrompt !== undefined ? d.aiCheckPrompt : DEFAULT_AI_CHECK_PROMPT,
     glossary_text: '', context_lines: d.contextLines, context_type: 'raw',
     selection_batch_size: d.selectionBatch, glossary_batch_size: d.glossaryBatch, ai_check_batch_size: d.aiCheckBatch,
     selection_batch_prev_shortcut: DEFAULT_SELECTION_BATCH_PREV_SHORTCUT,

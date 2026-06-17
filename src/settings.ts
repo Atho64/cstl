@@ -99,6 +99,25 @@ export function onOpenSettings(): void {
   openModal(ui.settingsModal as HTMLElement);
 }
 
+export function onOpenPromptsSettings(): void {
+  if (state.projectName) {
+    (ui.settingsPromptInput as HTMLTextAreaElement).value = state.aiInstructionHeader;
+    (ui.settingsGlossaryPromptInput as HTMLTextAreaElement).value = state.glossaryPrompt;
+    (ui.settingsAiCheckPromptInput as HTMLTextAreaElement).value = state.aiCheckPrompt;
+  } else {
+    const format = (ui.settingsAiTranslationFormatSelect as HTMLSelectElement)?.value || DEFAULT_AI_TRANSLATION_FORMAT;
+    (ui.settingsPromptInput as HTMLTextAreaElement).value = getDefaultPromptHeaderForFormat(format);
+    (ui.settingsGlossaryPromptInput as HTMLTextAreaElement).value = DEFAULT_GLOSSARY_PROMPT;
+    (ui.settingsAiCheckPromptInput as HTMLTextAreaElement).value = DEFAULT_AI_CHECK_PROMPT;
+  }
+  openModal(ui.settingsPromptsModal as HTMLElement);
+}
+
+export function onOpenGlossarySettings(): void {
+  (ui.settingsGlossaryInput as HTMLTextAreaElement).value = state.glossaryText || '';
+  openModal(ui.settingsGlossaryModal as HTMLElement);
+}
+
 export function onSavePromptSettings(): void {
   const sourceLang = (ui.settingsSourceLangSelect as HTMLSelectElement).value || 'Japanese';
   const targetLang = (ui.settingsTargetLangSelect as HTMLSelectElement).value || 'Indonesian';
@@ -172,6 +191,8 @@ export function onSavePromptSettings(): void {
   (ui.settingsSelectionPrevShortcutInput as HTMLInputElement).value = prevShortcut;
   (ui.settingsSelectionNextShortcutInput as HTMLInputElement).value = nextShortcut;
   closeModal(ui.settingsModal as HTMLElement);
+  if (ui.settingsPromptsModal) closeModal(ui.settingsPromptsModal as HTMLElement);
+  if (ui.settingsGlossaryModal) closeModal(ui.settingsGlossaryModal as HTMLElement);
   applyHtlMode();
   refreshAll();
   renderGlossaryPreview();

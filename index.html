@@ -23,10 +23,16 @@
         <span class="hero-badge">vM13</span>
       </div>
       <div class="actions">
-        <button id="btnNewProject" class="btn btn-primary">Buat Proyek Baru</button>
-        <button id="btnRestoreProject" class="btn btn-outline">Pulihkan Proyek</button>
-        <button id="btnDashboardSettings" class="btn btn-outline" title="Pengaturan Default Proyek">⚙ Default</button>
-      </div>
+          <button id="btnNewProject" class="btn btn-primary">Buat Proyek Baru</button>
+          <button id="btnRestoreProject" class="btn btn-outline">Pulihkan Proyek</button>
+          <div class="dropdown">
+            <button id="btnDropdownDashboardSettings" class="btn btn-outline dropdown-toggle" title="Pengaturan Default Proyek">⚙️ Default ▼</button>
+            <div id="dropdownDashboardSettingsMenu" class="dropdown-content">
+              <button id="btnDashboardSettings" class="dropdown-item">Project Defaults</button>
+              <button id="btnDashboardPrompts" class="dropdown-item">Prompt Defaults</button>
+            </div>
+          </div>
+        </div>
     </header>
     <main class="dashboard-content">
       <div class="dashboard-filter-row">
@@ -60,7 +66,14 @@
         <span class="toolbar-sep"></span>
         <button id="btnProofread" class="btn" disabled>Cari</button>
         <button id="btnQaCheck" class="btn" disabled>Validasi QC</button>
-        <button id="btnSettings" class="btn">Setting</button>
+        <div class="dropdown">
+          <button id="btnDropdownSettings" class="btn dropdown-toggle">Pengaturan ▼</button>
+          <div id="dropdownSettingsMenu" class="dropdown-content">
+            <button id="btnSettingsGeneral" class="dropdown-item">General Settings</button>
+            <button id="btnSettingsPrompts" class="dropdown-item">Prompt Settings</button>
+            <button id="btnSettingsGlossary" class="dropdown-item">Smart Glossary</button>
+          </div>
+        </div>
       </div>
       <span class="grow"></span>
       <span id="projectNameDisplay" class="toolbar-label toolbar-project-name desktop-only">Proyek Aktif</span>
@@ -134,7 +147,7 @@
             <button id="btnCopyNamesForAi" class="btn btn-primary w-full" disabled>Copy <span id="copyNameCount">0</span> Nama untuk AI</button>
           </div>
           <label class="section-label" for="pasteNameArea" data-htl-hide="true">Paste hasil terjemahan nama AI di sini</label>
-          <textarea id="pasteNameArea" class="mono input-area small" placeholder="[character] 浅村 悠太 = Asamura Yuuta {male name}&#10;[character] 綾瀬 沙季 = Ayase Saki {female name}" disabled data-htl-hide="true"></textarea>
+          <textarea id="pasteNameArea" class="mono input-area small" placeholder="[character] 速川麦 = Hayakawa Mugi {male name}&#10;[character] 辻倉朱比華 = Tsujikura Spica {female name}" disabled data-htl-hide="true"></textarea>
           <div class="inline-actions mb-2" data-htl-hide="true">
             <button id="btnApplyNameTranslations" class="btn btn-success grow" disabled>Terapkan Nama</button>
             <button id="btnResetNameTranslations" class="btn btn-danger" disabled>Reset Semua Nama</button>
@@ -182,7 +195,7 @@
             <button id="btnAutoGlossaryAi" class="btn btn-success w-full" disabled>Jalankan Auto Ekstrak</button>
           </div>
           <label class="section-label" for="pasteGlossaryArea">Paste hasil glossary AI di sini</label>
-          <textarea id="pasteGlossaryArea" class="mono input-area" placeholder="[character] 浅村 悠太 = Asamura Yuuta {male name}&#10;[place] 渋谷 = Shibuya {place name}" disabled></textarea>
+          <textarea id="pasteGlossaryArea" class="mono input-area" placeholder="[character] 速川麦 = Hayakawa Mugi {male name}&#10;[place] 渋谷 = Shibuya {place name}" disabled></textarea>
           <div class="inline-actions mt-2">
             <button id="btnSaveGlossary" class="btn btn-success grow" disabled>Simpan ke Smart Glossary</button>
             <button id="btnImportGlossaryFile" class="btn btn-outline" disabled>Import File</button>
@@ -192,7 +205,7 @@
             <label class="section-label mt-0" for="vndbInput">Import Nama dari VNDB</label>
             <p class="hint">Masukkan VNDB ID atau URL visual novel. Nama Jepang akan ditambahkan ke Smart Glossary dengan nama romanisasi VNDB.</p>
             <div class="inline-actions">
-              <input id="vndbInput" class="text-input grow" type="text" placeholder="v17 atau https://vndb.org/v17" />
+              <input id="vndbInput" class="text-input grow" type="text" placeholder="v47937 atau https://vndb.org/v47937" />
               <button id="btnImportVndbNames" class="btn btn-outline">Import</button>
             </div>
             <p id="vndbStatus" class="hint mt-2 m-0"></p>
@@ -337,6 +350,30 @@
     </div>
   </div>
 
+  <!-- Dashboard Default Prompts Modal -->
+  <div id="dashboardPromptsModal" class="modal-backdrop">
+    <div class="modal modal-wide">
+      <h3>⚙️ Default Prompts Proyek Baru</h3>
+      <p class="hint mt-0">Prompt ini akan otomatis diterapkan ke setiap proyek baru yang dibuat.</p>
+      <div class="mt-2">
+        <label class="section-label text-white m-0">Prompt AI</label>
+        <textarea id="dpPromptInput" class="mono input-area mt-1"></textarea>
+      </div>
+      <div class="mt-2">
+        <label class="section-label text-white m-0">Prompt Glossary Extractor</label>
+        <textarea id="dpGlossaryPromptInput" class="mono input-area mt-1"></textarea>
+      </div>
+      <div class="mt-2">
+        <label class="section-label text-white m-0">Prompt AI Check</label>
+        <textarea id="dpAiCheckPromptInput" class="mono input-area mt-1"></textarea>
+      </div>
+      <div class="modal-actions mt-3">
+        <button id="btnDashboardPromptsSave" class="btn btn-primary">Simpan Default Prompts</button>
+        <button id="btnDashboardPromptsCancel" class="btn">Batal</button>
+      </div>
+    </div>
+  </div>
+
   <div id="settingsModal" class="modal-backdrop">
     <div class="modal modal-wide">
       <h3>Pengaturan</h3>
@@ -440,30 +477,6 @@
         </select>
       </div>
       <div class="mt-3">
-        <div class="flex-between mb-1">
-          <label class="section-label text-white m-0">Pengaturan Prompt AI</label>
-          <button id="btnSettingsReset" class="btn btn-outline btn-xs">Reset Default</button>
-        </div>
-        <p class="hint m-0">Teks instruksi ini otomatis ditambahkan ke awal saat kamu klik "Copy untuk AI".</p>
-        <textarea id="settingsPromptInput" class="mono input-area mt-1"></textarea>
-      </div>
-      <div class="mt-3">
-        <div class="flex-between mb-1">
-          <label class="section-label text-white m-0">Pengaturan Prompt Glossary Extractor</label>
-          <button id="btnSettingsGlossaryReset" class="btn btn-outline btn-xs">Reset Default</button>
-        </div>
-        <p class="hint m-0">Teks instruksi ini digunakan saat menyalin teks untuk ekstraksi glossary.</p>
-        <textarea id="settingsGlossaryPromptInput" class="mono input-area mt-1"></textarea>
-      </div>
-      <div class="mt-3">
-        <div class="flex-between mb-1">
-          <label class="section-label text-white m-0">Pengaturan Prompt AI Check</label>
-          <button id="btnSettingsAiCheckReset" class="btn btn-outline btn-xs">Reset Default</button>
-        </div>
-        <p class="hint m-0">Teks instruksi ini digunakan saat menyalin terjemahan untuk dicek ulang oleh AI.</p>
-        <textarea id="settingsAiCheckPromptInput" class="mono input-area mt-1"></textarea>
-      </div>
-      <div class="mt-3">
         <label class="section-label text-white m-0">Pengaturan Tag EPUB</label>
         <p class="hint mt-1">Tag HTML target untuk diekstrak (pisahkan dengan koma). Berlaku untuk impor EPUB.</p>
         <input id="settingsEpubTagsInput" class="text-input w-full" type="text" placeholder="p, h1, h2, h3" />
@@ -491,11 +504,6 @@
           <input id="settingsLucaMcDisplayNameInput" class="text-input w-full mt-1" type="text" placeholder="Tomoya" />
           <p class="hint m-0 mt-1">Hanya label di CSTL. Ekspor PAK tetap memakai <code>＊Ｂ@</code> di file script.</p>
         </div>
-      </div>
-      <div class="mt-3">
-        <label class="section-label text-white m-0">Smart Glossary</label>
-        <p class="hint mt-1">Masukkan daftar istilah bertipe (contoh: [character] Japanese=Indonesian {female name}). Format lama tanpa tipe/deskripsi tetap didukung.</p>
-        <textarea id="settingsGlossaryInput" class="mono input-area mt-1" placeholder="[character] 浅村 悠太 = Asamura Yuuta {male name}&#10;[place] 渋谷 = Shibuya {place name}"></textarea>
       </div>
       <div class="mt-3">
         <label class="section-label text-white m-0">Konteks Baris Sebelumnya (Context Lines)</label>
@@ -543,10 +551,61 @@
           </div>
         </div>
       </div>
+        <div class="modal-actions mt-3">
+          <span class="grow"></span>
+          <button id="btnSettingsCancel" class="btn">Batal</button>
+          <button id="btnSettingsSave" class="btn btn-primary">Simpan Pengaturan</button>
+        </div>
+      </div>
+    </div>
+
+  <div id="settingsPromptsModal" class="modal-backdrop">
+    <div class="modal modal-wide">
+      <h3>Prompt Settings</h3>
+      <div class="mt-3">
+        <div class="flex-between mb-1">
+          <label class="section-label text-white m-0">Pengaturan Prompt AI</label>
+          <button id="btnSettingsReset" class="btn btn-outline btn-xs">Reset Default</button>
+        </div>
+        <p class="hint m-0">Teks instruksi ini otomatis ditambahkan ke awal saat kamu klik "Copy untuk AI".</p>
+        <textarea id="settingsPromptInput" class="mono input-area mt-1"></textarea>
+      </div>
+      <div class="mt-3">
+        <div class="flex-between mb-1">
+          <label class="section-label text-white m-0">Pengaturan Prompt AI Check</label>
+          <button id="btnSettingsAiCheckReset" class="btn btn-outline btn-xs">Reset Default</button>
+        </div>
+        <p class="hint m-0">Teks instruksi ini digunakan saat menyalin terjemahan untuk dicek ulang oleh AI.</p>
+        <textarea id="settingsAiCheckPromptInput" class="mono input-area mt-1"></textarea>
+      </div>
+      <div class="mt-3">
+        <div class="flex-between mb-1">
+          <label class="section-label text-white m-0">Pengaturan Prompt Glossary Extractor</label>
+          <button id="btnSettingsGlossaryReset" class="btn btn-outline btn-xs">Reset Default</button>
+        </div>
+        <p class="hint m-0">Teks instruksi ini digunakan saat menyalin teks untuk ekstraksi glossary.</p>
+        <textarea id="settingsGlossaryPromptInput" class="mono input-area mt-1"></textarea>
+      </div>
       <div class="modal-actions mt-3">
         <span class="grow"></span>
-        <button id="btnSettingsCancel" class="btn">Batal</button>
-        <button id="btnSettingsSave" class="btn btn-primary">Simpan Pengaturan</button>
+        <button id="btnSettingsPromptsCancel" class="btn">Batal</button>
+        <button id="btnSettingsPromptsSave" class="btn btn-primary">Simpan Pengaturan</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="settingsGlossaryModal" class="modal-backdrop">
+    <div class="modal modal-wide">
+      <h3>Smart Glossary</h3>
+      <div class="mt-3">
+        <label class="section-label text-white m-0">Daftar Istilah</label>
+        <p class="hint mt-1">Masukkan daftar istilah bertipe (contoh: [character] Japanese=Indonesian {female name}). Format lama tanpa tipe/deskripsi tetap didukung.</p>
+        <textarea id="settingsGlossaryInput" class="mono input-area mt-1" placeholder="[character] 速川麦 = Hayakawa Mugi {male name}&#10;[place] 渋谷 = Shibuya {place name}"></textarea>
+      </div>
+      <div class="modal-actions mt-3">
+        <span class="grow"></span>
+        <button id="btnSettingsGlossaryCancel" class="btn">Batal</button>
+        <button id="btnSettingsGlossarySave" class="btn btn-primary">Simpan Pengaturan</button>
       </div>
     </div>
   </div>

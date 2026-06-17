@@ -113,18 +113,18 @@ export function buildSelectedTranslationExport(includeTranslated = true): string
 export function getTranslationPastePlaceholder(): string {
   const fmt = normalizeAiTranslationFormat(state.aiTranslationFormat);
   if (fmt === AI_TRANSLATION_FORMAT_BLOCK) {
-    return `[line 12]\nspeaker: 沙季\ntext: Selamat pagi\n\n[line 13]\nspeaker: 悠太\ntext: Mau ngapain hari ini?`;
+    return `[line 12]\nspeaker: Spica\ntext: Selamat pagi\n\n[line 13]\nspeaker: Mugi\ntext: Mau ngapain hari ini?`;
   }
   if (fmt === AI_TRANSLATION_FORMAT_XML) {
-    return `<?xml version="1.0" encoding="UTF-8"?>\n<lines>\n  <line num="12" speaker="沙季">\n    <text>Selamat pagi</text>\n  </line>\n  <line num="13">\n    <text>Mau ngapain hari ini?</text>\n  </line>\n</lines>`;
+    return `<?xml version="1.0" encoding="UTF-8"?>\n<lines>\n  <line num="12" speaker="Spica">\n    <text>Selamat pagi</text>\n  </line>\n  <line num="13">\n    <text>Mau ngapain hari ini?</text>\n  </line>\n</lines>`;
   }
   if (fmt === AI_TRANSLATION_FORMAT_JSONL) {
-    return `{"num":12,"speaker":"沙季","text":"Selamat pagi"}\n{"num":13,"text":"Mau ngapain hari ini?"}`;
+    return `{"num":12,"speaker":"Spica","text":"Selamat pagi"}\n{"num":13,"text":"Mau ngapain hari ini?"}`;
   }
   if (fmt === AI_TRANSLATION_FORMAT_JSON_ARRAY) {
-    return `[12,"沙季","Selamat pagi"]\n[13,"Mau ngapain hari ini?"]`;
+    return `[12,"Spica","Selamat pagi"]\n[13,"Mau ngapain hari ini?"]`;
   }
-  return `12. 沙季: Selamat pagi\n13. 悠太: Mau ngapain hari ini?`;
+  return `12. Spica: Selamat pagi\n13. Mugi: Mau ngapain hari ini?`;
 }
 
 export function detectTranslationPasteFormat(text: string): string {
