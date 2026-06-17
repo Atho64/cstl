@@ -166,12 +166,9 @@ export async function onAutoTranslate(): Promise<void> {
       sections.push(joinedText.trim());
       const prompt = sections.join('\n\n');
 
-      let rawResult = '';
-      if (state.aiApiType === 'gemini') {
-        rawResult = await fetchGemini(prompt);
-      } else {
-        rawResult = await fetchOpenAI(prompt);
-      }
+      let rawResult = await fetchWithRetry(prompt, (attempt) => {
+        btn.textContent = `Gagal! Mencoba ulang (${attempt}/3)... (Klik Stop)`;
+      });
 
       if (!rawResult || !rawResult.trim()) {
         throw new Error('Respons dari API kosong.');
@@ -323,12 +320,9 @@ export async function onAutoGlossary(): Promise<void> {
       const basePrompt = applyPromptVariables((state.glossaryPrompt || DEFAULT_GLOSSARY_PROMPT).trim());
       const prompt = `${basePrompt}\n\n${out.join('\n')}\n`;
 
-      let rawResult = '';
-      if (state.aiApiType === 'gemini') {
-        rawResult = await fetchGemini(prompt);
-      } else {
-        rawResult = await fetchOpenAI(prompt);
-      }
+      let rawResult = await fetchWithRetry(prompt, (attempt) => {
+        btn.textContent = `Gagal! Mencoba ulang (${attempt}/3)... (Klik Stop)`;
+      });
 
       if (!rawResult || !rawResult.trim()) {
         throw new Error('Respons dari API kosong.');
@@ -415,12 +409,9 @@ export async function onAutoAiCheck(): Promise<void> {
       const basePrompt = applyPromptVariables((state.aiCheckPrompt || DEFAULT_AI_CHECK_PROMPT).trim());
       const prompt = `${basePrompt}\n\n${out.join('\n\n')}\n`;
 
-      let rawResult = '';
-      if (state.aiApiType === 'gemini') {
-        rawResult = await fetchGemini(prompt);
-      } else {
-        rawResult = await fetchOpenAI(prompt);
-      }
+      let rawResult = await fetchWithRetry(prompt, (attempt) => {
+        btn.textContent = `Gagal! Mencoba ulang (${attempt}/3)... (Klik Stop)`;
+      });
 
       if (!rawResult || !rawResult.trim()) {
         throw new Error('Respons dari API kosong.');
@@ -451,4 +442,24 @@ export async function onAutoAiCheck(): Promise<void> {
     btn.classList.add('btn-success');
     btn.textContent = 'Jalankan Auto Cek';
   }
+}
+
+async function fetchWithRetry(prompt: string, onRetry: (attempt: number) => void): Promise<string> {
+  let attempt = 0;
+  const maxRetries = 3;
+  while (attempt < maxRetries) {
+    try {
+      if (state.aiApiType === 'gemini') {
+        return await fetchGemini(prompt);
+      } else {
+        return await fetchOpenAI(prompt);
+      }
+    } catch (err: any) {
+      attempt++;
+      if (attempt >= maxRetries) throw err;
+      onRetry(attempt);
+      await delay(3000);
+    }
+  }
+  return '';
 }
