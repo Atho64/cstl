@@ -1,7 +1,6 @@
 # CSTL — Copas Tool
 
 <div align="center">
-  <img src="./icon.svg" width="110" height="110" alt="CSTL Logo"/>
 
   [![Live](https://img.shields.io/badge/Live-atho64.github.io%2Fcstl-blue?style=for-the-badge)](https://atho64.github.io/cstl/)
   ![Version](https://img.shields.io/badge/Version-M13-purple?style=for-the-badge)
