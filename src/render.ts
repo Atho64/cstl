@@ -21,6 +21,13 @@ function renderGlossaryPreview() { import('./glossary').then(m => m.renderGlossa
 export function rebuildDisplayState(): void {
   state.lineByNum.clear();
   const grouped = new Map<string, Line[]>(state.importedFiles.map(f => [f, []]));
+  let cachedRegex: RegExp | null = null;
+  if (state.regexFilter) {
+    try {
+      cachedRegex = new RegExp(state.regexFilter, 'ui');
+    } catch (_) {}
+  }
+
   for (const line of state.lines) {
     state.lineByNum.set(line.line_num, line);
     if (!grouped.has(line.file)) grouped.set(line.file, []);
@@ -31,11 +38,8 @@ export function rebuildDisplayState(): void {
         shouldHide = true;
       }
     }
-    if (!shouldHide && state.regexFilter) {
-      try {
-        const re = new RegExp(state.regexFilter, 'u');
-        if (re.test(line.name || '') || re.test(line.message || '')) shouldHide = true;
-      } catch (_) {}
+    if (!shouldHide && cachedRegex) {
+      if (cachedRegex.test(line.name || '') || cachedRegex.test(line.message || '')) shouldHide = true;
     }
     line._hidden = shouldHide;
     if (!shouldHide) grouped.get(line.file)!.push(line);
