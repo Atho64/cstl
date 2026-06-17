@@ -17,12 +17,37 @@ import { getLucaExportSlotOptions, populateLucaExportSlotSelect, getActiveLucaPr
 import { refreshAll } from './render.js';
 import { renderGlossaryPreview } from './glossary.js';
 import { queueAutoSave, openModal, closeModal, DS_STORAGE_KEY } from './project.js';
+import { applyHtlMode } from './htl-mode.js';
 
 
 export function onOpenSettings() {
   ui.settingsSourceLangSelect.value = state.sourceLang || "Japanese";
   ui.settingsTargetLangSelect.value = state.targetLang || "Indonesian";
+  if (ui.settingsTranslationModeSelect) {
+    ui.settingsTranslationModeSelect.value = state.translationMode || "ai";
+  }
   ui.settingsRegexFilterInput.value = state.regexFilter || "";
+  // Reference language section only for JSON projects
+  const isJson = state.projectType === "json";
+  if (ui.settingsRefLangWrap) {
+    ui.settingsRefLangWrap.style.display = isJson ? "block" : "none";
+  }
+  if (isJson) {
+    const hasRef1 = state.lines.some(l => l.ref_lang_1 != null);
+    const hasRef2 = state.lines.some(l => l.ref_lang_2 != null);
+    if (ui.settingsRefLang1Select) {
+      ui.settingsRefLang1Select.value = hasRef1 ? `Ada (${state.lines.filter(l => l.ref_lang_1 != null).length} baris)` : "";
+    }
+    if (ui.settingsRefLang2Select) {
+      ui.settingsRefLang2Select.value = hasRef2 ? `Ada (${state.lines.filter(l => l.ref_lang_2 != null).length} baris)` : "";
+    }
+    if (ui.btnImportRefLang1) ui.btnImportRefLang1.disabled = !state.currentProjectId;
+    if (ui.btnImportRefLang2) ui.btnImportRefLang2.disabled = !state.currentProjectId;
+    if (ui.btnImportRefLang1Folder) ui.btnImportRefLang1Folder.disabled = !state.currentProjectId;
+    if (ui.btnImportRefLang2Folder) ui.btnImportRefLang2Folder.disabled = !state.currentProjectId;
+    if (ui.btnClearRefLang1) ui.btnClearRefLang1.disabled = !hasRef1;
+    if (ui.btnClearRefLang2) ui.btnClearRefLang2.disabled = !hasRef2;
+  }
   ui.settingsDisableEmptyLineValidation.checked = !!state.disableEmptyLineValidation;
   if (ui.settingsCheckKanaResidue) ui.settingsCheckKanaResidue.checked = !!state.checkKanaResidue;
   if (ui.settingsCheckSimilarity) {
@@ -79,6 +104,7 @@ export function onOpenSettings() {
 export function onSavePromptSettings() {
   const sourceLang = ui.settingsSourceLangSelect.value || "Japanese";
   const targetLang = ui.settingsTargetLangSelect.value || "Indonesian";
+  const translationMode = ui.settingsTranslationModeSelect?.value === "htl" ? "htl" : "ai";
   const regexFilter = ui.settingsRegexFilterInput.value;
   const disableEmptyLineValidation = ui.settingsDisableEmptyLineValidation.checked;
   const checkKanaResidue = !!(ui.settingsCheckKanaResidue?.checked);
@@ -115,6 +141,7 @@ export function onSavePromptSettings() {
 
   state.sourceLang = sourceLang;
   state.targetLang = targetLang;
+  state.translationMode = translationMode;
   state.regexFilter = regexFilter;
   state.disableEmptyLineValidation = disableEmptyLineValidation;
   state.checkKanaResidue = checkKanaResidue;
@@ -147,6 +174,7 @@ export function onSavePromptSettings() {
   ui.settingsSelectionPrevShortcutInput.value = prevShortcut;
   ui.settingsSelectionNextShortcutInput.value = nextShortcut;
   closeModal(ui.settingsModal);
+  applyHtlMode();
   refreshAll();
   renderGlossaryPreview();
   queueAutoSave();

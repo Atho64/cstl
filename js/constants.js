@@ -39,6 +39,9 @@ export const DEFAULT_AI_CHECK_PROMPT = `Check the existing {{targetLang}} transl
 export const DEFAULT_NAME_TRANSLATION_PROMPT = `Translate or romanize all character names from {{sourceLang}} into natural {{targetLang}} name forms.\nUse the dialogue context only to infer reading, gender, relationship, or naming style.\n\nFormat the output STRICTLY as:\n[character] [{{sourceLang}} name] = [{{targetLang}} name] {short description}\n\nRules:\n1. Keep every source name exactly as given.\n2. Return one line for every name.\n3. Do NOT translate dialogue context.\n4. Do NOT add commentary or markdown outside the result.\n5. Put results inside \`\`\`plaintext block.`;
 export const APP_VERSION = "vM13";
 export const DEFAULT_LUCA_MC_DISPLAY_NAME = "Tomoya";
+export const DEFAULT_JSON_REF_LANG = ""; // e.g. "en" or "zh" - extra reference language for JSON VNTP projects
+export const HTL_MODE = "htl"; // Human Translation Mode - hides AI features
+export const AI_MODE = "ai"; // AI Translation Mode (default) - shows all features
 export const CLANNAD_PROTAGONIST_TOKENS = new Set(["＊Ｂ", "＊B", "＊Ａ", "＊A", "*B", "*A"]);
 export const MAX_UNDO_STEPS = 10;
 export const DEFAULT_SELECTION_BATCH_SIZE = 100;

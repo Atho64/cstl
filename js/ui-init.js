@@ -26,6 +26,11 @@ import { onImportVndbNames } from './vndb-anilist.js';
 import { onImportAnilistNames } from './vndb-anilist.js';
 import { onExtractEpubRubyNames } from './epub-ruby.js';
 import {
+  onImportRefLang1, onImportRefLang2, onImportRefLang1Folder, onImportRefLang2Folder,
+  onRefLang1FileChange, onRefLang2FileChange, onRefLang1FolderChange, onRefLang2FolderChange,
+  onClearRefLang1, onClearRefLang2, applyHtlMode, refreshHtlPanels,
+} from './htl-mode.js';
+import {
   onImportFileChange, onImportFolderChange, onImportZipChange,
   onImportLucaTxtChange, onImportLucaTxtFolderChange,
 } from './import-source.js';
@@ -57,7 +62,7 @@ export function cacheElements() {
     "dashboardView", "workspaceView", "projectList", "projectFilterInput", "btnNewProject", "btnRestoreProject",
     "btnBackToDashboard", "projectNameDisplay", "restoreProjectInput", "btnDropdownImport", "dropdownImportMenu", "btnImportFile",
     "btnDashboardSettings", "dashboardSettingsModal", "btnDashboardSettingsSave", "btnDashboardSettingsReset", "btnDashboardSettingsCancel",
-    "dsSourceLang", "dsTargetLang", "dsAiFormat", "dsContextLines", "dsSelectionBatch", "dsGlossaryBatch", "dsAiCheckBatch", "dsRegexFilter",
+    "dsSourceLang", "dsTargetLang", "dsTranslationMode", "dsAiFormat", "dsContextLines", "dsSelectionBatch", "dsGlossaryBatch", "dsAiCheckBatch", "dsRegexFilter",
     "btnImportFolder", "btnImportZip", "btnImportTranslatedFile", "btnImportTranslatedFolder", "btnExport", "btnProofread", "btnSettings",
     "previewViewport", "previewContainer", "progressFill", "progressText", "btnSelectAll",
     "btnClearSelection", "copyCount", "btnCopyForAi", "copyStatus", "pasteArea", "btnApply", "checkIgnorePasteNames",
@@ -66,7 +71,7 @@ export function cacheElements() {
     "glossaryPreviewWrap", "glossaryPreviewText",
     "importZipInput", "importLucaTxtInput", "importLucaTxtFolderInput", "btnImportLucaTxt", "btnImportLucaTxtFolder",
     "glossaryFileInput", "settingsModal", "settingsPromptInput", "settingsGlossaryPromptInput", "settingsAiCheckPromptInput", "settingsEpubTagsInput",
-    "settingsLucaWrap", "settingsLucaProfileSelect", "settingsLucaMcWrap", "settingsLucaMcDisplayNameInput", "settingsLucaExportLangWrap", "settingsLucaExportLangSelect", "settingsSourceLangSelect", "settingsTargetLangSelect", "settingsRegexFilterInput",
+    "settingsLucaWrap", "settingsLucaProfileSelect", "settingsLucaMcWrap", "settingsLucaMcDisplayNameInput", "settingsLucaExportLangWrap", "settingsLucaExportLangSelect", "settingsSourceLangSelect", "settingsTargetLangSelect", "settingsTranslationModeSelect", "settingsRegexFilterInput", "settingsRefLangWrap", "settingsRefLang1Select", "settingsRefLang2Select", "btnImportRefLang1", "btnImportRefLang2", "btnImportRefLang1Folder", "btnImportRefLang2Folder", "btnClearRefLang1", "btnClearRefLang2", "refLang1Input", "refLang2Input", "refLang1FolderInput", "refLang2FolderInput",
     "settingsDisableEmptyLineValidation", "settingsAiTranslationFormatSelect", "settingsGlossaryInput", "settingsContextLinesInput", "settingsSelectionBatchSizeInput", "settingsGlossaryBatchSizeInput", "settingsAiCheckBatchSizeInput", "settingsSelectionPrevShortcutInput", "settingsSelectionNextShortcutInput", "btnSettingsReset", "btnSettingsGlossaryReset", "btnSettingsAiCheckReset", "btnSettingsCancel", "btnSettingsSave", "lineEditorModal", "lineEditorTitle",
     "tabTranslate", "tabGlossary", "viewTranslate", "viewGlossary", "btnCopyForGlossaryAi", "pasteGlossaryArea", "btnSaveGlossary", "btnImportGlossaryFile", "btnExportGlossaryFile", "copyGlossaryCount", "btnDeleteTranslation", "deleteTranslationCount", "tabDelete", "viewDelete",
     "tabAiCheck", "viewAiCheck", "btnCopyForAiCheck", "copyAiCheckCount", "aiCheckStatus", "pasteAiCheckArea", "btnParseAiCheck", "btnApplyAiCheck", "btnClearAiCheck", "aiCheckResults",
@@ -74,6 +79,8 @@ export function cacheElements() {
     "btnExtractEpubRubyNames", "epubRubyStatus", "anilistInput", "btnImportAnilistNames", "anilistStatus",
     "lineOriginalView", "lineNameWrap", "lineNameInput", "lineMessageInput", "lineTranslatedCheck",
     "lucaRefWrap", "lineRefEnView", "lineRefZhView",
+    "jsonRefLang1Wrap", "lineRefLang1Label", "lineRefLang1View",
+    "jsonRefLang2Wrap", "lineRefLang2Label", "lineRefLang2View",
     "btnLineCancel", "btnLineSave", "proofreadModal", "proofreadSearchInput", "proofreadScope",
     "proofreadRegexCheck", "proofreadCaseCheck", "proofreadExactCheck", "proofreadTranslatedOnlyCheck",
     "btnProofreadReset", "proofreadStatus", "proofreadContainer", "btnProofreadClose",
@@ -159,6 +166,17 @@ export function bindEvents() {
   ui.btnImportVndbNames.addEventListener("click", onImportVndbNames);
   ui.btnExtractEpubRubyNames.addEventListener("click", onExtractEpubRubyNames);
   ui.btnImportAnilistNames.addEventListener("click", onImportAnilistNames);
+
+  if (ui.btnImportRefLang1) ui.btnImportRefLang1.addEventListener("click", onImportRefLang1);
+  if (ui.btnImportRefLang2) ui.btnImportRefLang2.addEventListener("click", onImportRefLang2);
+  if (ui.btnImportRefLang1Folder) ui.btnImportRefLang1Folder.addEventListener("click", onImportRefLang1Folder);
+  if (ui.btnImportRefLang2Folder) ui.btnImportRefLang2Folder.addEventListener("click", onImportRefLang2Folder);
+  if (ui.refLang1Input) ui.refLang1Input.addEventListener("change", onRefLang1FileChange);
+  if (ui.refLang2Input) ui.refLang2Input.addEventListener("change", onRefLang2FileChange);
+  if (ui.refLang1FolderInput) ui.refLang1FolderInput.addEventListener("change", onRefLang1FolderChange);
+  if (ui.refLang2FolderInput) ui.refLang2FolderInput.addEventListener("change", onRefLang2FolderChange);
+  if (ui.btnClearRefLang1) ui.btnClearRefLang1.addEventListener("click", onClearRefLang1);
+  if (ui.btnClearRefLang2) ui.btnClearRefLang2.addEventListener("click", onClearRefLang2);
 
   ui.tabTranslate.addEventListener("click", () => switchWorkspaceTab("translate"));
   ui.tabGlossary.addEventListener("click", () => switchWorkspaceTab("glossary"));

@@ -1,4 +1,4 @@
-:root {
+﻿:root {
   --bg: #0f172a;
   --panel: #1e293b;
   --line: #334155;
@@ -808,4 +808,14 @@ html, body {
   .name-table-wrap tbody { display: table-row-group !important; }
   .name-table-wrap th { font-size: 12px; padding: 8px 4px; }
   .name-table-wrap td { font-size: 13px; padding: 12px 4px; }
+}
+
+/* HTL mode */
+body.htl-mode .panel-right { display: none !important; }
+body.htl-mode .split-layout { grid-template-columns: 1fr !important; }
+body.htl-mode .panel-left { height: 100% !important; }
+@media (max-width: 768px) {
+  body.htl-mode .panel-right { display: none !important; }
+  body.htl-mode .split-layout { grid-template-rows: 1fr !important; }
+  body.htl-mode .panel-left { height: 100% !important; flex: 1 !important; }
 }

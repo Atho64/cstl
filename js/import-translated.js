@@ -1,4 +1,4 @@
-// @module import-translated.js — Import translated file/folder: match and apply
+// @module import-translated.js â€” Import translated file/folder: match and apply
 
 import { state, ui } from './state.js';
 import { normalizeLineDict, isTranslated, getOpfsRoot } from './state.js';
@@ -84,6 +84,13 @@ export function normalizeTranslatedImportValue(value) {
     return String(value ?? "").replace(/\r?\n/g, "\\n").trim();
   }
 
+export function isSameAsOriginal(translatedValue, originalValue) {
+  const t = String(translatedValue ?? "").trim();
+  const o = String(originalValue ?? "").trim();
+  if (!t || !o) return false;
+  return t === o;
+}
+
 export function collectTranslatedJsonUpdates(pathOrName, jsonArray, fileMatchMap, groupedLines, usedFiles) {
     if (!Array.isArray(jsonArray)) throw new Error(`${pathOrName} bukan array JSON.`);
     const target = findTranslatedImportTarget(pathOrName, fileMatchMap, groupedLines);
@@ -100,9 +107,16 @@ export function collectTranslatedJsonUpdates(pathOrName, jsonArray, fileMatchMap
       const message = normalizeTranslatedImportValue(entry.message ?? entry.trans_message ?? entry.text);
       if (!message && !state.disableEmptyLineValidation) continue;
       const line = target.lines[i];
+      // Skip TL imports that are identical to the source (treat as not translated)
+      if (isSameAsOriginal(message, line.message)) continue;
       const hasNameValue = Object.hasOwn(entry, "name") || Object.hasOwn(entry, "trans_name");
       const name = hasNameValue ? normalizeTranslatedImportValue(entry.name ?? entry.trans_name) : null;
-      updates.push({ line, name, message, hasNameValue });
+      // Also skip if the imported name is identical to the source name
+      if (hasNameValue && isSameAsOriginal(name, line.name)) {
+        updates.push({ line, name: null, message, hasNameValue: false });
+      } else {
+        updates.push({ line, name, message, hasNameValue });
+      }
     }
 
     return {
@@ -164,7 +178,11 @@ export function collectTranslatedLucaTxtUpdates(pathOrName, fileText, fileMatchM
           unmatchedRows.push(rawIndex + 1);
           continue;
         }
-        updates.push({ line, name: normalizeTranslatedImportValue(name), message, hasNameValue: !!name });
+        // Skip TL imports that are identical to the source
+        if (isSameAsOriginal(message, line.message)) continue;
+        const normName = normalizeTranslatedImportValue(name);
+        const useName = isSameAsOriginal(normName, line.name) ? null : normName;
+        updates.push({ line, name: useName, message, hasNameValue: !!useName });
       } else if (command === "SELECT") {
         if (profile.skipSelect || args.length < profile.selectMinArgs) continue;
         const slotIndex = profile.selectExportSlot(exportLang);
@@ -178,6 +196,7 @@ export function collectTranslatedLucaTxtUpdates(pathOrName, fileText, fileMatchM
             unmatchedRows.push(rawIndex + 1);
             continue;
           }
+          if (isSameAsOriginal(message, line.message)) continue;
           updates.push({ line, name: null, message, hasNameValue: false });
         }
       }
@@ -216,7 +235,9 @@ export async function collectTranslatedEpubUpdates(file) {
       const limit = Math.min(els.length, lines.length);
       for (let i = 0; i < limit; i++) {
         const message = normalizeTranslatedImportValue(els[i].textContent.replace(/\r?\n/g, " ").trim());
-        if (message || state.disableEmptyLineValidation) updates.push({ line: lines[i], name: null, message, hasNameValue: false });
+        if (!message && !state.disableEmptyLineValidation) continue;
+        if (isSameAsOriginal(message, lines[i].message)) continue;
+        updates.push({ line: lines[i], name: null, message, hasNameValue: false });
       }
     }
 

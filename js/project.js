@@ -29,6 +29,7 @@ async function refreshAll() { return (await import('./render.js')).refreshAll();
 async function flashHint(msg, keepAlive) { return (await import('./render.js')).flashHint(msg, keepAlive); }
 async function updateButtonStates() { return (await import('./render.js')).updateButtonStates(); }
 async function updateStatusBar() { return (await import('./render.js')).updateStatusBar(); }
+async function applyHtlMode() { return (await import('./htl-mode.js')).applyHtlMode(); }
 
 
 // ─── Modal helpers ────────────────────────────────────────────────────────────
@@ -50,11 +51,16 @@ export const DS_STORAGE_KEY = "cstl_default_settings";
 export function getDefaultSettings() {
   try {
     const saved = localStorage.getItem(DS_STORAGE_KEY);
-    if (saved) return JSON.parse(saved);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (!parsed.translationMode) parsed.translationMode = "ai";
+      return parsed;
+    }
   } catch(e) {}
   return {
     sourceLang: "Japanese",
     targetLang: "Indonesian",
+    translationMode: "ai",
     aiFormat: DEFAULT_AI_TRANSLATION_FORMAT,
     contextLines: 10,
     selectionBatch: DEFAULT_SELECTION_BATCH_SIZE,
@@ -68,6 +74,7 @@ export function openDashboardSettings() {
   const d = getDefaultSettings();
   ui.dsSourceLang.value = d.sourceLang;
   ui.dsTargetLang.value = d.targetLang;
+  if (ui.dsTranslationMode) ui.dsTranslationMode.value = d.translationMode || "ai";
   ui.dsAiFormat.value = d.aiFormat;
   ui.dsContextLines.value = d.contextLines;
   ui.dsSelectionBatch.value = d.selectionBatch;
@@ -81,6 +88,7 @@ export function saveDashboardSettings() {
   const d = {
     sourceLang: ui.dsSourceLang.value,
     targetLang: ui.dsTargetLang.value,
+    translationMode: ui.dsTranslationMode?.value === "htl" ? "htl" : "ai",
     aiFormat: ui.dsAiFormat.value,
     contextLines: parseInt(ui.dsContextLines.value) || 10,
     selectionBatch: parseInt(ui.dsSelectionBatch.value) || DEFAULT_SELECTION_BATCH_SIZE,
@@ -97,6 +105,7 @@ export function resetDashboardSettings() {
   const d = getDefaultSettings();
   ui.dsSourceLang.value = d.sourceLang;
   ui.dsTargetLang.value = d.targetLang;
+  if (ui.dsTranslationMode) ui.dsTranslationMode.value = d.translationMode || "ai";
   ui.dsAiFormat.value = d.aiFormat;
   ui.dsContextLines.value = d.contextLines;
   ui.dsSelectionBatch.value = d.selectionBatch;
@@ -189,7 +198,9 @@ export function renderDashboardProjects() {
       badgeWrap.style.marginBottom = "8px";
       const badge = document.createElement("span");
       badge.className = p.data.projectType === "epub" ? "badge badge-epub" : p.data.projectType === "luca" ? "badge badge-luca" : "badge badge-json";
-      badge.textContent = p.data.projectType === "epub" ? "EPUB" : p.data.projectType === "luca" ? "TXT LUCA" : "JSON VNTP";
+      let badgeText = p.data.projectType === "epub" ? "EPUB" : p.data.projectType === "luca" ? "TXT LUCA" : "JSON VNTP";
+      if (p.data.translationMode === "htl") badgeText += " • HTL";
+      badge.textContent = badgeText;
       badgeWrap.appendChild(badge);
       meta.appendChild(badgeWrap);
     }
@@ -225,6 +236,8 @@ export async function createNewProject() {
     version: APP_VERSION,
     projectName: name.trim(),
     projectType: "json",
+    translationMode: "ai",
+    jsonRefLang: "",
     epubTags: "p",
     epubSourceId: null,
     lucaExportLang: "en",
@@ -330,6 +343,8 @@ export function queueAutoSave() {
       version: APP_VERSION,
       projectName: state.projectName,
       projectType: state.projectType,
+      translationMode: state.translationMode || "ai",
+      jsonRefLang: state.jsonRefLang || "",
       epubTags: state.epubTags,
       epubSourceId: state.epubSourceId,
       lucaExportLang: state.lucaExportLang,
@@ -370,6 +385,8 @@ export function openProject(id, data) {
   state.currentProjectId = id;
   state.projectName = data.projectName || "Unknown Project";
   state.projectType = data.projectType || "json";
+  state.translationMode = data.translationMode || "ai";
+  state.jsonRefLang = data.jsonRefLang || "";
   state.epubTags = data.epubTags || "p";
   state.epubSourceId = data.epubSourceId || null;
   state.lucaExportLang = data.lucaExportLang || "en";
@@ -407,12 +424,15 @@ export function openProject(id, data) {
   resetSelectionHistory();
   if (ui.pasteAiCheckArea) ui.pasteAiCheckArea.value = "";
   if (ui.aiCheckResults) ui.aiCheckResults.textContent = "";
-  ui.projectNameDisplay.textContent = state.projectName;
+  ui.projectNameDisplay.textContent = state.translationMode === "htl"
+    ? `${state.projectName} [HTL]`
+    : state.projectName;
 
   ui.dashboardView.classList.remove("open");
   ui.workspaceView.style.display = "flex";
 
   refreshAll();
+  applyHtlMode();
   switchWorkspaceTab("translate");
 }
 
@@ -421,7 +441,9 @@ export function closeProject() {
     clearTimeout(getSaveTimeout());
     const data = {
       version: APP_VERSION, projectName: state.projectName,
-      projectType: state.projectType, epubTags: state.epubTags, epubSourceId: state.epubSourceId,
+      projectType: state.projectType, translationMode: state.translationMode || "ai",
+      jsonRefLang: state.jsonRefLang || "",
+      epubTags: state.epubTags, epubSourceId: state.epubSourceId,
       lucaExportLang: state.lucaExportLang,
       luca_profile: state.lucaProfile || DEFAULT_LUCA_PROFILE,
       luca_mc_display_name: state.lucaMcDisplayName || DEFAULT_LUCA_MC_DISPLAY_NAME,
@@ -490,6 +512,8 @@ export async function onRestoreProject(ev) {
       version: APP_VERSION,
       projectName: name,
       projectType: p.projectType || "json",
+      translationMode: p.translationMode || "ai",
+      jsonRefLang: p.jsonRefLang || "",
       epubTags: p.epubTags || "p",
       epubSourceId: restoredEpubSourceId,
       lucaExportLang: p.lucaExportLang || "en",

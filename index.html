@@ -96,48 +96,48 @@
           </div>
         </div>
 
-        <div class="tabs-wrap mb-2" style="display: flex; gap: 8px;">
+        <div class="tabs-wrap mb-2 workspace-ai-tabs" data-htl-hide="true" style="display: flex; gap: 8px;">
           <button id="tabTranslate" class="btn btn-primary grow">Translate</button>
-          <button id="tabGlossary" class="btn btn-outline grow">Glossary Extractor</button>
-          <button id="tabAiCheck" class="btn btn-outline grow">AI Check</button>
+          <button id="tabGlossary" class="btn btn-outline grow workspace-ai-tab" data-htl-hide="true">Glossary Extractor</button>
+          <button id="tabAiCheck" class="btn btn-outline grow workspace-ai-tab" data-htl-hide="true">AI Check</button>
         </div>
         <div class="tabs-wrap mb-2" style="display: flex; gap: 8px;">
           <button id="tabDelete" class="btn btn-outline grow text-danger" style="border-color: rgba(239, 68, 68, 0.3);">Hapus Terjemahan</button>
         </div>
 
         <div id="viewTranslate">
-          <div class="card-box mb-2">
+          <div class="card-box mb-2" data-htl-hide="true">
             <button id="btnCopyForAi" class="btn btn-primary w-full" disabled>Copy <span id="copyCount">0</span> Baris untuk AI</button>
           </div>
-          <div id="copyStatus" class="status-toast empty"></div>
-          <div id="glossaryPreviewWrap" class="glossary-preview" hidden>
+          <div id="copyStatus" class="status-toast empty" data-htl-hide="true"></div>
+          <div id="glossaryPreviewWrap" class="glossary-preview" hidden data-htl-hide="true">
             <div class="section-label mt-0">Glossary yang ikut terkirim</div>
             <pre id="glossaryPreviewText" class="mono glossary-preview-text"></pre>
           </div>
-          <label class="section-label" for="pasteArea">Paste hasil terjemahan AI di sini</label>
-          <textarea id="pasteArea" class="mono input-area" placeholder="Paste hasil dari AI di sini..." disabled></textarea>
-          <div class="mb-2 mt-1">
+          <label class="section-label" for="pasteArea" data-htl-hide="true">Paste hasil terjemahan AI di sini</label>
+          <textarea id="pasteArea" class="mono input-area" placeholder="Paste hasil dari AI di sini..." disabled data-htl-hide="true"></textarea>
+          <div class="mb-2 mt-1" data-htl-hide="true">
             <label class="flex-center gap-1 cursor-pointer">
               <input type="checkbox" id="checkIgnorePasteNames" />
               <span class="hint m-0">Abaikan Nama Karakter (Jangan terjemahkan nama saat paste)</span>
             </label>
           </div>
-          <div class="inline-actions">
+          <div class="inline-actions" data-htl-hide="true">
             <button id="btnApply" class="btn btn-success grow" disabled>Terapkan Terjemahan</button>
             <button id="btnUndo" class="btn btn-danger" disabled>Undo</button>
           </div>
-          <label class="section-label mt-3">Daftar Nama Karakter</label>
-          <p class="hint mb-2 hint-tight">Klik nama asli untuk copy. Isi terjemah nama untuk mengganti nama karakter di semua baris terkait.</p>
-          <div class="card-box mb-2">
+          <label class="section-label mt-3" data-htl-hide="true">Daftar Nama Karakter</label>
+          <p class="hint mb-2 hint-tight" data-htl-hide="true">Klik nama asli untuk copy. Isi terjemah nama untuk mengganti nama karakter di semua baris terkait.</p>
+          <div class="card-box mb-2" data-htl-hide="true">
             <button id="btnCopyNamesForAi" class="btn btn-primary w-full" disabled>Copy <span id="copyNameCount">0</span> Nama untuk AI</button>
           </div>
-          <label class="section-label" for="pasteNameArea">Paste hasil terjemahan nama AI di sini</label>
-          <textarea id="pasteNameArea" class="mono input-area small" placeholder="[character] 浅村 悠太 = Asamura Yuuta {male name}&#10;[character] 綾瀬 沙季 = Ayase Saki {female name}" disabled></textarea>
-          <div class="inline-actions mb-2">
+          <label class="section-label" for="pasteNameArea" data-htl-hide="true">Paste hasil terjemahan nama AI di sini</label>
+          <textarea id="pasteNameArea" class="mono input-area small" placeholder="[character] 浅村 悠太 = Asamura Yuuta {male name}&#10;[character] 綾瀬 沙季 = Ayase Saki {female name}" disabled data-htl-hide="true"></textarea>
+          <div class="inline-actions mb-2" data-htl-hide="true">
             <button id="btnApplyNameTranslations" class="btn btn-success grow" disabled>Terapkan Nama</button>
             <button id="btnResetNameTranslations" class="btn btn-danger" disabled>Reset Semua Nama</button>
           </div>
-          <div id="nameTableWrap" class="name-table-wrap">
+          <div id="nameTableWrap" class="name-table-wrap" data-htl-hide="true">
             <table class="name-table">
               <thead>
                 <tr>
@@ -147,6 +147,20 @@
               </thead>
               <tbody id="nameTableBody"></tbody>
             </table>
+          </div>
+          <div id="viewHtlPlaceholder" data-htl-show="true" style="display: none;">
+            <div class="card-box mb-2" style="border-color: rgba(59, 130, 246, 0.3);">
+              <label class="section-label mt-0">Mode HTL (Human Translation)</label>
+              <p class="hint">Klik baris manapun di daftar untuk membuka editor dan mengetik terjemahan secara manual. Gunakan kotak pencarian di toolbar atas untuk proofread.</p>
+            </div>
+            <div class="card-box mb-2" id="htlRefLang1Box" data-htl-show="true" style="display: none;">
+              <label class="section-label mt-0" id="htlRefLang1Label">Referensi 1</label>
+              <pre id="htlRefLang1Text" class="mono" style="max-height: 240px; overflow: auto; background: rgba(0,0,0,0.2); padding: 8px; border-radius: 6px; white-space: pre-wrap; font-size: 12px;"></pre>
+            </div>
+            <div class="card-box mb-2" id="htlRefLang2Box" data-htl-show="true" style="display: none;">
+              <label class="section-label mt-0" id="htlRefLang2Label">Referensi 2</label>
+              <pre id="htlRefLang2Text" class="mono" style="max-height: 240px; overflow: auto; background: rgba(0,0,0,0.2); padding: 8px; border-radius: 6px; white-space: pre-wrap; font-size: 12px;"></pre>
+            </div>
           </div>
         </div>
 
@@ -158,7 +172,7 @@
           </div>
         </div>
 
-        <div id="viewGlossary" style="display: none;">
+        <div id="viewGlossary" data-htl-hide="true" style="display: none;">
           <div class="card-box mb-2">
             <label class="section-label mt-0">Pilih Teks untuk Ekstrak Glossary</label>
             <p class="hint">Teks yang dicentang akan dikirim ke AI untuk mengekstrak istilah penting.</p>
@@ -197,7 +211,7 @@
           </div>
         </div>
 
-        <div id="viewAiCheck" style="display: none;">
+        <div id="viewAiCheck" data-htl-hide="true" style="display: none;">
           <div class="card-box mb-2">
             <label class="section-label mt-0">Double Check Terjemahan AI</label>
             <p class="hint">Pilih baris yang sudah diterjemahkan, lalu salin ke AI untuk dicek. AI hanya perlu mengembalikan koreksi.</p>
@@ -229,6 +243,10 @@
   <input id="importTranslatedFolderInput" type="file" accept=".json,.epub,.txt" webkitdirectory directory multiple hidden />
   <input id="restoreProjectInput" type="file" accept=".cstl" hidden />
   <input id="glossaryFileInput" type="file" accept=".txt,.glossary,.md" hidden />
+  <input id="refLang1Input" type="file" accept=".json" hidden />
+  <input id="refLang2Input" type="file" accept=".json" hidden />
+  <input id="refLang1FolderInput" type="file" accept=".json" webkitdirectory directory multiple hidden />
+  <input id="refLang2FolderInput" type="file" accept=".json" webkitdirectory directory multiple hidden />
 
   <!-- Dashboard Default Settings Modal -->
   <div id="dashboardSettingsModal" class="modal-backdrop">
@@ -254,6 +272,15 @@
               <option value="Indonesian">Indonesian</option>
               <option value="English">English</option>
               <option value="Japanese">Japanese</option>
+            </select>
+          </div>
+        </div>
+        <div class="flex-center gap-4 wrap mt-1">
+          <div class="flex-col grow">
+            <label class="hint m-0" for="dsTranslationMode">Mode Terjemahan</label>
+            <select id="dsTranslationMode" class="text-input w-full">
+              <option value="ai">AI (Bantuan AI)</option>
+              <option value="htl">HTL (Manusia)</option>
             </select>
           </div>
         </div>
@@ -330,11 +357,43 @@
             </select>
           </div>
         </div>
+        <div class="flex-center gap-4 wrap mt-1">
+          <div class="flex-col grow">
+            <label class="hint m-0" for="settingsTranslationModeSelect">Mode Terjemahan</label>
+            <select id="settingsTranslationModeSelect" class="text-input w-full">
+              <option value="ai">AI (Bantuan AI)</option>
+              <option value="htl">HTL (Manusia)</option>
+            </select>
+            <p class="hint m-0 mt-1">HTL menyembunyikan semua fitur AI. Cocok untuk penerjemah manusia, terutama di mobile.</p>
+          </div>
+        </div>
       </div>
       <div class="mt-3">
         <label class="section-label text-white m-0">Regex Filter</label>
         <p class="hint mt-1">Sembunyikan baris yang cocok dengan regex ini (contoh: <code>^[A-Za-z0-9_]+$</code>). Kosongkan jika tidak digunakan.</p>
         <input id="settingsRegexFilterInput" class="text-input w-full" type="text" placeholder="Masukkan pola regex (opsional)..." />
+      </div>
+      <div class="mt-3" id="settingsRefLangWrap">
+        <label class="section-label text-white m-0">Referensi Bahasa Tambahan (Proyek JSON)</label>
+        <p class="hint mt-1">Impor file JSON terjemahan dari bahasa lain (EN, ZH, dll.) untuk dilihat di editor baris sebagai referensi. Posisi baris harus cocok dengan proyek.</p>
+        <div class="flex-center gap-4 wrap mt-1">
+          <div class="flex-col grow">
+            <label class="hint m-0" for="settingsRefLang1Select">Referensi 1 (mis. English)</label>
+            <input id="settingsRefLang1Select" class="text-input w-full" type="text" placeholder="Belum diimpor" readonly />
+          </div>
+          <div class="flex-col grow">
+            <label class="hint m-0" for="settingsRefLang2Select">Referensi 2 (mis. Chinese)</label>
+            <input id="settingsRefLang2Select" class="text-input w-full" type="text" placeholder="Belum diimpor" readonly />
+          </div>
+        </div>
+        <div class="inline-actions mt-1">
+          <button id="btnImportRefLang1" class="btn btn-outline" disabled>Impor File Ref 1</button>
+          <button id="btnImportRefLang1Folder" class="btn btn-outline" disabled>Impor Folder Ref 1</button>
+          <button id="btnImportRefLang2" class="btn btn-outline" disabled>Impor File Ref 2</button>
+          <button id="btnImportRefLang2Folder" class="btn btn-outline" disabled>Impor Folder Ref 2</button>
+          <button id="btnClearRefLang1" class="btn btn-danger" disabled>Hapus Ref 1</button>
+          <button id="btnClearRefLang2" class="btn btn-danger" disabled>Hapus Ref 2</button>
+        </div>
       </div>
       <div class="mt-3">
         <label class="checkbox-line">
@@ -498,6 +557,14 @@
         <textarea id="lineRefEnView" class="mono input-area small luca-ref" readonly></textarea>
         <label class="section-label mt-2 luca-ref-label">🇨🇳 中文 (Referensi)</label>
         <textarea id="lineRefZhView" class="mono input-area small luca-ref" readonly></textarea>
+      </div>
+      <div id="jsonRefLang1Wrap" style="display:none;">
+        <label class="section-label mt-2 luca-ref-label" id="lineRefLang1Label">📚 Referensi 1</label>
+        <textarea id="lineRefLang1View" class="mono input-area small luca-ref" readonly></textarea>
+      </div>
+      <div id="jsonRefLang2Wrap" style="display:none;">
+        <label class="section-label mt-2 luca-ref-label" id="lineRefLang2Label">📚 Referensi 2</label>
+        <textarea id="lineRefLang2View" class="mono input-area small luca-ref" readonly></textarea>
       </div>
       <div id="lineNameWrap">
         <label class="section-label mt-2">Nama Karakter (Terjemahan)</label>

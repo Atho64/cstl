@@ -25,6 +25,8 @@ export const state = {
   currentProjectId: null,
   projectName: "",
   projectType: "",
+  translationMode: "ai", // "ai" or "htl" — HTL hides all AI features
+  jsonRefLang: "", // optional reference language code for json projects: "en", "zh", etc. (empty = disabled)
   epubTags: "p",
   epubSourceId: null,
   lucaExportLang: "en",
@@ -107,6 +109,9 @@ export function normalizeLineDict(line) {
     is_translated: Boolean(line.is_translated),
     ...(line.luca_jp != null ? { luca_jp: String(line.luca_jp) } : {}),
     ...(line.luca_en != null ? { luca_en: String(line.luca_en) } : {}),
+    ...(line.luca_zh != null ? { luca_zh: String(line.luca_zh) } : {}),
+    ...(line.ref_lang_1 != null ? { ref_lang_1: String(line.ref_lang_1) } : {}),
+    ...(line.ref_lang_2 != null ? { ref_lang_2: String(line.ref_lang_2) } : {}),
   };
   if (line.luca_command) normalized.luca_command = String(line.luca_command);
   if (line.luca_choice_index != null) normalized.luca_choice_index = Number(line.luca_choice_index);

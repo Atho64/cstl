@@ -259,6 +259,10 @@ export function refreshAll() {
   renderNameTable();
   updateStatusBar();
   ui.btnUndo.disabled = state.undoStack.length === 0;
+  // Lazily refresh HTL reference panels if HTL mode is active
+  if (state.translationMode === "htl") {
+    import('./htl-mode.js').then(m => m.refreshHtlPanels()).catch(() => {});
+  }
 }
 
 // ─── Undo ─────────────────────────────────────────────────────────────────────
@@ -405,6 +409,29 @@ export function openLineEditor(num) {
     }
   } else {
     ui.lucaRefWrap.style.display = "none";
+  }
+  // JSON ref languages (HTL + JSON projects)
+  const hasRef1 = l.ref_lang_1 != null;
+  const hasRef2 = l.ref_lang_2 != null;
+  if (ui.jsonRefLang1Wrap) {
+    if (hasRef1) {
+      const nm1 = l.ref_lang_1_name ? `${l.ref_lang_1_name}: ` : "";
+      ui.lineRefLang1View.value = `${nm1}${l.ref_lang_1}`;
+      if (ui.lineRefLang1Label) ui.lineRefLang1Label.textContent = "📚 Referensi 1";
+      ui.jsonRefLang1Wrap.style.display = "block";
+    } else {
+      ui.jsonRefLang1Wrap.style.display = "none";
+    }
+  }
+  if (ui.jsonRefLang2Wrap) {
+    if (hasRef2) {
+      const nm2 = l.ref_lang_2_name ? `${l.ref_lang_2_name}: ` : "";
+      ui.lineRefLang2View.value = `${nm2}${l.ref_lang_2}`;
+      if (ui.lineRefLang2Label) ui.lineRefLang2Label.textContent = "📚 Referensi 2";
+      ui.jsonRefLang2Wrap.style.display = "block";
+    } else {
+      ui.jsonRefLang2Wrap.style.display = "none";
+    }
   }
   openModal(ui.lineEditorModal);
 }
