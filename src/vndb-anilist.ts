@@ -3,12 +3,122 @@
 import { state, ui } from './state';
 import { addNameGlossaryEntry, mergeGlossaryEntries, genderToDescription } from './glossary';
 import { containsJapanese } from './string-utils';
-import { flashHint } from './render';
+import { flashHint, collectCharacterNameRows, pushUndoSnapshot, renderNameTable, renderPreviewRows } from './render';
 import { queueAutoSave } from './project';
 
 export function extractVndbId(input: string): string | null {
   const match = String(input || '').trim().match(/(?:^|\/)(v\d+)(?:[/?#].*)?$/i);
   return match ? match[1].toLowerCase() : null;
+}
+
+function buildNameToLinesMap(): Map<string, { lines: any[]; currentTransName: string }> {
+  const nameRows = collectCharacterNameRows();
+  const m = new Map<string, { lines: any[]; currentTransName: string }>();
+  for (const row of nameRows) {
+    const translatedNames = Array.from(row.translatedNames as Set<string>);
+    m.set(row.name, { lines: row.lines, currentTransName: translatedNames.length === 1 ? translatedNames[0] : '' });
+  }
+  return m;
+}
+
+function applyVndbNameTranslations(characters: any[]): { appliedNames: number; appliedLines: number } {
+  const nameMap = buildNameToLinesMap();
+  let appliedNames = 0;
+  let appliedLines = 0;
+
+  function tryApply(sourceName: string, targetName: string): boolean {
+    if (!sourceName || !targetName || sourceName === targetName) return false;
+    if (!nameMap.has(sourceName)) return false;
+    const entry = nameMap.get(sourceName)!;
+    if (entry.currentTransName) return false;
+    for (const line of entry.lines) {
+      line.trans_name = targetName;
+      appliedLines++;
+    }
+    entry.currentTransName = targetName;
+    appliedNames++;
+    return true;
+  }
+
+  for (const ch of characters) {
+    const enFull = String(ch.name || '').trim();
+    if (!enFull) continue;
+    const jpFull = String(ch.original || '').trim();
+    const jpParts = jpFull ? jpFull.split(/\s+/).filter(Boolean) : [];
+    const enParts = enFull.split(/\s+/).filter(Boolean);
+
+    // ─── Nickname-only: no original Japanese name ───
+    if (!jpFull || !containsJapanese(jpFull)) {
+      const namesToCheck = [enFull];
+      if (Array.isArray(ch.aliases)) {
+        for (const a of ch.aliases) {
+          const alias = String(a).trim();
+          if (alias && !containsJapanese(alias) && alias !== enFull) namesToCheck.push(alias);
+        }
+      }
+      for (const nameToCheck of namesToCheck) {
+        tryApply(nameToCheck, enFull);
+      }
+      continue;
+    }
+
+    // ─── Full JP name match ───
+    tryApply(jpFull.replace(/\s+/g, ''), enFull);
+
+    // ─── Split name parts (family + given) ───
+    if (jpParts.length === 2 && enParts.length === 2) {
+      tryApply(jpParts[0], enParts[0]);
+      tryApply(jpParts[1], enParts[1]);
+    }
+
+    // ─── Aliases matching name table ───
+    if (Array.isArray(ch.aliases) && ch.aliases.length > 0) {
+      const jpAliases: string[] = [];
+      const enAliases: string[] = [];
+      for (const a of ch.aliases) {
+        const alias = String(a).trim();
+        if (!alias) continue;
+        if (containsJapanese(alias)) jpAliases.push(alias);
+        else enAliases.push(alias);
+      }
+
+      // Pair JP and EN aliases positionally when counts match
+      // e.g. aliases: ["タカ", "Taka"] → pair タカ with Taka
+      if (jpAliases.length > 0 && jpAliases.length === enAliases.length) {
+        for (let i = 0; i < jpAliases.length; i++) {
+          const jpAlias = jpAliases[i].replace(/\s+/g, '');
+          const enAlias = enAliases[i].trim();
+          tryApply(jpAlias, enAlias);
+          // Also try split parts of paired aliases
+          const pairedJpParts = jpAliases[i].split(/\s+/).filter(Boolean);
+          const pairedEnParts = enAlias.split(/\s+/).filter(Boolean);
+          if (pairedJpParts.length === 2 && pairedEnParts.length === 2) {
+            tryApply(pairedJpParts[0], pairedEnParts[0]);
+            tryApply(pairedJpParts[1], pairedEnParts[1]);
+          }
+        }
+      } else {
+        // Unpaired JP aliases — try matching against full EN name
+        for (const jpAlias of jpAliases) {
+          const aliasNoSpace = jpAlias.replace(/\s+/g, '');
+          tryApply(aliasNoSpace, enFull);
+          // Also try split parts of JP aliases against split EN name parts
+          const aliasParts = jpAlias.split(/\s+/).filter(Boolean);
+          if (aliasParts.length === 2 && enParts.length === 2) {
+            tryApply(aliasParts[0], enParts[0]);
+            tryApply(aliasParts[1], enParts[1]);
+          }
+        }
+      }
+
+      // EN aliases can directly match name table entries (nickname case)
+      for (const enAlias of enAliases) {
+        if (enAlias !== enFull) tryApply(enAlias, enAlias);
+      }
+    }
+  }
+
+  return { appliedNames, appliedLines };
 }
 
 export function collectVndbGlossaryEntries(characters: any[]): Map<string, any> {
@@ -84,9 +194,30 @@ export async function onImportVndbNames(): Promise<void> {
   try {
     const characters = await fetchVndbCharacters(vnId);
     const imported = collectVndbGlossaryEntries(characters);
-    if (!imported.size) { (ui.vndbStatus as HTMLElement).textContent = 'Tidak ada nama Jepang yang bisa diimpor dari VNDB.'; return; }
-    const { added, updated } = mergeGlossaryEntries(imported);
-    (ui.vndbStatus as HTMLElement).textContent = `Import selesai: ${added} nama baru, ${updated} diperbarui dari ${characters.length} karakter.`;
+    // ─── Auto-apply name translations for matching name table entries ───
+    let nameResult = { appliedNames: 0, appliedLines: 0 };
+    if (characters.length > 0) {
+      pushUndoSnapshot();
+      nameResult = applyVndbNameTranslations(characters);
+      if (nameResult.appliedLines > 0) {
+        renderNameTable();
+        renderPreviewRows();
+        queueAutoSave();
+      }
+    }
+    // ─── Glossary merge ───
+    let glossaryResult = { added: 0, updated: 0 };
+    if (imported.size) {
+      glossaryResult = mergeGlossaryEntries(imported);
+    }
+    const parts: string[] = [];
+    if (nameResult.appliedLines > 0) parts.push(`${nameResult.appliedNames} nama langsung diterapkan ke ${nameResult.appliedLines} baris`);
+    if (glossaryResult.added > 0 || glossaryResult.updated > 0) parts.push(`${glossaryResult.added} glossary baru, ${glossaryResult.updated} diperbarui`);
+    if (!parts.length) {
+      (ui.vndbStatus as HTMLElement).textContent = 'Tidak ada nama yang bisa diimpor dari VNDB.';
+    } else {
+      (ui.vndbStatus as HTMLElement).textContent = `Import selesai dari ${characters.length} karakter: ${parts.join(', ')}.`;
+    }
   } catch (err: any) {
     (ui.vndbStatus as HTMLElement).textContent = `Gagal import VNDB: ${err.message}`;
   } finally {
@@ -172,7 +303,7 @@ export async function onImportAnilistNames(): Promise<void> {
     const title = media.title?.romaji || media.title?.english || media.title?.native || `AniList ${media.id}`;
     if (!imported.size) { (ui.anilistStatus as HTMLElement).textContent = `Tidak ada nama Jepang yang bisa diimpor dari ${title}.`; return; }
     const { added, updated } = mergeGlossaryEntries(imported);
-    (ui.anilistStatus as HTMLElement).textContent = `Import selesai dari ${title}: ${added} nama baru, ${updated} diperbarui.`;
+    (ui.anilistStatus as HTMLElement).textContent = `Import selesai dari ${title}: ${added} baru, ${updated} diperbarui.`;
   } catch (err: any) {
     (ui.anilistStatus as HTMLElement).textContent = `Gagal import AniList: ${err.message}`;
   } finally {

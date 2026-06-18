@@ -26,7 +26,7 @@ import {
   onRefLang1FileChange, onRefLang2FileChange, onRefLang1FolderChange, onRefLang2FolderChange,
   onClearRefLang1, onClearRefLang2, applyHtlMode, refreshHtlPanels,
 } from './htl-mode';
-import { loadApiSettings, onOpenApiSettings, onSaveApiSettings, onAutoTranslate, updateDelayPreview } from './auto-translate';
+import { loadApiSettings, onOpenApiSettings, onSaveApiSettings, onAutoTranslate, updateDelayPreview, onFetchModels } from './auto-translate';
 import {
   onImportFileChange, onImportFolderChange, onImportZipChange,
   onImportLucaTxtChange, onImportLucaTxtFolderChange,
@@ -86,7 +86,7 @@ export function cacheElements(): void {
     'settingsCheckKanaResidue', 'settingsCheckSimilarity', 'settingsSimilarityThreshold', 'settingsSimilarityThresholdWrap',
     'settingsContextTypeSelect',
     'btnQaCheck', 'qaModal', 'qaCheckGlossary', 'qaCheckKana', 'qaCheckSimilarity', 'btnRunQa', 'btnQaReset', 'qaStats', 'qaResults', 'btnQaClose',
-    'btnAutoTranslate', 'btnAutoGlossaryAi', 'btnAutoAiCheck', 'btnFloatingApiSettings', 'apiSettingsModal', 'apiTypeSelect', 'apiUrlInput', 'apiKeyInput', 'apiModelInput', 'apiTemperatureInput', 'apiTopPInput', 'apiRpmInput', 'apiDelayPreview', 'btnApiSettingsCancel', 'btnApiSettingsSave'
+    'btnAutoTranslate', 'btnAutoGlossaryAi', 'btnAutoAiCheck', 'btnFloatingApiSettings', 'apiSettingsModal', 'apiTypeSelect', 'apiUrlInput', 'apiKeyInput', 'apiModelInput', 'apiModelSelect', 'btnFetchModels', 'apiModelFetchStatus', 'apiTemperatureInput', 'apiTopPInput', 'apiRpmInput', 'apiDelayPreview', 'btnApiSettingsCancel', 'btnApiSettingsSave'
   ];
   for (const id of ids) {
     ui[id] = document.getElementById(id);
@@ -409,6 +409,7 @@ export function bindEvents(): void {
 
   ui.btnApiSettingsCancel?.addEventListener('click', () => closeModal(ui.apiSettingsModal as HTMLElement));
   ui.btnApiSettingsSave?.addEventListener('click', onSaveApiSettings);
+  ui.btnFetchModels?.addEventListener('click', onFetchModels);
   ui.apiRpmInput?.addEventListener('input', updateDelayPreview);
 
   bindShortcutCaptureInput(ui.settingsSelectionPrevShortcutInput as HTMLInputElement);
@@ -438,3 +439,5 @@ export async function init(): Promise<void> {
 
   loadApiSettings();
 }
+
+

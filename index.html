@@ -754,7 +754,14 @@
 
       <div class="mt-3">
         <label class="hint m-0" for="apiModelInput">Model</label>
-        <input id="apiModelInput" class="text-input w-full mt-1" type="text" placeholder="gpt-4o-mini" />
+        <div class="flex-center gap-2 mt-1">
+          <select id="apiModelSelect" class="text-input grow" style="display:none;">
+            <option value="">-- Pilih model --</option>
+          </select>
+          <input id="apiModelInput" class="text-input grow" type="text" placeholder="gpt-4o-mini" />
+          <button id="btnFetchModels" class="btn btn-sm" title="Ambil daftar model dari API">&#8635;</button>
+        </div>
+        <p id="apiModelFetchStatus" class="hint mb-0" style="display:none;"></p>
       </div>
 
       <div class="flex-center gap-4 wrap mt-3">
@@ -785,3 +792,4 @@
   </div>
 </body>
 </html>
+

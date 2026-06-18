@@ -48,11 +48,115 @@ export function onOpenApiSettings(): void {
   if (ui.apiUrlInput) (ui.apiUrlInput as HTMLInputElement).value = state.aiApiUrl || '';
   if (ui.apiKeyInput) (ui.apiKeyInput as HTMLInputElement).value = state.aiApiKey || '';
   if (ui.apiModelInput) (ui.apiModelInput as HTMLInputElement).value = state.aiModel || 'gpt-4o-mini';
+  if (ui.apiModelSelect) (ui.apiModelSelect as HTMLSelectElement).style.display = 'none';
+  if (ui.apiModelInput) (ui.apiModelInput as HTMLInputElement).style.display = '';
+  if (ui.apiModelFetchStatus) (ui.apiModelFetchStatus as HTMLElement).style.display = 'none';
   if (ui.apiTemperatureInput) (ui.apiTemperatureInput as HTMLInputElement).value = String(state.aiTemperature ?? 1.0);
   if (ui.apiTopPInput) (ui.apiTopPInput as HTMLInputElement).value = String(state.aiTopP ?? 1.0);
   if (ui.apiRpmInput) (ui.apiRpmInput as HTMLInputElement).value = String(state.aiRpm ?? 10);
   updateDelayPreview();
   if (ui.apiSettingsModal) openModal(ui.apiSettingsModal as HTMLElement);
+}
+
+// ─── Model Fetcher ────────────────────────────────────────────────────────────
+
+export async function onFetchModels(): Promise<void> {
+  const apiType = (ui.apiTypeSelect as HTMLSelectElement)?.value || state.aiApiType || 'openai';
+  const apiKey = (ui.apiKeyInput as HTMLInputElement)?.value?.trim() || state.aiApiKey;
+  const apiUrl = (ui.apiUrlInput as HTMLInputElement)?.value?.trim() || state.aiApiUrl;
+  const btn = ui.btnFetchModels as HTMLButtonElement;
+  const select = ui.apiModelSelect as HTMLSelectElement;
+  const statusEl = ui.apiModelFetchStatus as HTMLElement;
+  const modelInput = ui.apiModelInput as HTMLInputElement;
+
+  if (!apiKey) {
+    statusEl.style.display = 'block';
+    statusEl.textContent = 'API Key belum diisi.';
+    return;
+  }
+
+  btn.disabled = true;
+  statusEl.style.display = 'block';
+  statusEl.textContent = 'Mengambil daftar model...';
+
+  try {
+    let models: string[] = [];
+
+    if (apiType === 'gemini') {
+      const baseUrl = apiUrl || 'https://generativelanguage.googleapis.com/v1beta/models';
+      const url = baseUrl + '?key=' + apiKey;
+      const res = await fetch(url);
+      if (!res.ok) {
+        const detail = await res.text().catch(() => '');
+        throw new Error('Gemini API error ' + res.status + (detail ? ': ' + detail.slice(0, 200) : ''));
+      }
+      const data = await res.json();
+      const rawModels = Array.isArray(data.models) ? data.models : [];
+      models = rawModels
+        .filter((m: any) => m.supportedGenerationMethods?.includes('generateContent'))
+        .map((m: any) => (m.name?.replace('models/', '') || m.name))
+        .filter(Boolean)
+        .sort();
+    } else {
+      let url = apiUrl || 'https://api.openai.com/v1/models';
+      url = url.replace(/\/chat\/completions\/?$/, '');
+      if (!url.endsWith('/models')) {
+        if (!url.endsWith('/')) url += '/';
+        url += 'models';
+      }
+      const res = await fetch(url, {
+        headers: { 'Authorization': 'Bearer ' + apiKey },
+      });
+      if (!res.ok) {
+        const detail = await res.text().catch(() => '');
+        throw new Error('API error ' + res.status + (detail ? ': ' + detail.slice(0, 200) : ''));
+      }
+      const data = await res.json();
+      const rawModels = Array.isArray(data.data) ? data.data : [];
+      models = rawModels
+        .map((m: any) => (m.id || m.name))
+        .filter(Boolean)
+        .sort();
+    }
+
+    if (!models.length) {
+      statusEl.textContent = 'Tidak ada model yang ditemukan.';
+      select.style.display = 'none';
+      modelInput.style.display = '';
+      return;
+    }
+
+    // Populate the select dropdown
+    select.textContent = '';
+    const defaultOpt = document.createElement('option');
+    defaultOpt.value = '';
+    defaultOpt.textContent = '-- Pilih model --';
+    select.appendChild(defaultOpt);
+    for (const m of models) {
+      const opt = document.createElement('option');
+      opt.value = m;
+      opt.textContent = m;
+      if (m === (modelInput.value || state.aiModel)) opt.selected = true;
+      select.appendChild(opt);
+    }
+
+    // Show dropdown, hide text input
+    select.style.display = '';
+    modelInput.style.display = 'none';
+
+    // Sync selected model back to the text input
+    select.onchange = () => {
+      modelInput.value = select.value;
+    };
+
+    statusEl.textContent = String(models.length) + ' model ditemukan.';
+  } catch (err: any) {
+    statusEl.textContent = 'Gagal: ' + err.message;
+    select.style.display = 'none';
+    modelInput.style.display = '';
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 export function updateDelayPreview(): void {
@@ -67,6 +171,13 @@ export function onSaveApiSettings(): void {
   if (ui.apiTypeSelect) state.aiApiType = (ui.apiTypeSelect as HTMLSelectElement).value as any;
   if (ui.apiUrlInput) state.aiApiUrl = (ui.apiUrlInput as HTMLInputElement).value.trim();
   if (ui.apiKeyInput) state.aiApiKey = (ui.apiKeyInput as HTMLInputElement).value.trim();
+  if (ui.apiModelSelect && ui.apiModelInput) {
+    const select = ui.apiModelSelect as HTMLSelectElement;
+    const input = ui.apiModelInput as HTMLInputElement;
+    if (select.style.display !== 'none' && select.value) {
+      input.value = select.value;
+    }
+  }
   if (ui.apiModelInput) state.aiModel = (ui.apiModelInput as HTMLInputElement).value.trim();
   if (ui.apiTemperatureInput) state.aiTemperature = parseFloat((ui.apiTemperatureInput as HTMLInputElement).value) || 1.0;
   if (ui.apiTopPInput) state.aiTopP = parseFloat((ui.apiTopPInput as HTMLInputElement).value) || 1.0;
