@@ -1,6 +1,6 @@
 // @module proofread.ts — Find & Replace / Proofread modal
 
-import { state, ui, getProofreadScroller } from './state';
+import { state, ui, getProofreadScroller, getMainScroller } from './state';
 import { isTranslated } from './state';
 import { escapeRegex, unescapeStoredNewlines, escapeStoredNewlines, containsJapanese } from './string-utils';
 import { rebuildDisplayState, renderPreviewRows, syncCheckboxUI, flashHint, updateButtonStates, pushUndoSnapshot, openLineEditor, refreshAll } from './render';
@@ -107,11 +107,19 @@ export function renderProofreadRow(r: ProofreadMatch): HTMLElement {
   const isCase = ui.proofreadCaseCheck.checked;
   const isExact = ui.proofreadExactCheck.checked;
   const onlyTrans = ui.proofreadTranslatedOnlyCheck.checked;
+  const isJump = (ui.proofreadJumpCheck as HTMLInputElement).checked;
   const scope = ui.proofreadScope.value;
   const highlightName = scope === 'all' || scope === 'name';
   const highlightMsg = scope === 'all' || scope === 'message';
   const buildNodes = (name: string | null, msg: string | null, shouldHighlightAll: boolean) => {
     const wrap = document.createDocumentFragment();
+    if (isJump) {
+      const numSpan = document.createElement('span');
+      numSpan.className = 'cell-muted';
+      numSpan.style.marginRight = '8px';
+      numSpan.textContent = `[${r.num}]`;
+      wrap.appendChild(numSpan);
+    }
     if (name) {
       if (shouldHighlightAll && highlightName) wrap.appendChild(createHighlightedNodes(name, query, isRegex, isCase, isExact));
       else wrap.appendChild(document.createTextNode(name));
@@ -133,18 +141,32 @@ export function renderProofreadRow(r: ProofreadMatch): HTMLElement {
   if (!onlyTrans) {
     origDiv.appendChild(buildNodes(r.origName, r.origMsg, true));
   } else {
-    origDiv.textContent = r.origName ? `${r.origName}: ${r.origMsg}` : r.origMsg;
+    origDiv.appendChild(buildNodes(r.origName, r.origMsg, false));
   }
   // Translation text: highlight only when onlyTrans=true (we searched translated)
   if (r.isTrans) {
     if (onlyTrans) transDiv.appendChild(buildNodes(r.transName, r.transMsg, true));
-    else transDiv.textContent = r.transName ? `${r.transName}: ${r.transMsg}` : (r.transMsg || '——');
+    else transDiv.appendChild(buildNodes(r.transName, r.transMsg, false));
   } else {
     transDiv.textContent = '——';
   }
   contentWrap.append(fileMeta, origDiv, transDiv);
   row.appendChild(contentWrap);
-  contentWrap.addEventListener('click', () => openLineEditor(r.num));
+  contentWrap.addEventListener('click', () => {
+    if (isJump) {
+      closeModal(ui.proofreadModal);
+      const items = getMainScroller().items;
+      const idx = items.findIndex((l: any) => l.line_num === r.num);
+      if (idx !== -1) {
+        getMainScroller().scrollToIndex(idx);
+        // Highlight logic (flash hint or select it)
+      } else {
+        alert('Gagal melompat: Baris mungkin disembunyikan oleh filter di menu utama.');
+      }
+    } else {
+      openLineEditor(r.num);
+    }
+  });
   return row;
 }
 

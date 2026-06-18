@@ -82,7 +82,7 @@ export function cacheElements(): void {
     'btnLineCancel', 'btnLineSave', 'proofreadModal', 'proofreadSearchInput', 'proofreadScope',
     'proofreadRegexCheck', 'proofreadCaseCheck', 'proofreadExactCheck', 'proofreadTranslatedOnlyCheck',
     'btnProofreadReset', 'proofreadStatus', 'proofreadContainer', 'btnProofreadClose',
-    'proofreadReplaceInput', 'btnProofreadReplaceAll', 'proofreadPreserveCaseCheck', 'rangeFromInput', 'rangeToInput', 'btnSelectRange',
+    'proofreadReplaceInput', 'btnProofreadReplaceAll', 'proofreadPreserveCaseCheck', 'proofreadJumpCheck', 'rangeFromInput', 'rangeToInput', 'btnSelectRange',
     'settingsCheckKanaResidue', 'settingsCheckSimilarity', 'settingsSimilarityThreshold', 'settingsSimilarityThresholdWrap',
     'settingsContextTypeSelect',
     'btnQaCheck', 'qaModal', 'qaCheckGlossary', 'qaCheckKana', 'qaCheckSimilarity', 'btnRunQa', 'btnQaReset', 'qaStats', 'qaResults', 'btnQaClose',
@@ -327,6 +327,7 @@ export function bindEvents(): void {
   ui.proofreadCaseCheck?.addEventListener('change', renderProofreadResults);
   ui.proofreadExactCheck?.addEventListener('change', renderProofreadResults);
   ui.proofreadTranslatedOnlyCheck?.addEventListener('change', renderProofreadResults);
+  ui.proofreadJumpCheck?.addEventListener('change', renderProofreadResults);
 
   ui.btnQaCheck?.addEventListener('click', onOpenQa);
   ui.btnQaClose?.addEventListener('click', () => closeModal(ui.qaModal as HTMLElement));
