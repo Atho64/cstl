@@ -148,6 +148,22 @@ export function renderProofreadRow(r: ProofreadMatch): HTMLElement {
   return row;
 }
 
+function replaceWithPreserveCase(original: string, regex: RegExp, rep: string, preserveCase: boolean): string {
+  if (!preserveCase) return original.replace(regex, rep);
+  const singleRegex = new RegExp(regex.source, regex.flags.replace('g', ''));
+  return original.replace(regex, (match) => {
+    let replacedText = match.replace(singleRegex, rep);
+    if (replacedText === match && rep !== match) replacedText = rep;
+    if (match === match.toUpperCase() && match !== match.toLowerCase()) {
+      return replacedText.toUpperCase();
+    }
+    if (match.charAt(0) === match.charAt(0).toUpperCase() && match.charAt(0) !== match.charAt(0).toLowerCase()) {
+      return replacedText.charAt(0).toUpperCase() + replacedText.slice(1).toLowerCase();
+    }
+    return replacedText.toLowerCase();
+  });
+}
+
 export function onProofreadReplaceAll(): void {
   const query = ui.proofreadSearchInput.value;
   if (!query) return alert('Pencarian masih kosong!');
@@ -155,6 +171,7 @@ export function onProofreadReplaceAll(): void {
   const isRegex = ui.proofreadRegexCheck.checked;
   const isCase = ui.proofreadCaseCheck.checked;
   const isExact = ui.proofreadExactCheck.checked;
+  const preserveCase = (ui.proofreadPreserveCaseCheck as HTMLInputElement).checked;
   const onlyTrans = ui.proofreadTranslatedOnlyCheck.checked;
   const scope = ui.proofreadScope.value;
   let regex: RegExp;
@@ -169,25 +186,25 @@ export function onProofreadReplaceAll(): void {
       let replaced = false;
       if ((scope === 'all' || scope === 'message') && line.trans_message) {
         regex.lastIndex = 0;
-        if (regex.test(line.trans_message)) { line.trans_message = line.trans_message.replace(regex, rep); replaced = true; }
+        if (regex.test(line.trans_message)) { line.trans_message = replaceWithPreserveCase(line.trans_message, regex, rep, preserveCase); replaced = true; }
       }
       if ((scope === 'all' || scope === 'name') && line.trans_name) {
         regex.lastIndex = 0;
-        if (regex.test(line.trans_name)) { line.trans_name = line.trans_name.replace(regex, rep); replaced = true; }
+        if (regex.test(line.trans_name)) { line.trans_name = replaceWithPreserveCase(line.trans_name, regex, rep, preserveCase); replaced = true; }
       }
       if (replaced) count++;
-    } else {
-      let replaced = false;
-      if ((scope === 'all' || scope === 'message') && line.message) {
-        regex.lastIndex = 0;
-        if (regex.test(line.message)) { line.message = line.message.replace(regex, rep); replaced = true; }
+      } else {
+        let replaced = false;
+        if ((scope === 'all' || scope === 'message') && line.message) {
+          regex.lastIndex = 0;
+          if (regex.test(line.message)) { line.message = replaceWithPreserveCase(line.message, regex, rep, preserveCase); replaced = true; }
+        }
+        if ((scope === 'all' || scope === 'name') && line.name) {
+          regex.lastIndex = 0;
+          if (regex.test(line.name)) { line.name = replaceWithPreserveCase(line.name, regex, rep, preserveCase); replaced = true; }
+        }
+        if (replaced) count++;
       }
-      if ((scope === 'all' || scope === 'name') && line.name) {
-        regex.lastIndex = 0;
-        if (regex.test(line.name)) { line.name = line.name.replace(regex, rep); replaced = true; }
-      }
-      if (replaced) count++;
-    }
   }
   if (count > 0) {
     state.undoStack.push(undoSnapshot);

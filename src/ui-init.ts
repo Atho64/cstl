@@ -82,7 +82,7 @@ export function cacheElements(): void {
     'btnLineCancel', 'btnLineSave', 'proofreadModal', 'proofreadSearchInput', 'proofreadScope',
     'proofreadRegexCheck', 'proofreadCaseCheck', 'proofreadExactCheck', 'proofreadTranslatedOnlyCheck',
     'btnProofreadReset', 'proofreadStatus', 'proofreadContainer', 'btnProofreadClose',
-    'proofreadReplaceInput', 'btnProofreadReplaceAll', 'rangeFromInput', 'rangeToInput', 'btnSelectRange',
+    'proofreadReplaceInput', 'btnProofreadReplaceAll', 'proofreadPreserveCaseCheck', 'rangeFromInput', 'rangeToInput', 'btnSelectRange',
     'settingsCheckKanaResidue', 'settingsCheckSimilarity', 'settingsSimilarityThreshold', 'settingsSimilarityThresholdWrap',
     'settingsContextTypeSelect',
     'btnQaCheck', 'qaModal', 'qaCheckGlossary', 'qaCheckKana', 'qaCheckSimilarity', 'btnRunQa', 'btnQaReset', 'qaStats', 'qaResults', 'btnQaClose',
