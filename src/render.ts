@@ -87,6 +87,7 @@ export function renderMainRow(rowData: DisplayRow): HTMLElement {
     row.append(cb, label);
   } else {
     const line = rowData.line!;
+    row.dataset.lineNum = line.line_num.toString();
     if (isTranslated(line)) row.classList.add('row-translated');
     const isChecked = state.selectedLines.has(line.line_num);
     if (isChecked) row.classList.add('row-selected');

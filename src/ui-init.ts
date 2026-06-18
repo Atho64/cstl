@@ -35,7 +35,7 @@ import { onImportTranslatedFileChange, onImportTranslatedFolderChange } from './
 import {
   createNewProject, closeProject, onRestoreProject, renderDashboardProjects,
   openDashboardSettings, saveDashboardSettings, resetDashboardSettings,
-  openModal, closeModal, loadDashboardProjects,
+  queueAutoSave, openModal, closeModal, loadDashboardProjects,
 } from './project';
 import { getDefaultPromptHeaderForFormat } from './ai-format';
 import { getLucaProfile, populateLucaExportSlotSelect, DEFAULT_LUCA_PROFILE } from './luca-engine';
@@ -322,12 +322,17 @@ export function bindEvents(): void {
 
   const debouncedSearch = debounce(renderProofreadResults, 250);
   ui.proofreadSearchInput?.addEventListener('input', debouncedSearch);
-  ui.proofreadScope?.addEventListener('change', renderProofreadResults);
-  ui.proofreadRegexCheck?.addEventListener('change', renderProofreadResults);
-  ui.proofreadCaseCheck?.addEventListener('change', renderProofreadResults);
-  ui.proofreadExactCheck?.addEventListener('change', renderProofreadResults);
-  ui.proofreadTranslatedOnlyCheck?.addEventListener('change', renderProofreadResults);
-  ui.proofreadJumpCheck?.addEventListener('change', renderProofreadResults);
+  const onChangeProofreadSetting = () => {
+    renderProofreadResults();
+    queueAutoSave();
+  };
+  ui.proofreadScope?.addEventListener('change', onChangeProofreadSetting);
+  ui.proofreadRegexCheck?.addEventListener('change', onChangeProofreadSetting);
+  ui.proofreadCaseCheck?.addEventListener('change', onChangeProofreadSetting);
+  ui.proofreadExactCheck?.addEventListener('change', onChangeProofreadSetting);
+  ui.proofreadTranslatedOnlyCheck?.addEventListener('change', onChangeProofreadSetting);
+  ui.proofreadJumpCheck?.addEventListener('change', onChangeProofreadSetting);
+  ui.proofreadPreserveCaseCheck?.addEventListener('change', () => queueAutoSave());
 
   ui.btnQaCheck?.addEventListener('click', onOpenQa);
   ui.btnQaClose?.addEventListener('click', () => closeModal(ui.qaModal as HTMLElement));

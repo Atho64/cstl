@@ -340,6 +340,15 @@ export function queueAutoSave(): void {
       glossary_batch_size: state.glossaryBatchSize, ai_check_batch_size: state.aiCheckBatchSize,
       selection_batch_prev_shortcut: state.selectionBatchPrevShortcut,
       selection_batch_next_shortcut: state.selectionBatchNextShortcut,
+      proofread_settings: {
+        scope: (ui.proofreadScope as HTMLSelectElement)?.value,
+        regex: (ui.proofreadRegexCheck as HTMLInputElement)?.checked,
+        case: (ui.proofreadCaseCheck as HTMLInputElement)?.checked,
+        preserveCase: (ui.proofreadPreserveCaseCheck as HTMLInputElement)?.checked,
+        exact: (ui.proofreadExactCheck as HTMLInputElement)?.checked,
+        translatedOnly: (ui.proofreadTranslatedOnlyCheck as HTMLInputElement)?.checked,
+        jump: (ui.proofreadJumpCheck as HTMLInputElement)?.checked
+      }
     };
     await saveProjectToOpfs(state.currentProjectId!, data);
     (ui.statusBar as HTMLElement).textContent = (ui.statusBar as HTMLElement).textContent!.replace(' | Tersimpan!', '') + ' | Tersimpan!';
@@ -384,6 +393,17 @@ export function openProject(id: string, data: any): void {
   state.aiCheckBatchSize = normalizeSelectionBatchSize(data.ai_check_batch_size, DEFAULT_AI_CHECK_BATCH_SIZE);
   state.selectionBatchPrevShortcut = normalizeShortcutString(data.selection_batch_prev_shortcut, DEFAULT_SELECTION_BATCH_PREV_SHORTCUT);
   state.selectionBatchNextShortcut = normalizeShortcutString(data.selection_batch_next_shortcut, DEFAULT_SELECTION_BATCH_NEXT_SHORTCUT);
+  
+  if (data.proofread_settings) {
+    if (ui.proofreadScope) (ui.proofreadScope as HTMLSelectElement).value = data.proofread_settings.scope || 'all';
+    if (ui.proofreadRegexCheck) (ui.proofreadRegexCheck as HTMLInputElement).checked = !!data.proofread_settings.regex;
+    if (ui.proofreadCaseCheck) (ui.proofreadCaseCheck as HTMLInputElement).checked = !!data.proofread_settings.case;
+    if (ui.proofreadExactCheck) (ui.proofreadExactCheck as HTMLInputElement).checked = !!data.proofread_settings.exact;
+    if (ui.proofreadTranslatedOnlyCheck) (ui.proofreadTranslatedOnlyCheck as HTMLInputElement).checked = !!data.proofread_settings.translatedOnly;
+    if (ui.proofreadJumpCheck) (ui.proofreadJumpCheck as HTMLInputElement).checked = !!data.proofread_settings.jump;
+    if (ui.proofreadPreserveCaseCheck) (ui.proofreadPreserveCaseCheck as HTMLInputElement).checked = data.proofread_settings.preserveCase !== false; // default true
+  }
+
   state.selectedLines.clear();
   state.undoStack = [];
   state.aiCheckCorrections = [];

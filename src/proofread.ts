@@ -71,23 +71,27 @@ export function renderProofreadResults(): void {
     const dName = line.name || '';
     let fName: string | null = null;
     if (isTranslated(line)) fName = (line.trans_name || '').trim() || line.name;
-    if (query && regex) {
-      let isMatch = false;
+      if (query && regex) {
+        let isMatch = false;
+        const isJump = (ui.proofreadJumpCheck as HTMLInputElement).checked;
 
-      // onlyTrans=true  -> search ONLY translated fields
-      // onlyTrans=false -> search ONLY original fields
-      const searchOrigMsg   = !onlyTrans && (scope === 'all' || scope === 'message');
-      const searchTransMsg  =  onlyTrans && (scope === 'all' || scope === 'message');
-      const searchOrigName  = !onlyTrans && (scope === 'all' || scope === 'name');
-      const searchTransName =  onlyTrans && (scope === 'all' || scope === 'name');
+        // onlyTrans=true  -> search ONLY translated fields
+        // onlyTrans=false -> search ONLY original fields
+        const searchOrigMsg   = !onlyTrans && (scope === 'all' || scope === 'message');
+        const searchTransMsg  =  onlyTrans && (scope === 'all' || scope === 'message');
+        const searchOrigName  = !onlyTrans && (scope === 'all' || scope === 'name');
+        const searchTransName =  onlyTrans && (scope === 'all' || scope === 'name');
 
-      if (!isMatch && searchOrigMsg  && line.message)       { regex.lastIndex = 0; if (regex.test(line.message))       isMatch = true; }
-      if (!isMatch && searchTransMsg && line.trans_message)  { regex.lastIndex = 0; if (regex.test(line.trans_message!)) isMatch = true; }
-      if (!isMatch && searchOrigName && dName)               { regex.lastIndex = 0; if (regex.test(dName))              isMatch = true; }
-      if (!isMatch && searchTransName && fName)              { regex.lastIndex = 0; if (regex.test(fName))              isMatch = true; }
+        const origNameForSearch = isJump ? `${line.line_num}. ${dName}` : dName;
+        const transNameForSearch = isJump ? `${line.line_num}. ${fName || dName}` : fName;
 
-      if (!isMatch) continue;
-    }
+        if (!isMatch && searchOrigMsg  && line.message)       { regex.lastIndex = 0; if (regex.test(line.message))       isMatch = true; }
+        if (!isMatch && searchTransMsg && line.trans_message) { regex.lastIndex = 0; if (regex.test(line.trans_message!)) isMatch = true; }
+        if (!isMatch && searchOrigName && origNameForSearch)  { regex.lastIndex = 0; if (regex.test(origNameForSearch))  isMatch = true; }
+        if (!isMatch && searchTransName && transNameForSearch){ regex.lastIndex = 0; if (regex.test(transNameForSearch)) isMatch = true; }
+
+        if (!isMatch) continue;
+      }
     state.proofreadMatches.push({
       num: line.line_num, file: line.file, origName: dName, origMsg: line.message,
       transName: fName, transMsg: line.trans_message, isTrans: isTranslated(line),
@@ -116,8 +120,7 @@ export function renderProofreadRow(r: ProofreadMatch): HTMLElement {
     if (isJump) {
       const numSpan = document.createElement('span');
       numSpan.className = 'cell-muted';
-      numSpan.style.marginRight = '8px';
-      numSpan.textContent = `[${r.num}]`;
+      numSpan.textContent = `${r.num}. `;
       wrap.appendChild(numSpan);
     }
     if (name) {
@@ -156,10 +159,16 @@ export function renderProofreadRow(r: ProofreadMatch): HTMLElement {
     if (isJump) {
       closeModal(ui.proofreadModal);
       const items = getMainScroller().items;
-      const idx = items.findIndex((l: any) => l.line_num === r.num);
+      const idx = items.findIndex((l: any) => l.type === 'line' && l.line?.line_num === r.num);
       if (idx !== -1) {
         getMainScroller().scrollToIndex(idx);
-        // Highlight logic (flash hint or select it)
+        setTimeout(() => {
+          const rowDom = document.querySelector(`.preview-row[data-line-num="${r.num}"]`);
+          if (rowDom) {
+            rowDom.classList.add('flash-highlight');
+            setTimeout(() => rowDom.classList.remove('flash-highlight'), 1500);
+          }
+        }, 50);
       } else {
         alert('Gagal melompat: Baris mungkin disembunyikan oleh filter di menu utama.');
       }
