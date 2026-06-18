@@ -654,14 +654,16 @@
       <div class="card-box mb-2">
         <div class="flex-col gap-10">
           <label for="proofreadSearchInput" class="label-bold">Cari:</label>
-          <div class="flex gap-12 wrap">
-            <input id="proofreadSearchInput" class="mono text-input grow min-w-200" type="text" placeholder="Ketik kata atau pola regex..." />
-            <div class="proofread-filters flex-center gap-12 wrap">
-              <select id="proofreadScope" class="text-input select-sm">
+          <div class="flex-col gap-10">
+            <div class="flex gap-12 wrap">
+              <input id="proofreadSearchInput" class="mono text-input grow min-w-200" type="text" placeholder="Ketik kata atau pola regex..." />
+              <select id="proofreadScope" class="text-input select-sm" style="flex-shrink: 0;">
                 <option value="all">All Text</option>
                 <option value="name">Name Only</option>
                 <option value="message">Message Only</option>
               </select>
+            </div>
+            <div class="proofread-filters flex-center gap-12 wrap">
               <label class="checkbox-line"><input id="proofreadRegexCheck" type="checkbox" />Regex</label>
               <label class="checkbox-line"><input id="proofreadCaseCheck" type="checkbox" />Case Sensitive</label>
               <label class="checkbox-line"><input id="proofreadPreserveCaseCheck" type="checkbox" checked />Preserve Case</label>
