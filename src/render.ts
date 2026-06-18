@@ -3,7 +3,6 @@
 import { state, ui, getMainScroller, incrementHintToken, getHintToken } from './state';
 import { isTranslated } from './state';
 import { APP_VERSION, MAX_UNDO_STEPS } from './constants';
-import { containsJapanese } from './string-utils';
 import { formatLineLabel, getLineDisplayName, getActiveLucaProfile } from './luca-engine';
 import { isSelectableForActiveTab, recordSelectionHistory } from './selection';
 import { openModal, closeModal } from './project';
@@ -33,11 +32,6 @@ export function rebuildDisplayState(): void {
     if (!grouped.has(line.file)) grouped.set(line.file, []);
 
     let shouldHide = false;
-    if (state.sourceLang === 'English') {
-      if (containsJapanese(line.name || '') || containsJapanese(line.message || '')) {
-        shouldHide = true;
-      }
-    }
     if (!shouldHide && cachedRegex) {
       if (cachedRegex.test(line.name || '') || cachedRegex.test(line.message || '')) shouldHide = true;
     }
