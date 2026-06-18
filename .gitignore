@@ -13,3 +13,5 @@ pnpm-debug.log*
 .DS_Store
 *.js
 !vite.config.js
+*.log
+*.cjs
