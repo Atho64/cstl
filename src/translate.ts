@@ -62,10 +62,33 @@ export async function onCopyForAi(): Promise<void> {
   }
 }
 
-export function onApplyTranslation(): void {
+export class TranslationApplyError extends Error {
+  details: string[];
+
+  constructor(message: string, details: string[] = []) {
+    super(message);
+    this.name = 'TranslationApplyError';
+    this.details = details;
+  }
+}
+
+type ApplyTranslationOptions = {
+  suppressAlerts?: boolean;
+};
+
+export function onApplyTranslation(options: ApplyTranslationOptions = {}): void {
+  const { suppressAlerts = false } = options;
+  const fail = (message: string, details: string[] = []): never => {
+    if (!suppressAlerts) {
+      const suffix = details.length ? '\n\n' + details.join('\n') : '';
+      alert(message + suffix);
+    }
+    throw new TranslationApplyError(message, details);
+  };
+
   if (!state.lines.length) return;
   const rawText = (ui.pasteArea as HTMLTextAreaElement).value.trim();
-  if (!rawText) return alert('Teks di kotak kosong atau tidak valid.');
+  if (!rawText) fail('Teks di kotak kosong atau tidak valid.');
 
   const pasteFormat = detectTranslationPasteFormat(rawText);
   const selectedUntranslated = new Set(state.lines.filter(l => state.selectedLines.has(l.line_num) && !isTranslated(l)).map(l => l.line_num));
@@ -92,7 +115,7 @@ export function onApplyTranslation(): void {
       errors = numbered.errors;
     }
   } catch (err: any) {
-    return alert('Gagal parse terjemahan:\n\n' + err.message);
+    fail('Gagal parse terjemahan:', [err.message]);
   }
 
   const seen = new Set<number>();
@@ -101,7 +124,7 @@ export function onApplyTranslation(): void {
     seen.add(item.num);
   }
 
-  if (!parsed.length && !errors.length) return alert('Teks di kotak kosong atau tidak valid.');
+  if (!parsed.length && !errors.length) fail('Teks di kotak kosong atau tidak valid.');
   if (parsed.length > 0) {
     if (parsed.length !== expectedCount) {
       errors.push(`[Validasi Checkbox] Copy ${expectedCount} baris, tapi yang di-paste ${parsed.length} baris.`);
@@ -148,7 +171,9 @@ export function onApplyTranslation(): void {
     }
   }
   if (errors.length) {
-    return alert('TRANSLASI DITOLAK:\n\n' + errors.slice(0, 10).join('\n') + (errors.length > 10 ? `\n\n... (+${errors.length - 10} error lain)` : ''));
+    const visibleErrors = errors.slice(0, 10);
+    if (errors.length > 10) visibleErrors.push(`... (+${errors.length - 10} error lain)`);
+    fail('TRANSLASI DITOLAK:', visibleErrors);
   }
   pushUndoSnapshot();
   for (const { l, it } of updates) {

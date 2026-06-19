@@ -7,6 +7,7 @@ import { DEFAULT_PROMPT_HEADER, DEFAULT_GLOSSARY_PROMPT, DEFAULT_AI_CHECK_PROMPT
 import { flashHint } from './render';
 import { openModal, closeModal } from './project';
 import * as Translate from './translate';
+import { TranslationApplyError } from './translate';
 import { onSaveGlossary } from './glossary';
 import { onApplyAiCheckCorrections } from './ai-check';
 
@@ -191,6 +192,28 @@ function delay(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+type RetryState = {
+  attempt: number;
+  maxRetries: number;
+  waitMs: number;
+  reason: string;
+};
+
+type AutoTranslateAttemptError = Error & {
+  retryable?: boolean;
+};
+
+function formatRetryLabel(retry: RetryState): string {
+  return `Retry API ${retry.attempt}/${retry.maxRetries} (${retry.reason})`;
+}
+
+function createRetryableAiFormatError(err: TranslationApplyError): AutoTranslateAttemptError {
+  const detail = err.details.length ? ` ${err.details.join(' ')}` : '';
+  const retryableError = new Error(`Format respons AI tidak sesuai.${detail}`) as AutoTranslateAttemptError;
+  retryableError.retryable = true;
+  return retryableError;
+}
+
 let isAutoTranslating = false;
 
 export async function onAutoTranslate(): Promise<void> {
@@ -277,16 +300,25 @@ export async function onAutoTranslate(): Promise<void> {
       sections.push(joinedText.trim());
       const prompt = sections.join('\n\n');
 
-      let rawResult = await fetchWithRetry(prompt, (attempt) => {
-        btn.textContent = `Gagal! Mencoba ulang (${attempt}/3)... (Klik Stop)`;
+      let rawResult = await fetchWithRetry(async () => {
+        const result = await fetchApiResult(prompt);
+        (ui.pasteArea as HTMLTextAreaElement).value = result;
+        try {
+          Translate.onApplyTranslation({ suppressAlerts: true });
+        } catch (err: any) {
+          if (err instanceof TranslationApplyError) {
+            throw createRetryableAiFormatError(err);
+          }
+          throw err;
+        }
+        return result;
+      }, (retry) => {
+        btn.textContent = `${formatRetryLabel(retry)}... (Klik Stop)`;
       });
 
       if (!rawResult || !rawResult.trim()) {
         throw new Error('Respons dari API kosong.');
       }
-
-      (ui.pasteArea as HTMLTextAreaElement).value = rawResult;
-      Translate.onApplyTranslation(); 
 
       if (isAutoTranslating && state.aiRpm > 0) {
         const waitMs = Math.round(60000 / state.aiRpm);
@@ -431,8 +463,8 @@ export async function onAutoGlossary(): Promise<void> {
       const basePrompt = applyPromptVariables((state.glossaryPrompt || DEFAULT_GLOSSARY_PROMPT).trim());
       const prompt = `${basePrompt}\n\n${out.join('\n')}\n`;
 
-      let rawResult = await fetchWithRetry(prompt, (attempt) => {
-        btn.textContent = `Gagal! Mencoba ulang (${attempt}/3)... (Klik Stop)`;
+      let rawResult = await fetchWithRetry(() => fetchApiResult(prompt), (retry) => {
+        btn.textContent = `${formatRetryLabel(retry)}... (Klik Stop)`;
       });
 
       if (!rawResult || !rawResult.trim()) {
@@ -520,8 +552,8 @@ export async function onAutoAiCheck(): Promise<void> {
       const basePrompt = applyPromptVariables((state.aiCheckPrompt || DEFAULT_AI_CHECK_PROMPT).trim());
       const prompt = `${basePrompt}\n\n${out.join('\n\n')}\n`;
 
-      let rawResult = await fetchWithRetry(prompt, (attempt) => {
-        btn.textContent = `Gagal! Mencoba ulang (${attempt}/3)... (Klik Stop)`;
+      let rawResult = await fetchWithRetry(() => fetchApiResult(prompt), (retry) => {
+        btn.textContent = `${formatRetryLabel(retry)}... (Klik Stop)`;
       });
 
       if (!rawResult || !rawResult.trim()) {
@@ -555,21 +587,31 @@ export async function onAutoAiCheck(): Promise<void> {
   }
 }
 
-async function fetchWithRetry(prompt: string, onRetry: (attempt: number) => void): Promise<string> {
+async function fetchApiResult(prompt: string): Promise<string> {
+  if (state.aiApiType === 'gemini') {
+    return await fetchGemini(prompt);
+  }
+  return await fetchOpenAI(prompt);
+}
+
+async function fetchWithRetry(runAttempt: () => Promise<string>, onRetry: (retry: RetryState) => void): Promise<string> {
   let attempt = 0;
-  const maxRetries = 3;
+  const maxRetries = 5;
   while (attempt < maxRetries) {
     try {
-      if (state.aiApiType === 'gemini') {
-        return await fetchGemini(prompt);
-      } else {
-        return await fetchOpenAI(prompt);
-      }
+      return await runAttempt();
     } catch (err: any) {
-      attempt++;
-      if (attempt >= maxRetries) throw err;
-      onRetry(attempt);
-      await delay(3000);
+      if (err?.retryable) {
+        attempt++;
+        if (attempt >= maxRetries) {
+          throw new Error(`Gagal setelah ${maxRetries} percobaan karena format respons AI terus tidak cocok. ${String(err?.message || err || '')}`.trim());
+        }
+        onRetry({ attempt, maxRetries, waitMs: 2000, reason: 'format respons AI tidak cocok' });
+        await delay(2000);
+        continue;
+      }
+
+      throw err;
     }
   }
   return '';
