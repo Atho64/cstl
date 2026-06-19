@@ -79,11 +79,12 @@ type ApplyTranslationOptions = {
 export function onApplyTranslation(options: ApplyTranslationOptions = {}): void {
   const { suppressAlerts = false } = options;
   const fail = (message: string, details: string[] = []): never => {
-    if (!suppressAlerts) {
-      const suffix = details.length ? '\n\n' + details.join('\n') : '';
-      alert(message + suffix);
+    const suffix = details.length ? '\n\n' + details.join('\n') : '';
+    if (suppressAlerts) {
+      throw new TranslationApplyError(message, details);
     }
-    throw new TranslationApplyError(message, details);
+    alert(message + suffix);
+    return undefined as never;
   };
 
   if (!state.lines.length) return;
