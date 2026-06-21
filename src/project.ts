@@ -9,12 +9,72 @@ import {
   DEFAULT_SELECTION_BATCH_SIZE, DEFAULT_GLOSSARY_BATCH_SIZE, DEFAULT_AI_CHECK_BATCH_SIZE,
   DEFAULT_SELECTION_BATCH_PREV_SHORTCUT, DEFAULT_SELECTION_BATCH_NEXT_SHORTCUT,
 } from './constants';
-import { DEFAULT_LUCA_PROFILE, clearLucaFileLineBytesCache } from './luca-engine';
+import { DEFAULT_LUCA_PROFILE, clearLucaFileLineBytesCache, parseLucaTxt } from './luca-engine';
+import type { Line } from './types';
 import { normalizeAiTranslationFormat, getDefaultPromptHeaderForFormat } from './ai-format';
 import { readEpubSourceForBackup, writeEpubSourceFromBackup, cloneExistingEpubSource } from './binary-utils';
 import { resetSelectionHistory, switchWorkspaceTab, normalizeSelectionBatchSize } from './selection';
 import { normalizeLineDict } from './state';
 import { normalizeShortcutString } from './shortcuts';
+
+// ─── Luca raw-field recovery (migration for saves made before the luca_raw_index fix) ───
+function recoverLucaRawFields(): void {
+  if (state.projectType !== 'luca') return;
+  const needsRecovery = state.lines.some(l => l.luca_command && l.luca_raw_index == null);
+  if (!needsRecovery) return;
+
+  // Group existing translated lines by file
+  const existingByFile = new Map<string, Line[]>();
+  for (const l of state.lines) {
+    if (!existingByFile.has(l.file)) existingByFile.set(l.file, []);
+    existingByFile.get(l.file)!.push(l);
+  }
+
+  let recovered = 0;
+  for (const [fileName, fileLines] of existingByFile.entries()) {
+    const rawLinesArr = state.lucaRawFiles[fileName];
+    if (!rawLinesArr || !rawLinesArr.length) continue;
+
+    // Re-parse so we get lines with correct luca_raw_index values
+    const freshLines = parseLucaTxt(rawLinesArr.join('\n'), fileName, 0, state.lucaProfile || DEFAULT_LUCA_PROFILE);
+    if (!freshLines.length) continue;
+
+    // Match MESSAGE/MESSAGE_WAIT lines positionally (nth in file = nth fresh parse)
+    const existingMsg = fileLines.filter(l => l.luca_command === 'MESSAGE' || l.luca_command === 'MESSAGE_WAIT');
+    const freshMsg    = freshLines.filter(l => l.luca_command === 'MESSAGE' || l.luca_command === 'MESSAGE_WAIT');
+    for (let i = 0; i < existingMsg.length && i < freshMsg.length; i++) {
+      const ex = existingMsg[i], fr = freshMsg[i];
+      if (ex.luca_raw_index != null) continue;
+      ex.luca_raw_index   = fr.luca_raw_index;
+      ex.luca_raw         = fr.luca_raw;
+      ex.luca_profile     = fr.luca_profile;
+      ex.luca_heavy_quotes = fr.luca_heavy_quotes;
+      ex.luca_text_prefix = fr.luca_text_prefix;
+      ex.luca_prefix_b64  = fr.luca_prefix_b64;
+      ex.luca_pre         = fr.luca_pre;
+      recovered++;
+    }
+
+    // Match SELECT lines positionally
+    const existingSelect = fileLines.filter(l => l.luca_command === 'SELECT');
+    const freshSelect    = freshLines.filter(l => l.luca_command === 'SELECT');
+    for (let i = 0; i < existingSelect.length && i < freshSelect.length; i++) {
+      const ex = existingSelect[i], fr = freshSelect[i];
+      if (ex.luca_raw_index != null) continue;
+      ex.luca_raw_index = fr.luca_raw_index;
+      ex.luca_raw       = fr.luca_raw;
+      ex.luca_profile   = fr.luca_profile;
+      ex.luca_pre       = fr.luca_pre;
+      recovered++;
+    }
+  }
+
+  if (recovered > 0) {
+    console.log(`[CSTL] Migrated luca raw fields for ${recovered} lines — queuing save.`);
+    // Persist the repaired data so future opens are clean
+    queueAutoSave();
+  }
+}
 
 // ─── Lazy render helpers (breaks render.js ↔ project.js circular dep) ─────────
 async function refreshAll() { return (await import('./render')).refreshAll(); }
@@ -378,6 +438,7 @@ export function openProject(id: string, data: any): void {
   state.similarityThreshold = (typeof data.similarity_threshold === 'number' && data.similarity_threshold > 0 && data.similarity_threshold < 1)
     ? data.similarity_threshold : 0.7;
   state.lines = (data.lines || []).map(normalizeLineDict);
+  recoverLucaRawFields();
   state.importedFiles = data.imported_files || [];
   state.aiInstructionHeader = data.prompt_header || DEFAULT_PROMPT_HEADER;
   state.aiTranslationFormat = data.ai_translation_format != null

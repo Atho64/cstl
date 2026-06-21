@@ -129,6 +129,12 @@ export function normalizeLineDict(line: any): Line {
   if (line.luca_slot_index != null) normalized.luca_slot_index = Number(line.luca_slot_index);
   if (line.luca_file != null) normalized.luca_file = String(line.luca_file);
   if (line.luca_line_index != null) normalized.luca_line_index = Number(line.luca_line_index);
+  if (line.luca_raw_index != null) normalized.luca_raw_index = Number(line.luca_raw_index);
+  if (line.luca_raw != null) normalized.luca_raw = String(line.luca_raw);
+  if (line.luca_profile != null) normalized.luca_profile = String(line.luca_profile);
+  if (line.luca_heavy_quotes != null) normalized.luca_heavy_quotes = Boolean(line.luca_heavy_quotes);
+  if (line.luca_text_prefix != null) normalized.luca_text_prefix = String(line.luca_text_prefix);
+  if (line.luca_prefix_b64 != null) normalized.luca_prefix_b64 = String(line.luca_prefix_b64);
   if (line.epub_selector != null) normalized.epub_selector = String(line.epub_selector);
   if (line.epub_id != null) normalized.epub_id = String(line.epub_id);
   return normalized;

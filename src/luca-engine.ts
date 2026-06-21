@@ -362,7 +362,7 @@ export function formatLineLabel(line: Line, { translated = false } = {}): string
 export function buildLucaExportText(line: Line): string {
   const profile = getLucaProfile(line.luca_profile || state.lucaProfile);
   const tName = getLucaExportSpeakerName(line, profile);
-  const tMsg = (line.trans_message || '').replace(/\\n/g, '\n');
+  const tMsg = (line.trans_message || ''); // keep \n as literal escape — lucksystem txt format requires it, not real newlines
   let out: string;
   if (tName || getLucaHeavyQuotes(line) || profile.nameAtFormat) {
     out = formatLucaTxtPayload(tName, tMsg, getLucaHeavyQuotes(line), profile.id);
@@ -480,7 +480,7 @@ export function applyLucaSelectExport(profile: any, args: string[], selectLines:
     const choiceIndex = choiceLine.luca_choice_index || 0;
     const fallback = targetChoices[choiceIndex] || jpChoices[choiceIndex] || choiceLine.message || '';
     mergedChoices[choiceIndex] = isTranslated(choiceLine)
-      ? String(choiceLine.trans_message || '').replace(/\\n/g, '\n')
+      ? String(choiceLine.trans_message || '') // keep \n as literal escape for lucksystem txt format
       : fallback;
   }
   args[targetIdx] = requoteLuca(mergedChoices.join('$d'));
