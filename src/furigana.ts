@@ -20,14 +20,15 @@ export async function initFurigana(): Promise<void> {
   initializationPromise = (async () => {
     try {
       const kuroshiro = new Kuroshiro();
-      // Use import.meta.env.BASE_URL for compatibility with GitHub Pages (e.g. /cstl-cloud/)
-      const dictPath = import.meta.env.BASE_URL + 'dict';
+      // Use jsDelivr CDN to avoid GitHub Pages gzip double-decompression issues and save bandwidth
+      const dictPath = 'https://cdn.jsdelivr.net/npm/kuromoji@0.1.2/dict';
       
       await kuroshiro.init(new KuromojiAnalyzer({ dictPath }));
       kuroshiroInstance = kuroshiro;
       console.log('[CSTL] Furigana engine initialized successfully');
     } catch (error) {
       console.error('[CSTL] Failed to initialize Furigana engine:', error);
+      alert('Gagal memuat kamus Furigana. (Periksa koneksi atau console browser)');
       throw error;
     } finally {
       isInitializing = false;
@@ -42,19 +43,25 @@ export async function initFurigana(): Promise<void> {
  */
 export async function convertToFurigana(text: string): Promise<string> {
   if (!text) return text;
-  
   if (!kuroshiroInstance) {
     try {
       await initFurigana();
     } catch (e) {
-      return text; // Fallback to raw text if initialization fails
+      return text;
     }
   }
 
   try {
+    const { state } = await import('./state');
+    const fType = state.furiganaType || 'hiragana';
+    
+    let to = 'hiragana';
+    if (fType === 'katakana') to = 'katakana';
+    if (fType === 'romaji') to = 'romaji';
+    
     const result = await kuroshiroInstance!.convert(text, {
       mode: 'furigana',
-      to: 'hiragana'
+      to: to as any
     });
     return result;
   } catch (error) {

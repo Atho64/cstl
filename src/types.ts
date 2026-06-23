@@ -53,10 +53,11 @@ export interface AppState {
   targetLang: string;
   regexFilter: string;
   disableEmptyLineValidation: boolean;
+  showFurigana: boolean;
+  furiganaType: 'furigana' | 'hiragana' | 'katakana' | 'romaji';
   checkKanaResidue: boolean;
   checkSimilarity: boolean;
   similarityThreshold: number;
-  showFurigana: boolean;
   currentProjectId: string | null;
   projectName: string;
   projectType: string;

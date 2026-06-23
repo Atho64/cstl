@@ -48,6 +48,7 @@ export function onOpenSettings(): void {
   }
   (ui.settingsDisableEmptyLineValidation as HTMLInputElement).checked = !!state.disableEmptyLineValidation;
   if (ui.settingsShowFurigana) (ui.settingsShowFurigana as HTMLInputElement).checked = !!state.showFurigana;
+  if (ui.settingsFuriganaType) (ui.settingsFuriganaType as HTMLSelectElement).value = state.furiganaType || 'furigana';
   if (ui.settingsCheckKanaResidue) (ui.settingsCheckKanaResidue as HTMLInputElement).checked = !!state.checkKanaResidue;
   if (ui.settingsCheckSimilarity) {
     (ui.settingsCheckSimilarity as HTMLInputElement).checked = !!state.checkSimilarity;
@@ -161,6 +162,7 @@ export function onSavePromptSettings(): void {
   state.disableEmptyLineValidation = disableEmptyLineValidation;
   const oldShowFurigana = state.showFurigana;
   state.showFurigana = showFurigana;
+  state.furiganaType = ((ui.settingsFuriganaType as HTMLSelectElement)?.value as any) || 'furigana';
   state.checkKanaResidue = checkKanaResidue;
   state.checkSimilarity = checkSimilarity;
   state.similarityThreshold = similarityThreshold;
