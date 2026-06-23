@@ -10,7 +10,7 @@ async function init() {
   if (!initPromise) {
     initPromise = (async () => {
       const kuroshiro = new Kuroshiro();
-      const dictPath = 'https://cdn.jsdelivr.net/npm/kuromoji@0.1.2/dict';
+      const dictPath = 'https://cdn.jsdelivr.net/npm/kuromoji@0.1.2/dict/';
       await kuroshiro.init(new KuromojiAnalyzer({ dictPath }));
       kuroshiroInstance = kuroshiro;
     })();
