@@ -3,13 +3,19 @@ import Kuroshiro from 'kuroshiro';
 import KuromojiAnalyzer from 'kuroshiro-analyzer-kuromoji';
 
 let kuroshiroInstance: Kuroshiro | null = null;
+let initPromise: Promise<void> | null = null;
 
 async function init() {
   if (kuroshiroInstance) return;
-  const kuroshiro = new Kuroshiro();
-  const dictPath = 'https://cdn.jsdelivr.net/npm/kuromoji@0.1.2/dict';
-  await kuroshiro.init(new KuromojiAnalyzer({ dictPath }));
-  kuroshiroInstance = kuroshiro;
+  if (!initPromise) {
+    initPromise = (async () => {
+      const kuroshiro = new Kuroshiro();
+      const dictPath = 'https://cdn.jsdelivr.net/npm/kuromoji@0.1.2/dict';
+      await kuroshiro.init(new KuromojiAnalyzer({ dictPath }));
+      kuroshiroInstance = kuroshiro;
+    })();
+  }
+  return initPromise;
 }
 
 self.onmessage = async (e) => {
