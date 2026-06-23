@@ -19,10 +19,18 @@ let popupTimeout: any = null;
 let currentWord = '';
 let isPopupOpen = false;
 
+let touchStartTime = 0;
+
 // Initialize dictionary event listeners
 export function initDictionary() {
   document.body.addEventListener('mousemove', handleHover);
   document.body.addEventListener('mouseup', handleMouseUp);
+  
+  document.body.addEventListener('touchstart', (e) => {
+    if (e.touches.length === 1) {
+      touchStartTime = Date.now();
+    }
+  }, { passive: true });
   document.body.addEventListener('touchend', handleMouseUp);
 
   const closeBtn = document.getElementById('dictPopupClose');
@@ -62,7 +70,9 @@ function handleMouseUp(e: MouseEvent | TouchEvent) {
   // Extract correct coordinates for Touch vs Mouse events
   let clientX = 0;
   let clientY = 0;
+  let isTouch = false;
   if (window.TouchEvent && e instanceof TouchEvent) {
+    isTouch = true;
     if (e.changedTouches.length > 0) {
       clientX = e.changedTouches[0].clientX;
       clientY = e.changedTouches[0].clientY;
@@ -107,6 +117,12 @@ function handleMouseUp(e: MouseEvent | TouchEvent) {
   }
   
   // 2. If no selection, fallback to point extraction (click)
+  // On mobile (touch), only trigger point extraction if it was a long press (> 400ms)
+  // to avoid conflicting with short taps that open the line editor.
+  if (isTouch && Date.now() - touchStartTime < 400) {
+    return;
+  }
+  
   // Only trigger point extraction if it was a quick click, not a dragged selection that was empty
   if (target instanceof HTMLTextAreaElement) {
     processTextarea(target, clientX, clientY);
