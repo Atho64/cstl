@@ -64,8 +64,9 @@ export async function convertToFurigana(text: string): Promise<string> {
       to: to as any
     });
     return result;
-  } catch (error) {
+  } catch (error: any) {
     console.error('[CSTL] Furigana conversion error:', error);
+    alert('Furigana error: ' + (error?.message || error));
     return text;
   }
 }
