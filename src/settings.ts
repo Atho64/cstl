@@ -48,7 +48,11 @@ export function onOpenSettings(): void {
   }
   (ui.settingsDisableEmptyLineValidation as HTMLInputElement).checked = !!state.disableEmptyLineValidation;
   if (ui.settingsShowFurigana) (ui.settingsShowFurigana as HTMLInputElement).checked = !!state.showFurigana;
-  if (ui.settingsFuriganaType) (ui.settingsFuriganaType as HTMLSelectElement).value = state.furiganaType || 'furigana';
+  if (ui.settingsFuriganaType) (ui.settingsFuriganaType as HTMLSelectElement).value = state.furiganaType || 'hiragana';
+  if (ui.settingsFontSize) (ui.settingsFontSize as HTMLInputElement).value = String(state.fontSize || 14);
+  if (ui.settingsEnableDictionary) (ui.settingsEnableDictionary as HTMLInputElement).checked = !!state.enableDictionary;
+  if (ui.settingsDictionaryEngine) (ui.settingsDictionaryEngine as HTMLSelectElement).value = state.dictionaryEngine || 'llm';
+  if (ui.settingsDictionaryPrompt) (ui.settingsDictionaryPrompt as HTMLTextAreaElement).value = state.dictionaryPrompt || 'Jelaskan arti kata "{word}" dalam konteks kalimat "{context}". Berikan bentuk dasar, cara baca (hiragana/romaji), kelas kata, dan terjemahan/penjelasan singkat dalam bahasa Indonesia.';
   if (ui.settingsCheckKanaResidue) (ui.settingsCheckKanaResidue as HTMLInputElement).checked = !!state.checkKanaResidue;
   if (ui.settingsCheckSimilarity) {
     (ui.settingsCheckSimilarity as HTMLInputElement).checked = !!state.checkSimilarity;
@@ -128,6 +132,10 @@ export function onSavePromptSettings(): void {
   const regexFilter = (ui.settingsRegexFilterInput as HTMLInputElement).value;
   const disableEmptyLineValidation = (ui.settingsDisableEmptyLineValidation as HTMLInputElement).checked;
   const showFurigana = !!((ui.settingsShowFurigana as HTMLInputElement)?.checked);
+  const fontSize = parseInt((ui.settingsFontSize as HTMLInputElement)?.value) || 14;
+  const enableDictionary = !!((ui.settingsEnableDictionary as HTMLInputElement)?.checked);
+  const dictionaryEngine = (ui.settingsDictionaryEngine as HTMLSelectElement)?.value === 'jisho' ? 'jisho' : 'llm';
+  const dictionaryPrompt = (ui.settingsDictionaryPrompt as HTMLTextAreaElement)?.value || 'Jelaskan arti kata "{word}" dalam konteks kalimat "{context}". Berikan bentuk dasar, cara baca (hiragana/romaji), kelas kata, dan terjemahan/penjelasan singkat dalam bahasa Indonesia.';
   const checkKanaResidue = !!((ui.settingsCheckKanaResidue as HTMLInputElement)?.checked);
   const checkSimilarity = !!((ui.settingsCheckSimilarity as HTMLInputElement)?.checked);
   const simThresholdRaw = parseInt((ui.settingsSimilarityThreshold as HTMLInputElement)?.value);
@@ -163,6 +171,11 @@ export function onSavePromptSettings(): void {
   const oldShowFurigana = state.showFurigana;
   state.showFurigana = showFurigana;
   state.furiganaType = ((ui.settingsFuriganaType as HTMLSelectElement)?.value as any) || 'furigana';
+  state.fontSize = fontSize;
+  document.documentElement.style.setProperty('--content-font-size', state.fontSize + 'px');
+  state.enableDictionary = enableDictionary;
+  state.dictionaryEngine = dictionaryEngine;
+  state.dictionaryPrompt = dictionaryPrompt;
   state.checkKanaResidue = checkKanaResidue;
   state.checkSimilarity = checkSimilarity;
   state.similarityThreshold = similarityThreshold;

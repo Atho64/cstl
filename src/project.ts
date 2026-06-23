@@ -391,6 +391,11 @@ export function queueAutoSave(): void {
       regex_filter: state.regexFilter, disable_empty_line_validation: state.disableEmptyLineValidation,
       check_kana_residue: state.checkKanaResidue, check_similarity: state.checkSimilarity,
       show_furigana: state.showFurigana,
+      furigana_type: state.furiganaType || 'hiragana',
+      font_size: state.fontSize,
+      enable_dictionary: state.enableDictionary,
+      dictionary_engine: state.dictionaryEngine,
+      dictionary_prompt: state.dictionaryPrompt,
       similarity_threshold: state.similarityThreshold,
       imported_files: state.importedFiles, lines: state.lines,
       prompt_header: state.aiInstructionHeader,
@@ -437,6 +442,12 @@ export function openProject(id: string, data: any): void {
   state.checkKanaResidue = !!data.check_kana_residue;
   state.checkSimilarity = !!data.check_similarity;
   state.showFurigana = !!data.show_furigana;
+  state.furiganaType = data.furigana_type || 'hiragana';
+  state.enableDictionary = !!data.enable_dictionary;
+  state.dictionaryEngine = data.dictionary_engine === 'jisho' ? 'jisho' : 'llm';
+  state.dictionaryPrompt = data.dictionary_prompt || 'Jelaskan arti kata "{word}" dalam konteks kalimat "{context}". Berikan bentuk dasar, cara baca (hiragana/romaji), kelas kata, dan terjemahan/penjelasan singkat dalam bahasa Indonesia.';
+  state.fontSize = typeof data.font_size === 'number' ? data.font_size : 14;
+  document.documentElement.style.setProperty('--content-font-size', state.fontSize + 'px');
   state.similarityThreshold = (typeof data.similarity_threshold === 'number' && data.similarity_threshold > 0 && data.similarity_threshold < 1)
     ? data.similarity_threshold : 0.7;
   state.lines = (data.lines || []).map(normalizeLineDict);
@@ -497,6 +508,11 @@ export function closeProject(): void {
       regex_filter: state.regexFilter, disable_empty_line_validation: state.disableEmptyLineValidation,
       check_kana_residue: state.checkKanaResidue, check_similarity: state.checkSimilarity,
       show_furigana: state.showFurigana,
+      furigana_type: state.furiganaType || 'hiragana',
+      font_size: state.fontSize,
+      enable_dictionary: state.enableDictionary,
+      dictionary_engine: state.dictionaryEngine,
+      dictionary_prompt: state.dictionaryPrompt,
       similarity_threshold: state.similarityThreshold,
       imported_files: state.importedFiles, lines: state.lines,
       prompt_header: state.aiInstructionHeader,

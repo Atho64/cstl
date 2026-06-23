@@ -1,11 +1,13 @@
 import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
+import path from 'path';
 
 export default defineConfig({
   base: '/cstl/',
   resolve: {
     alias: {
       'path': 'path-browserify',
+      'zlibjs/bin/gunzip.min.js': path.resolve('./src/zlib-shim.js'),
     },
   },
   build: {

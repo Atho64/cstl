@@ -41,6 +41,7 @@ import { getDefaultPromptHeaderForFormat } from './ai-format';
 import { getLucaProfile, populateLucaExportSlotSelect, DEFAULT_LUCA_PROFILE } from './luca-engine';
 import { bindShortcutCaptureInput } from './shortcuts';
 import { getMainScroller } from './state';
+import { initDictionary } from './dictionary';
 
 // ─── Debounce Utility ─────────────────────────────────────────────────────────
 
@@ -69,7 +70,7 @@ export function cacheElements(): void {
     'importZipInput', 'importLucaTxtInput', 'importLucaTxtFolderInput', 'btnImportLucaTxt', 'btnImportLucaTxtFolder',
     'glossaryFileInput', 'settingsModal', 'settingsPromptInput', 'settingsGlossaryPromptInput', 'settingsAiCheckPromptInput', 'settingsEpubTagsInput',
     'settingsLucaWrap', 'settingsLucaProfileSelect', 'settingsLucaMcWrap', 'settingsLucaMcDisplayNameInput', 'settingsLucaExportLangWrap', 'settingsLucaExportLangSelect', 'settingsSourceLangSelect', 'settingsTargetLangSelect', 'settingsTranslationModeSelect', 'settingsRegexFilterInput', 'settingsRefLangWrap', 'settingsRefLang1Select', 'settingsRefLang2Select', 'btnImportRefLang1', 'btnImportRefLang2', 'btnImportRefLang1Folder', 'btnImportRefLang2Folder', 'btnClearRefLang1', 'btnClearRefLang2', 'refLang1Input', 'refLang2Input', 'refLang1FolderInput', 'refLang2FolderInput',
-    'settingsDisableEmptyLineValidation', 'settingsShowFurigana', 'settingsFuriganaType', 'settingsAiTranslationFormatSelect', 'settingsGlossaryInput', 'settingsContextLinesInput', 'settingsSelectionBatchSizeInput', 'settingsGlossaryBatchSizeInput', 'settingsAiCheckBatchSizeInput', 'settingsSelectionPrevShortcutInput', 'settingsSelectionNextShortcutInput', 'btnSettingsReset', 'btnSettingsGlossaryReset', 'btnSettingsAiCheckReset', 'btnSettingsCancel', 'btnSettingsSave', 'lineEditorModal', 'lineEditorTitle',
+    'settingsDisableEmptyLineValidation', 'settingsShowFurigana', 'settingsFuriganaType', 'settingsFontSize', 'settingsEnableDictionary', 'settingsDictionaryEngine', 'settingsDictionaryPrompt', 'dictionaryPopup', 'dictPopupWord', 'dictPopupClose', 'dictPopupContent', 'settingsAiTranslationFormatSelect', 'settingsGlossaryInput', 'settingsContextLinesInput', 'settingsSelectionBatchSizeInput', 'settingsGlossaryBatchSizeInput', 'settingsAiCheckBatchSizeInput', 'settingsSelectionPrevShortcutInput', 'settingsSelectionNextShortcutInput', 'btnSettingsReset', 'btnSettingsGlossaryReset', 'btnSettingsAiCheckReset', 'btnSettingsCancel', 'btnSettingsSave', 'lineEditorModal', 'lineEditorTitle',
     'btnDropdownSettings', 'dropdownSettingsMenu', 'btnSettingsGeneral', 'btnSettingsPrompts', 'btnSettingsGlossary', 'settingsPromptsModal', 'settingsGlossaryModal', 'btnSettingsPromptsCancel', 'btnSettingsPromptsSave', 'btnSettingsGlossaryCancel', 'btnSettingsGlossarySave',
     'tabTranslate', 'tabGlossary', 'viewTranslate', 'viewGlossary', 'btnCopyForGlossaryAi', 'pasteGlossaryArea', 'btnSaveGlossary', 'btnImportGlossaryFile', 'btnExportGlossaryFile', 'copyGlossaryCount', 'btnDeleteTranslation', 'deleteTranslationCount', 'tabDelete', 'viewDelete',
     'tabAiCheck', 'viewAiCheck', 'btnCopyForAiCheck', 'copyAiCheckCount', 'aiCheckStatus', 'pasteAiCheckArea', 'btnParseAiCheck', 'btnApplyAiCheck', 'btnClearAiCheck', 'aiCheckResults',
@@ -438,6 +439,7 @@ export async function init(): Promise<void> {
   }
 
   loadApiSettings();
+  initDictionary();
 }
 
 

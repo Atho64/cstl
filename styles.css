@@ -478,7 +478,7 @@ html, body {
   flex-direction: column; 
   gap: 6px; 
   font-family: 'JetBrains Mono', monospace; 
-  font-size: 13px; 
+  font-size: var(--content-font-size, 14px); 
   cursor: pointer; 
 }
 
@@ -843,4 +843,82 @@ body.htl-mode #btnFloatingApiSettings { display: none !important; }
 @keyframes flashHighlight {
   0% { background-color: rgba(99, 102, 241, 0.4); }
   100% { background-color: transparent; }
+}
+
+/* Dictionary Popup */
+.dict-popup {
+  position: fixed;
+  z-index: 10000;
+  background: #0f172a !important; /* Force solid dark background */
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  border-radius: 8px;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.9) !important;
+  width: 350px;
+  max-width: 90vw;
+  max-height: 400px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  font-family: 'JetBrains Mono', monospace;
+  animation: popupFadeIn 0.2s ease-out;
+}
+@keyframes popupFadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.dict-popup-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: #1e293b !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+.dict-popup-word {
+  font-weight: 800;
+  color: var(--primary);
+  font-size: 16px;
+}
+.dict-popup-close {
+  color: var(--muted);
+  cursor: pointer;
+}
+.dict-popup-close:hover {
+  color: var(--text);
+}
+.dict-popup-content {
+  padding: 12px;
+  overflow-y: auto;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text);
+}
+.dict-loading {
+  color: var(--muted);
+  font-style: italic;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.dict-loading::before {
+  content: "";
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--muted);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+.dict-popup-content h1, .dict-popup-content h2, .dict-popup-content h3 {
+  font-size: 15px;
+  margin-top: 0;
+  color: var(--primary);
+}
+.dict-popup-content p {
+  margin: 4px 0;
+}
+.dict-popup-content ul {
+  padding-left: 20px;
+  margin: 4px 0;
 }

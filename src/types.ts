@@ -55,6 +55,10 @@ export interface AppState {
   disableEmptyLineValidation: boolean;
   showFurigana: boolean;
   furiganaType: 'furigana' | 'hiragana' | 'katakana' | 'romaji';
+  fontSize: number;
+  enableDictionary: boolean;
+  dictionaryEngine: 'llm' | 'jisho';
+  dictionaryPrompt: string;
   checkKanaResidue: boolean;
   checkSimilarity: boolean;
   similarityThreshold: number;

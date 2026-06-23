@@ -597,7 +597,7 @@ export async function onAutoAiCheck(): Promise<void> {
   }
 }
 
-async function fetchApiResult(prompt: string): Promise<string> {
+export async function fetchApiResult(prompt: string): Promise<string> {
   if (state.aiApiType === 'gemini') {
     return await fetchGemini(prompt);
   }

@@ -2,6 +2,13 @@
 <html lang="id">
 <head>
   <meta charset="utf-8" />
+  <script>
+    window.addEventListener('error', function(e) {
+      if (e.message === 'ResizeObserver loop limit exceeded' || e.message === 'ResizeObserver loop completed with undelivered notifications.') {
+        e.stopImmediatePropagation();
+      }
+    });
+  </script>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="description" content="Alat bantu penerjemahan string dengan dukungan AI." />
   <meta name="theme-color" content="#1a1f2b" />
@@ -447,17 +454,45 @@
       <div class="mt-3">
         <label class="section-label text-white m-0">Tampilan</label>
         <div class="mt-1">
-          <label class="checkbox-line" style="display: flex; align-items: center; gap: 8px;">
+          <label class="checkbox-line" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
             <input id="settingsShowFurigana" type="checkbox" />
-            Tampilkan Furigana Teks: 
+            <span style="white-space: nowrap;">Tampilkan Furigana Teks:</span>
             <select id="settingsFuriganaType" class="input" style="width: auto; padding: 2px 4px;">
               <option value="hiragana">Hiragana (Default)</option>
               <option value="katakana">Katakana</option>
               <option value="romaji">Romaji</option>
             </select>
-            <span class="hint">(Memerlukan download kamus ~17MB di awal)</span>
+            <span class="hint" style="font-size: 11px;">(Memerlukan download kamus ~17MB di awal)</span>
           </label>
-          <p class="hint mt-1">Mengonversi teks bahasa Jepang asli sesuai mode yang dipilih.</p>
+          <p class="hint mt-1">Mengubah teks bahasa Jepang asli sesuai mode yang dipilih.</p>
+          <div class="field-group" style="margin-top: 10px;">
+            <label style="display: flex; align-items: center; gap: 10px;">
+              <span>Ukuran Font Teks Utama:</span>
+              <input type="number" id="settingsFontSize" class="input" style="width: 80px;" min="10" max="48" value="14" />
+              <span class="hint">px (Default: 14)</span>
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="mt-3">
+        <label class="section-label text-white m-0">Fitur Kamus Pop-up (Hover / Tap)</label>
+        <p class="hint mt-1">Mendeteksi kata di bawah kursor (tahan Shift) atau saat ditekan (HP), lalu menampilkan penjelasan dalam pop-up melayang.</p>
+        <div class="form-group mt-2">
+          <label class="checkbox-line" style="display: flex; align-items: center; gap: 8px;">
+            <input id="settingsEnableDictionary" type="checkbox" />
+            Aktifkan Kamus Hover
+            <select id="settingsDictionaryEngine" class="input" style="width: auto; padding: 2px 4px;">
+              <option value="llm">AI / LLM (Direkomendasikan)</option>
+              <option value="jisho">Tradisional (Jisho / FreeDict)</option>
+            </select>
+          </label>
+          <div class="field-group" style="margin-top: 10px;">
+            <label style="display: flex; flex-direction: column; gap: 4px;">
+              <span>Prompt Penjelasan Kamus (hanya untuk mode AI):</span>
+              <textarea id="settingsDictionaryPrompt" class="input-area small" rows="3" style="width: 100%;"></textarea>
+              <span class="hint">Gunakan <code>{word}</code> untuk kata yang dipilih dan <code>{context}</code> untuk kalimat konteksnya.</span>
+            </label>
+          </div>
         </div>
       </div>
       <div class="mt-3">
@@ -806,6 +841,16 @@
       </div>
     </div>
   </div>
+
+  <!-- Dictionary Popup -->
+  <div id="dictionaryPopup" class="dict-popup" style="display: none;">
+    <div id="dictPopupHeader" class="dict-popup-header">
+      <span id="dictPopupWord" class="dict-popup-word"></span>
+      <button id="dictPopupClose" class="icon-btn dict-popup-close" title="Tutup">✖</button>
+    </div>
+    <div id="dictPopupContent" class="dict-popup-content"></div>
+  </div>
+
 </body>
 </html>
 
