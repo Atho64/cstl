@@ -122,13 +122,13 @@ function initHistoryUI() {
   if (btnHistory && modalHistory) {
     btnHistory.addEventListener('click', () => {
       renderHistoryUI();
-      modalHistory.style.display = 'flex';
+      modalHistory.classList.add('open');
     });
   }
   
   if (btnClose && modalHistory) {
     btnClose.addEventListener('click', () => {
-      modalHistory.style.display = 'none';
+      modalHistory.classList.remove('open');
     });
   }
   
@@ -418,6 +418,7 @@ async function showPopup(x: number, y: number, word: string, context: string, is
   
   isPopupOpen = true;
   popup.style.display = 'flex';
+  popup.classList.add('show');
   
   // Positioning logic
   const popupWidth = 350;
@@ -472,7 +473,10 @@ async function showPopup(x: number, y: number, word: string, context: string, is
 
 function closePopup() {
   const popup = document.getElementById('dictionaryPopup');
-  if (popup) popup.style.display = 'none';
+  if (popup) {
+    popup.style.display = 'none';
+    popup.classList.remove('show');
+  }
   isPopupOpen = false;
   currentWord = '';
 }
