@@ -263,12 +263,38 @@ async function showPopup(x: number, y: number, word: string, context: string, is
   if (left + popupWidth > window.innerWidth) {
     left = window.innerWidth - popupWidth - 10;
   }
-  let top = y + 20;
-  if (top + 300 > window.innerHeight) {
-    top = window.innerHeight - 300;
-  }
   
-  popup.style.left = `${left}px`;
+  let top = y + 20;
+  
+  // Smart positioning to avoid covering the translation input box
+  const editorModal = document.getElementById('lineEditorModal');
+  const isEditorOpen = editorModal && editorModal.classList.contains('open');
+  
+  if (isEditorOpen) {
+    const msgInput = document.getElementById('lineMessageInput');
+    if (msgInput) {
+      const inputRect = msgInput.getBoundingClientRect();
+      const popupHeight = 350; // Estimated max height
+      
+      // If the popup overlaps with the translation input
+      if (top + popupHeight > inputRect.top && top < inputRect.bottom) {
+        // Try placing it below the input box
+        top = inputRect.bottom + 10;
+        
+        // If it overflows the bottom of the screen, place it above the clicked point instead
+        if (top + popupHeight > window.innerHeight) {
+          top = Math.max(10, y - popupHeight - 20);
+        }
+      }
+    }
+  } else {
+    // Normal positioning
+    if (top + 300 > window.innerHeight) {
+      top = Math.max(10, window.innerHeight - 300 - 10);
+    }
+  }
+
+  popup.style.left = `${Math.max(10, left)}px`;
   popup.style.top = `${top}px`;
 
   try {
