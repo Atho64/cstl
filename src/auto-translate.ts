@@ -238,12 +238,22 @@ export async function onAutoTranslate(): Promise<void> {
   btn.classList.add('btn-danger');
   btn.textContent = 'Hentikan Auto Translate';
 
+  let targetLines = Array.from(state.selectedLines)
+    .map(num => state.lines.find(l => l.line_num === num))
+    .filter(l => l && !isTranslated(l) && !l._hidden) as typeof state.lines;
+
+  if (targetLines.length === 0) {
+    targetLines = state.lines.filter(l => !isTranslated(l) && !l._hidden);
+  } else {
+    targetLines.sort((a, b) => a.line_num - b.line_num);
+  }
+
   try {
     while (isAutoTranslating) {
       // Find untranslated lines from top
-      const untranslatedLines = state.lines.filter(l => !isTranslated(l) && !l._hidden);
+      const untranslatedLines = targetLines.filter(l => !isTranslated(l) && !l._hidden);
       if (untranslatedLines.length === 0) {
-        alert('Selesai! Semua baris telah diterjemahkan.');
+        alert('Selesai! Semua baris target telah diterjemahkan.');
         break;
       }
 
