@@ -14,10 +14,11 @@ class Gunzip {
   decompress() {
     try {
       return pako.ungzip(this._data);
-    } catch (e) {
+    } catch (e: any) {
       // If the browser already decompressed the gzip file transparently 
-      // (due to Content-Encoding headers from the CDN), pako will throw an error.
+      // (due to Content-Encoding headers from the CDN or server), pako will throw an error.
       // In that case, the data is already decompressed, so we just return it.
+      console.warn('[ZLIB-SHIM] pako.ungzip failed (likely already decompressed):', e?.message || e);
       return this._data;
     }
   }
