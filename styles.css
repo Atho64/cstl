@@ -873,6 +873,8 @@ body.htl-mode #btnFloatingApiSettings { display: none !important; }
   padding: 8px 12px;
   background: #1e293b !important;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+  cursor: move;
+  user-select: none;
 }
 .dict-popup-word {
   font-weight: 800;

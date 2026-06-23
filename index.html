@@ -73,6 +73,7 @@
         <span class="toolbar-sep"></span>
         <button id="btnProofread" class="btn" disabled>Cari</button>
         <button id="btnQaCheck" class="btn" disabled>Validasi QC</button>
+        <button id="btnDictHistory" class="btn">Riwayat Kamus</button>
         <div class="dropdown">
           <button id="btnDropdownSettings" class="btn dropdown-toggle">Pengaturan ▼</button>
           <div id="dropdownSettingsMenu" class="dropdown-content">
@@ -838,6 +839,19 @@
         <span class="grow"></span>
         <button id="btnApiSettingsCancel" class="btn">Batal</button>
         <button id="btnApiSettingsSave" class="btn btn-primary">Simpan API</button>
+      </div>
+    </div>
+  </div>
+  <!-- Dictionary History Modal -->
+  <div id="dictHistoryModal" class="modal-backdrop" style="display: none;">
+    <div class="modal modal-wide">
+      <h3>Riwayat Kamus</h3>
+      <div id="dictHistoryList" style="max-height: 60vh; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; margin-bottom: 15px;">
+        <!-- History items will be populated here -->
+      </div>
+      <div class="modal-actions" style="justify-content: space-between;">
+        <button id="btnDictHistoryClear" class="btn btn-danger">Hapus Riwayat</button>
+        <button id="btnDictHistoryClose" class="btn btn-outline">Tutup</button>
       </div>
     </div>
   </div>

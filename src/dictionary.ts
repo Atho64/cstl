@@ -21,8 +21,170 @@ let isPopupOpen = false;
 
 let touchStartTime = 0;
 
+let dragStartX = 0;
+let dragStartY = 0;
+let dragInitialLeft = 0;
+let dragInitialTop = 0;
+let isDragging = false;
+
+function initDrag() {
+  const header = document.getElementById('dictPopupHeader');
+  const popup = document.getElementById('dictionaryPopup');
+  if (!header || !popup) return;
+
+  const onDragStart = (e: MouseEvent | TouchEvent) => {
+    // Only drag on left click or touch
+    if (e instanceof MouseEvent && e.button !== 0) return;
+    
+    // Don't drag if clicking the close button
+    if ((e.target as HTMLElement).closest('#dictPopupClose')) return;
+
+    isDragging = true;
+    const clientX = e instanceof MouseEvent ? e.clientX : e.touches[0].clientX;
+    const clientY = e instanceof MouseEvent ? e.clientY : e.touches[0].clientY;
+    dragStartX = clientX;
+    dragStartY = clientY;
+    dragInitialLeft = parseInt(popup.style.left || '0', 10);
+    dragInitialTop = parseInt(popup.style.top || '0', 10);
+  };
+
+  const onDragMove = (e: MouseEvent | TouchEvent) => {
+    if (!isDragging) return;
+    e.preventDefault(); // Prevent scrolling while dragging
+    const clientX = e instanceof MouseEvent ? e.clientX : e.touches[0].clientX;
+    const clientY = e instanceof MouseEvent ? e.clientY : e.touches[0].clientY;
+    const dx = clientX - dragStartX;
+    const dy = clientY - dragStartY;
+    popup.style.left = `${dragInitialLeft + dx}px`;
+    popup.style.top = `${dragInitialTop + dy}px`;
+  };
+
+  const onDragEnd = () => {
+    isDragging = false;
+  };
+
+  header.addEventListener('mousedown', onDragStart);
+  document.addEventListener('mousemove', onDragMove);
+  document.addEventListener('mouseup', onDragEnd);
+
+  header.addEventListener('touchstart', onDragStart, { passive: false });
+  document.addEventListener('touchmove', onDragMove, { passive: false });
+  document.addEventListener('touchend', onDragEnd);
+}
+
+interface DictHistoryEntry {
+  word: string;
+  resultHtml: string;
+  timestamp: number;
+}
+
+let dictHistory: DictHistoryEntry[] = [];
+
+function loadHistory() {
+  try {
+    const saved = localStorage.getItem('cstl_dict_history');
+    if (saved) {
+      dictHistory = JSON.parse(saved);
+    }
+  } catch (e) {
+    console.warn('Gagal memuat riwayat kamus:', e);
+  }
+}
+
+function saveHistory() {
+  try {
+    localStorage.setItem('cstl_dict_history', JSON.stringify(dictHistory));
+  } catch (e) {
+    console.warn('Gagal menyimpan riwayat kamus:', e);
+  }
+}
+
+function addToHistory(word: string, resultHtml: string) {
+  // Remove if word already exists to move it to top
+  dictHistory = dictHistory.filter(entry => entry.word !== word);
+  dictHistory.unshift({ word, resultHtml, timestamp: Date.now() });
+  
+  if (dictHistory.length > 50) {
+    dictHistory = dictHistory.slice(0, 50);
+  }
+  saveHistory();
+  renderHistoryUI();
+}
+
+function initHistoryUI() {
+  loadHistory();
+  
+  const btnHistory = document.getElementById('btnDictHistory');
+  const modalHistory = document.getElementById('dictHistoryModal');
+  const btnClose = document.getElementById('btnDictHistoryClose');
+  const btnClear = document.getElementById('btnDictHistoryClear');
+  
+  if (btnHistory && modalHistory) {
+    btnHistory.addEventListener('click', () => {
+      renderHistoryUI();
+      modalHistory.style.display = 'flex';
+    });
+  }
+  
+  if (btnClose && modalHistory) {
+    btnClose.addEventListener('click', () => {
+      modalHistory.style.display = 'none';
+    });
+  }
+  
+  if (btnClear) {
+    btnClear.addEventListener('click', () => {
+      if (confirm('Yakin ingin menghapus semua riwayat kamus?')) {
+        dictHistory = [];
+        saveHistory();
+        renderHistoryUI();
+      }
+    });
+  }
+}
+
+function renderHistoryUI() {
+  const listEl = document.getElementById('dictHistoryList');
+  if (!listEl) return;
+  
+  if (dictHistory.length === 0) {
+    listEl.innerHTML = '<div style="text-align:center; padding: 20px; color: #888;">Belum ada kata yang dicari.</div>';
+    return;
+  }
+  
+  listEl.innerHTML = '';
+  dictHistory.forEach(entry => {
+    const item = document.createElement('div');
+    item.style.cssText = 'background: rgba(255,255,255,0.05); padding: 10px; border-radius: 6px;';
+    
+    const header = document.createElement('div');
+    header.style.cssText = 'font-weight: bold; margin-bottom: 8px; color: var(--primary); display: flex; justify-content: space-between;';
+    
+    const wordSpan = document.createElement('span');
+    wordSpan.textContent = entry.word;
+    
+    const dateSpan = document.createElement('span');
+    dateSpan.style.cssText = 'font-size: 0.8em; color: #888; font-weight: normal;';
+    dateSpan.textContent = new Date(entry.timestamp).toLocaleString();
+    
+    header.appendChild(wordSpan);
+    header.appendChild(dateSpan);
+    
+    const content = document.createElement('div');
+    content.style.fontSize = '0.9em';
+    content.innerHTML = entry.resultHtml;
+    
+    item.appendChild(header);
+    item.appendChild(content);
+    listEl.appendChild(item);
+  });
+}
+
 // Initialize dictionary event listeners
 export function initDictionary() {
+  initDrag();
+  initHistoryUI();
+  
   document.body.addEventListener('mousemove', handleHover);
   document.body.addEventListener('mouseup', handleMouseUp);
   
@@ -326,7 +488,9 @@ async function fetchLLMDictionary(word: string, context: string) {
 
   let explanation = await fetchApiResult(finalPrompt);
 
-  contentEl.innerHTML = simpleParseMarkdown(explanation);
+  const html = simpleParseMarkdown(explanation);
+  contentEl.innerHTML = html;
+  addToHistory(word, html);
 }
 
 async function fetchTraditionalDictionary(word: string, isJapanese: boolean) {
@@ -375,6 +539,7 @@ async function fetchTraditionalDictionary(word: string, isJapanese: boolean) {
     }
     html += `</ul>`;
     contentEl.innerHTML = html;
+    addToHistory(word, html);
   } else {
     // FreeDictionary API (English)
     const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`);
@@ -395,5 +560,6 @@ async function fetchTraditionalDictionary(word: string, isJapanese: boolean) {
     }
     html += `</ul>`;
     contentEl.innerHTML = html;
+    addToHistory(word, html);
   }
 }
