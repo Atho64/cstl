@@ -118,11 +118,11 @@ export function renderMainRow(rowData: DisplayRow): HTMLElement {
     if (state.showFurigana) {
       origDiv.textContent = rawOrig;
       import('./furigana').then(m => m.convertToFurigana(rawOrig)).then(html => {
-        console.log('Furigana HTML for line', line.line_num, ':', html);
         origDiv.innerHTML = html;
       }).catch((e) => {
         console.error('[CSTL] Furigana render error:', e);
-        origDiv.textContent = rawOrig;
+        origDiv.textContent = rawOrig + ` (Furigana Error: ${e.message || e})`;
+        origDiv.style.color = 'red';
       });
     } else {
       origDiv.textContent = rawOrig;
