@@ -23,6 +23,7 @@ export const state: AppState = {
   checkKanaResidue: false,
   checkSimilarity: false,
   similarityThreshold: 0.7,
+  showFurigana: false,
   currentProjectId: null,
   projectName: '',
   projectType: '',

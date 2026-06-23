@@ -56,6 +56,7 @@ export interface AppState {
   checkKanaResidue: boolean;
   checkSimilarity: boolean;
   similarityThreshold: number;
+  showFurigana: boolean;
   currentProjectId: string | null;
   projectName: string;
   projectType: string;

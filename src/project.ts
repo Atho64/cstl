@@ -390,6 +390,7 @@ export function queueAutoSave(): void {
       lucaRawFiles: state.lucaRawFiles, lucaRawBuffers: state.lucaRawBuffers,
       regex_filter: state.regexFilter, disable_empty_line_validation: state.disableEmptyLineValidation,
       check_kana_residue: state.checkKanaResidue, check_similarity: state.checkSimilarity,
+      show_furigana: state.showFurigana,
       similarity_threshold: state.similarityThreshold,
       imported_files: state.importedFiles, lines: state.lines,
       prompt_header: state.aiInstructionHeader,
@@ -435,6 +436,7 @@ export function openProject(id: string, data: any): void {
   state.disableEmptyLineValidation = !!data.disable_empty_line_validation;
   state.checkKanaResidue = !!data.check_kana_residue;
   state.checkSimilarity = !!data.check_similarity;
+  state.showFurigana = !!data.show_furigana;
   state.similarityThreshold = (typeof data.similarity_threshold === 'number' && data.similarity_threshold > 0 && data.similarity_threshold < 1)
     ? data.similarity_threshold : 0.7;
   state.lines = (data.lines || []).map(normalizeLineDict);
@@ -494,6 +496,7 @@ export function closeProject(): void {
       lucaRawFiles: state.lucaRawFiles, lucaRawBuffers: state.lucaRawBuffers,
       regex_filter: state.regexFilter, disable_empty_line_validation: state.disableEmptyLineValidation,
       check_kana_residue: state.checkKanaResidue, check_similarity: state.checkSimilarity,
+      show_furigana: state.showFurigana,
       similarity_threshold: state.similarityThreshold,
       imported_files: state.importedFiles, lines: state.lines,
       prompt_header: state.aiInstructionHeader,

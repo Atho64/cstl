@@ -114,7 +114,19 @@ export function renderMainRow(rowData: DisplayRow): HTMLElement {
     }
     const origDiv = document.createElement('div');
     origDiv.className = 'original';
-    origDiv.textContent = formatLineLabel(line);
+    const rawOrig = formatLineLabel(line);
+    if (state.showFurigana) {
+      origDiv.textContent = rawOrig;
+      import('./furigana').then(m => m.convertToFurigana(rawOrig)).then(html => {
+        if (origDiv.isConnected) {
+          origDiv.innerHTML = html;
+        }
+      }).catch(() => {
+        if (origDiv.isConnected) origDiv.textContent = rawOrig;
+      });
+    } else {
+      origDiv.textContent = rawOrig;
+    }
     const transDiv = document.createElement('div');
     transDiv.className = 'translated';
     let tTxt = '——';

@@ -47,6 +47,7 @@ export function onOpenSettings(): void {
     if (ui.btnClearRefLang2) (ui.btnClearRefLang2 as HTMLButtonElement).disabled = !hasRef2;
   }
   (ui.settingsDisableEmptyLineValidation as HTMLInputElement).checked = !!state.disableEmptyLineValidation;
+  if (ui.settingsShowFurigana) (ui.settingsShowFurigana as HTMLInputElement).checked = !!state.showFurigana;
   if (ui.settingsCheckKanaResidue) (ui.settingsCheckKanaResidue as HTMLInputElement).checked = !!state.checkKanaResidue;
   if (ui.settingsCheckSimilarity) {
     (ui.settingsCheckSimilarity as HTMLInputElement).checked = !!state.checkSimilarity;
@@ -125,6 +126,7 @@ export function onSavePromptSettings(): void {
   const translationMode = (ui.settingsTranslationModeSelect as HTMLSelectElement)?.value === 'htl' ? 'htl' : 'ai';
   const regexFilter = (ui.settingsRegexFilterInput as HTMLInputElement).value;
   const disableEmptyLineValidation = (ui.settingsDisableEmptyLineValidation as HTMLInputElement).checked;
+  const showFurigana = !!((ui.settingsShowFurigana as HTMLInputElement)?.checked);
   const checkKanaResidue = !!((ui.settingsCheckKanaResidue as HTMLInputElement)?.checked);
   const checkSimilarity = !!((ui.settingsCheckSimilarity as HTMLInputElement)?.checked);
   const simThresholdRaw = parseInt((ui.settingsSimilarityThreshold as HTMLInputElement)?.value);
@@ -157,6 +159,8 @@ export function onSavePromptSettings(): void {
   state.translationMode = translationMode as any;
   state.regexFilter = regexFilter;
   state.disableEmptyLineValidation = disableEmptyLineValidation;
+  const oldShowFurigana = state.showFurigana;
+  state.showFurigana = showFurigana;
   state.checkKanaResidue = checkKanaResidue;
   state.checkSimilarity = checkSimilarity;
   state.similarityThreshold = similarityThreshold;
