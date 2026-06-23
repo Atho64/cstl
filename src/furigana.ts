@@ -1,56 +1,47 @@
 /// <reference types="vite/client" />
-import Kuroshiro from 'kuroshiro';
-// @ts-ignore
-import KuromojiAnalyzer from 'kuroshiro-analyzer-kuromoji';
 
-let kuroshiroInstance: Kuroshiro | null = null;
-let isInitializing = false;
-let initializationPromise: Promise<void> | null = null;
+let worker: Worker | null = null;
+let initPromise: Promise<void> | null = null;
+let messageIdCounter = 0;
+const pendingRequests = new Map<number, { resolve: Function, reject: Function }>();
 
-/**
- * Initialize Kuroshiro with Kuromoji Analyzer
- */
-export async function initFurigana(): Promise<void> {
-  if (kuroshiroInstance) return;
-  if (isInitializing && initializationPromise) {
-    return initializationPromise;
+function getWorker() {
+  if (!worker) {
+    worker = new Worker(new URL('./furigana.worker.ts', import.meta.url), { type: 'module' });
+    worker.onmessage = (e) => {
+      const { id, type, result, error } = e.data;
+      const req = pendingRequests.get(id);
+      if (req) {
+        if (type === 'error') req.reject(new Error(error));
+        else req.resolve(result);
+        pendingRequests.delete(id);
+      }
+    };
   }
-
-  isInitializing = true;
-  initializationPromise = (async () => {
-    try {
-      const kuroshiro = new Kuroshiro();
-      // Use jsDelivr CDN to avoid GitHub Pages gzip double-decompression issues and save bandwidth
-      const dictPath = 'https://cdn.jsdelivr.net/npm/kuromoji@0.1.2/dict';
-      
-      await kuroshiro.init(new KuromojiAnalyzer({ dictPath }));
-      kuroshiroInstance = kuroshiro;
-      console.log('[CSTL] Furigana engine initialized successfully');
-    } catch (error) {
-      console.error('[CSTL] Failed to initialize Furigana engine:', error);
-      alert('Gagal memuat kamus Furigana. (Periksa koneksi atau console browser)');
-      throw error;
-    } finally {
-      isInitializing = false;
-    }
-  })();
-
-  return initializationPromise;
+  return worker;
 }
 
 /**
- * Convert text to ruby HTML
+ * Initialize Kuroshiro with Kuromoji Analyzer in Web Worker
+ */
+export async function initFurigana(): Promise<void> {
+  if (initPromise) return initPromise;
+  
+  initPromise = new Promise((resolve, reject) => {
+    const id = ++messageIdCounter;
+    pendingRequests.set(id, { resolve, reject });
+    getWorker().postMessage({ id, type: 'init' });
+  });
+  
+  return initPromise;
+}
+
+/**
+ * Convert text to ruby HTML via Web Worker
  */
 export async function convertToFurigana(text: string): Promise<string> {
   if (!text) return text;
-  if (!kuroshiroInstance) {
-    try {
-      await initFurigana();
-    } catch (e) {
-      return text;
-    }
-  }
-
+  
   try {
     const { state } = await import('./state');
     const fType = state.furiganaType || 'hiragana';
@@ -59,14 +50,13 @@ export async function convertToFurigana(text: string): Promise<string> {
     if (fType === 'katakana') to = 'katakana';
     if (fType === 'romaji') to = 'romaji';
     
-    const result = await kuroshiroInstance!.convert(text, {
-      mode: 'furigana',
-      to: to as any
+    return await new Promise<string>((resolve, reject) => {
+      const id = ++messageIdCounter;
+      pendingRequests.set(id, { resolve, reject });
+      getWorker().postMessage({ id, type: 'convert', payload: { text, to } });
     });
-    return result;
   } catch (error: any) {
-    console.error('[CSTL] Furigana conversion error:', error);
-    alert('Furigana error: ' + (error?.message || error));
+    console.error('[CSTL] Furigana worker error:', error);
     return text;
   }
 }
