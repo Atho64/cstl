@@ -6,7 +6,9 @@
 import * as pako from 'pako';
 
 class Gunzip {
-  constructor(data) {
+  private _data: Uint8Array;
+
+  constructor(data: Uint8Array) {
     this._data = data;
   }
   decompress() {
