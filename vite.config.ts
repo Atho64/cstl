@@ -7,7 +7,7 @@ export default defineConfig({
   resolve: {
     alias: {
       'path': 'path-browserify',
-      'zlibjs/bin/gunzip.min.js': path.resolve('./src/zlib-shim.js'),
+      'zlibjs/bin/gunzip.min.js': path.resolve(__dirname, 'src/zlib-shim.ts'),
     },
   },
   build: {
