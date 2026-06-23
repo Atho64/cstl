@@ -438,17 +438,17 @@ html, body {
   padding: 8px; 
 }
 
-.line-row {
-  display: flex;
-  border-bottom: 1px solid var(--line);
-  padding: 8px 12px;
-  gap: 12px;
-  align-items: flex-start;
-  transition: background-color 0.2s ease;
+.preview-row {
+  display: flex; 
+  flex-direction: column; 
+  background: rgba(30, 41, 59, 0.3); 
+  border: 1px solid var(--line);
+  border-radius: 8px; 
+  padding: 10px; 
+  transition: all 0.2s;
 }
-.line-row:hover {
-  background-color: rgba(255, 255, 255, 0.02);
-}
+
+.preview-row:hover { background: rgba(255, 255, 255, 0.05); }
 .preview-row.row-selected { background: rgba(59, 130, 246, 0.1) !important; border-color: var(--primary); }
 .preview-row.row-translated { border-left: 3px solid var(--success); }
 
@@ -549,8 +549,8 @@ html, body {
 }
 
 .select-sm { 
-  height: 30px; 
-  padding: 2px 8px; 
+  height: 28px; 
+  padding: 0 8px; 
   font-size: 12px; 
 }
 
@@ -778,8 +778,8 @@ html, body {
   .modal-backdrop.open .modal {
     animation: scaleUp 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   }
-  
-  #settingsModal { z-index: 60; }
+
+#settingsModal { z-index: 60; }
 #proofreadModal { z-index: 65; }
 #lineEditorModal { z-index: 70; }
 
@@ -885,11 +885,14 @@ body.htl-mode #btnFloatingApiSettings { display: none !important; }
   border: 1px solid rgba(255, 255, 255, 0.2) !important;
   border-radius: 12px;
   box-shadow: 0 15px 35px rgba(0, 0, 0, 0.8) !important;
-  max-width: 350px;
+  width: 350px;
+  max-width: 90vw;
+  max-height: 400px;
   min-width: 250px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  font-family: 'JetBrains Mono', monospace;
 }
 .dict-popup.show {
   animation: popupSlideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
