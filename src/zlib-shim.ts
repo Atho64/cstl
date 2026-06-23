@@ -13,7 +13,7 @@ class Gunzip {
   }
   decompress() {
     try {
-      return pako.inflate(this._data);
+      return pako.ungzip(this._data);
     } catch (e) {
       // If the browser already decompressed the gzip file transparently 
       // (due to Content-Encoding headers from the CDN), pako will throw an error.
