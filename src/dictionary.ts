@@ -22,7 +22,8 @@ let isPopupOpen = false;
 // Initialize dictionary event listeners
 export function initDictionary() {
   document.body.addEventListener('mousemove', handleHover);
-  document.body.addEventListener('click', handleClick);
+  document.body.addEventListener('mouseup', handleMouseUp);
+  document.body.addEventListener('touchend', handleMouseUp);
 
   const closeBtn = document.getElementById('dictPopupClose');
   if (closeBtn) {
@@ -48,7 +49,7 @@ function handleHover(e: MouseEvent) {
   }, 200);
 }
 
-function handleClick(e: MouseEvent) {
+function handleMouseUp(e: MouseEvent | TouchEvent) {
   if (!state.enableDictionary) return;
   
   const target = e.target as HTMLElement;
@@ -57,11 +58,60 @@ function handleClick(e: MouseEvent) {
   const isEditorOriginal = target.id === 'lineOriginalView';
   
   if (!isOriginal && !isTranslated && !isEditorOriginal) return;
-  
-  if (target instanceof HTMLTextAreaElement) {
-    processTextarea(target, e.clientX, e.clientY);
+
+  // Extract correct coordinates for Touch vs Mouse events
+  let clientX = 0;
+  let clientY = 0;
+  if (window.TouchEvent && e instanceof TouchEvent) {
+    if (e.changedTouches.length > 0) {
+      clientX = e.changedTouches[0].clientX;
+      clientY = e.changedTouches[0].clientY;
+    }
   } else {
-    processEventPoint(e.clientX, e.clientY);
+    clientX = (e as MouseEvent).clientX;
+    clientY = (e as MouseEvent).clientY;
+  }
+
+  // 1. Check for text selection first
+  let selectedText = '';
+  if (target instanceof HTMLTextAreaElement) {
+    if (target.selectionStart !== target.selectionEnd) {
+      selectedText = target.value.substring(target.selectionStart, target.selectionEnd).trim();
+    }
+  } else {
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0 && sel.toString().trim().length > 0) {
+      const range = sel.getRangeAt(0);
+      const frag = range.cloneContents();
+      
+      // Remove all <rt> and <rp> (Furigana reading and parentheses) elements from the cloned fragment
+      const furiganaTags = frag.querySelectorAll('rt, rp');
+      furiganaTags.forEach(tag => tag.remove());
+      
+      selectedText = frag.textContent?.trim() || sel.toString().trim();
+    }
+  }
+
+  // If there's a selected text (max 100 chars to avoid translating whole paragraphs accidentally)
+  if (selectedText.length > 0 && selectedText.length < 100) {
+    const lang = isOriginal || isEditorOriginal ? 'ja-JP' : 'en-US';
+    const container = target instanceof HTMLTextAreaElement ? target : target.closest('.original, .translated') as HTMLElement;
+    const contextText = container instanceof HTMLTextAreaElement ? container.value : (container.textContent || '');
+    
+    // Fallback: don't extract word with Segmenter, just use the exact selected text!
+    if (selectedText !== currentWord) {
+      currentWord = selectedText;
+      showPopup(clientX, clientY, selectedText, contextText, isOriginal || isEditorOriginal);
+    }
+    return;
+  }
+  
+  // 2. If no selection, fallback to point extraction (click)
+  // Only trigger point extraction if it was a quick click, not a dragged selection that was empty
+  if (target instanceof HTMLTextAreaElement) {
+    processTextarea(target, clientX, clientY);
+  } else {
+    processEventPoint(clientX, clientY);
   }
 }
 
@@ -69,7 +119,9 @@ function processTextarea(textarea: HTMLTextAreaElement, x: number, y: number) {
   const textContent = textarea.value || '';
   if (!textContent) return;
   
-  // Use selectionStart which is updated on click
+  // Only extract if cursor is just a caret (no selection)
+  if (textarea.selectionStart !== textarea.selectionEnd) return;
+  
   const offset = textarea.selectionStart;
   const isOriginal = textarea.id === 'lineOriginalView';
   const lang = isOriginal ? 'ja-JP' : 'en-US';
@@ -94,6 +146,33 @@ function getTextNodeAt(x: number, y: number): { node: Text, offset: number } | n
   return null;
 }
 
+function getGlobalOffsetAndText(container: HTMLElement, targetNode: Node, targetOffset: number) {
+  let globalOffset = 0;
+  let fullText = '';
+  let found = false;
+
+  function traverse(currentNode: Node) {
+    // Ignore <rt> (furigana reading) tags so they don't pollute the plain text
+    if (currentNode.nodeName.toLowerCase() === 'rt') return;
+    
+    if (currentNode.nodeType === Node.TEXT_NODE) {
+      const text = currentNode.textContent || '';
+      if (currentNode === targetNode) {
+        globalOffset = fullText.length + targetOffset;
+        found = true;
+      }
+      fullText += text;
+    } else {
+      for (const child of Array.from(currentNode.childNodes)) {
+        traverse(child);
+      }
+    }
+  }
+  
+  traverse(container);
+  return { globalOffset: found ? globalOffset : targetOffset, fullText };
+}
+
 function processEventPoint(x: number, y: number) {
   const result = getTextNodeAt(x, y);
   if (!result) return;
@@ -105,13 +184,12 @@ function processEventPoint(x: number, y: number) {
   if (!container) return;
   
   const isOriginal = container.classList.contains('original');
-  const textContent = node.textContent || '';
+  const lang = isOriginal ? 'ja-JP' : 'en-US';
   
-  // Rough language detection based on container
-  const lang = isOriginal ? 'ja-JP' : 'en-US'; // Assuming target is usually Indonesian/English
-  const contextText = container.textContent || '';
+  // Use our robust traverser to build clean text (ignoring ruby <rt>) and calculate precise offset
+  const { globalOffset, fullText } = getGlobalOffsetAndText(container, node, offset);
   
-  extractAndShowWord(textContent, offset, lang, x, y, isOriginal, contextText);
+  extractAndShowWord(fullText, globalOffset, lang, x, y, isOriginal, fullText);
 }
 
 function extractAndShowWord(textContent: string, offset: number, lang: string, x: number, y: number, isOriginal: boolean, contextText: string) {
@@ -202,15 +280,34 @@ async function fetchTraditionalDictionary(word: string, isJapanese: boolean) {
   const contentEl = document.getElementById('dictPopupContent') as HTMLElement;
   
   if (isJapanese) {
-    // Jisho API via AllOrigins proxy
-    const url = `https://api.allorigins.win/get?url=${encodeURIComponent('https://jisho.org/api/v1/search/words?keyword=' + word)}`;
-    const res = await fetch(url);
-    if (!res.ok) throw new Error('Jisho API error');
+    // Jisho API with fallback proxies
+    const targetUrl = 'https://jisho.org/api/v1/search/words?keyword=' + word;
+    const proxies = [
+      `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`,
+      `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`,
+      `https://cors-anywhere.herokuapp.com/${targetUrl}`
+    ];
     
-    const data = await res.json();
-    const jisho = JSON.parse(data.contents);
+    let jisho = null;
+    let lastError = null;
+
+    for (const proxyUrl of proxies) {
+      try {
+        const res = await fetch(proxyUrl);
+        if (!res.ok) continue;
+        jisho = await res.json();
+        if (jisho && jisho.data) break;
+      } catch (err) {
+        lastError = err;
+        continue;
+      }
+    }
+
+    if (!jisho || !jisho.data) {
+      throw new Error('Semua proxy Jisho gagal. Silakan gunakan mode AI/LLM atau coba lagi nanti.');
+    }
     
-    if (!jisho.data || jisho.data.length === 0) {
+    if (jisho.data.length === 0) {
       contentEl.innerHTML = `<div>Kata tidak ditemukan di Jisho.</div>`;
       return;
     }
