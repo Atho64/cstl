@@ -106,7 +106,7 @@ function handleMouseUp(e: MouseEvent | TouchEvent) {
   if (selectedText.length > 0 && selectedText.length < 100) {
     const lang = isOriginal || isEditorOriginal ? 'ja-JP' : 'en-US';
     const container = target instanceof HTMLTextAreaElement ? target : target.closest('.original, .translated') as HTMLElement;
-    const contextText = container instanceof HTMLTextAreaElement ? container.value : (container.textContent || '');
+    const contextText = container instanceof HTMLTextAreaElement ? container.value : getCleanText(container);
     
     // Fallback: don't extract word with Segmenter, just use the exact selected text!
     if (selectedText !== currentWord) {
@@ -162,14 +162,25 @@ function getTextNodeAt(x: number, y: number): { node: Text, offset: number } | n
   return null;
 }
 
+function getCleanText(element: HTMLElement): string {
+  let text = '';
+  function traverse(node: Node) {
+    if (node.nodeName.toLowerCase() === 'rt' || node.nodeName.toLowerCase() === 'rp') return;
+    if (node.nodeType === Node.TEXT_NODE) text += node.textContent || '';
+    else Array.from(node.childNodes).forEach(traverse);
+  }
+  traverse(element);
+  return text;
+}
+
 function getGlobalOffsetAndText(container: HTMLElement, targetNode: Node, targetOffset: number) {
   let globalOffset = 0;
   let fullText = '';
   let found = false;
 
   function traverse(currentNode: Node) {
-    // Ignore <rt> (furigana reading) tags so they don't pollute the plain text
-    if (currentNode.nodeName.toLowerCase() === 'rt') return;
+    // Ignore <rt> and <rp> (furigana reading and fallback parens) tags so they don't pollute the plain text
+    if (currentNode.nodeName.toLowerCase() === 'rt' || currentNode.nodeName.toLowerCase() === 'rp') return;
     
     if (currentNode.nodeType === Node.TEXT_NODE) {
       const text = currentNode.textContent || '';
