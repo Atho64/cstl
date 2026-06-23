@@ -1,1 +1,0 @@
-import Kuroshiro from 'kuroshiro'; import KuromojiAnalyzer from 'kuroshiro-analyzer-kuromoji'; async function test() { const kuroshiro = new Kuroshiro(); await kuroshiro.init(new KuromojiAnalyzer()); console.log(await kuroshiro.convert('73. Ryouichi: ??????……???!?', { mode: 'furigana', to: 'hiragana' })); } test();
