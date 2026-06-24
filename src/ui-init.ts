@@ -88,7 +88,8 @@ export function cacheElements(): void {
     'settingsContextTypeSelect',
     'btnQaCheck', 'qaModal', 'qaCheckGlossary', 'qaCheckKana', 'qaCheckSimilarity', 'btnRunQa', 'btnQaReset', 'qaStats', 'qaResults', 'btnQaClose',
     'btnAutoTranslate', 'btnAutoGlossaryAi', 'btnAutoAiCheck', 'btnFloatingApiSettings', 'apiSettingsModal', 'apiTypeSelect', 'apiUrlInput', 'apiKeyInput', 'apiModelInput', 'apiModelSelect', 'btnFetchModels', 'apiModelFetchStatus', 'apiTemperatureInput', 'apiTopPInput', 'apiRpmInput', 'apiDelayPreview', 'btnApiSettingsCancel', 'btnApiSettingsSave',
-    'btnFloatingAiAgent', 'aiAgentChatPanel', 'btnAgentClose', 'agentChatHistory', 'agentInput', 'btnAgentSend'
+    'btnFloatingAiAgent', 'aiAgentChatPanel', 'btnAgentClose', 'agentChatHistory', 'agentInput', 'btnAgentSend',
+    'btnTextReplacer', 'textReplacerModal', 'replacerPreInput', 'replacerPostInput', 'btnTextReplacerCancel', 'btnTextReplacerSave'
   ];
   for (const id of ids) {
     ui[id] = document.getElementById(id);
@@ -344,6 +345,24 @@ export function bindEvents(): void {
   ui.btnAutoTranslate?.addEventListener('click', onAutoTranslate);
   ui.btnAutoGlossaryAi?.addEventListener('click', () => import('./auto-translate').then(m => m.onAutoGlossary()));
   ui.btnAutoAiCheck?.addEventListener('click', () => import('./auto-translate').then(m => m.onAutoAiCheck()));
+
+  ui.btnTextReplacer?.addEventListener('click', () => {
+    import('./project').then(m => m.openModal(ui.textReplacerModal as HTMLElement));
+    (ui.replacerPreInput as HTMLTextAreaElement).value = state.preReplaceRules || '';
+    (ui.replacerPostInput as HTMLTextAreaElement).value = state.postReplaceRules || '';
+  });
+  ui.btnTextReplacerCancel?.addEventListener('click', () => {
+    import('./project').then(m => m.closeModal(ui.textReplacerModal as HTMLElement));
+  });
+  ui.btnTextReplacerSave?.addEventListener('click', () => {
+    state.preReplaceRules = (ui.replacerPreInput as HTMLTextAreaElement).value;
+    state.postReplaceRules = (ui.replacerPostInput as HTMLTextAreaElement).value;
+    import('./project').then(m => {
+      m.queueAutoSave();
+      m.closeModal(ui.textReplacerModal as HTMLElement);
+      import('./render').then(r => r.flashHint('Aturan Replacer berhasil disimpan.'));
+    });
+  });
 
   let isDraggingRobot = false;
   let robotStartX = 0, robotStartY = 0;
