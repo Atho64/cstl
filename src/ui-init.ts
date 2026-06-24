@@ -5,6 +5,7 @@ import {
   DEFAULT_AI_TRANSLATION_FORMAT, DEFAULT_GLOSSARY_PROMPT, DEFAULT_AI_CHECK_PROMPT,
   DEFAULT_PROMPT_HEADER_NUMBERED, DEFAULT_PROMPT_HEADER_BLOCK,
   DEFAULT_PROMPT_HEADER_XML, DEFAULT_PROMPT_HEADER_JSONL, DEFAULT_PROMPT_HEADER_JSON_ARRAY,
+  DEFAULT_PROMPT_HEADER_COMPLEX_ID, DEFAULT_PROMPT_HEADER_COMPLEX_EN
 } from './constants';
 import { VirtualScroller } from './virtual-scroller';
 import { renderMainRow, syncCheckboxUI, updateButtonStates, onSaveLineEditor, flashHint } from './render';
@@ -282,11 +283,32 @@ export function bindEvents(): void {
         DEFAULT_PROMPT_HEADER_NUMBERED, DEFAULT_PROMPT_HEADER_BLOCK,
         DEFAULT_PROMPT_HEADER_XML, DEFAULT_PROMPT_HEADER_JSONL, DEFAULT_PROMPT_HEADER_JSON_ARRAY,
       ];
-      if (allDefaults.some(d => (ui.settingsPromptInput as HTMLTextAreaElement).value.trim() === d.trim())) {
+      if (allDefaults.some(d => (ui.settingsPromptInput as HTMLTextAreaElement).value.trim() === d.trim()) ||
+          (ui.settingsPromptInput as HTMLTextAreaElement).value.trim() === DEFAULT_PROMPT_HEADER_COMPLEX_ID.trim() ||
+          (ui.settingsPromptInput as HTMLTextAreaElement).value.trim() === DEFAULT_PROMPT_HEADER_COMPLEX_EN.trim()) {
         (ui.settingsPromptInput as HTMLTextAreaElement).value = currentDefault;
       }
     });
   }
+
+  ui.settingsPromptTemplateSelect?.addEventListener('change', () => {
+    const val = (ui.settingsPromptTemplateSelect as HTMLSelectElement).value;
+    if (val === 'complex-id') {
+      (ui.settingsPromptInput as HTMLTextAreaElement).value = DEFAULT_PROMPT_HEADER_COMPLEX_ID;
+    } else if (val === 'complex-en') {
+      (ui.settingsPromptInput as HTMLTextAreaElement).value = DEFAULT_PROMPT_HEADER_COMPLEX_EN;
+    } else {
+      const format = (ui.settingsAiTranslationFormatSelect as HTMLSelectElement)?.value || DEFAULT_AI_TRANSLATION_FORMAT;
+      (ui.settingsPromptInput as HTMLTextAreaElement).value = getDefaultPromptHeaderForFormat(format);
+    }
+  });
+
+  ui.btnSettingsClearBackground?.addEventListener('click', () => {
+    state.currentBackground = '';
+    (ui.settingsBackgroundInput as HTMLTextAreaElement).value = '';
+    import('./project').then(m => m.queueAutoSave());
+    flashHint('Memori latar belakang dikosongkan.');
+  });
 
   ui.btnSettingsGlossaryReset?.addEventListener('click', () => { (ui.settingsGlossaryPromptInput as HTMLTextAreaElement).value = DEFAULT_GLOSSARY_PROMPT; });
   ui.btnSettingsAiCheckReset?.addEventListener('click', () => { (ui.settingsAiCheckPromptInput as HTMLTextAreaElement).value = DEFAULT_AI_CHECK_PROMPT; });
