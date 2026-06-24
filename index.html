@@ -74,6 +74,7 @@
         <button id="btnProofread" class="btn" disabled>Cari</button>
         <button id="btnQaCheck" class="btn" disabled>Validasi QC</button>
         <button id="btnDictHistory" class="btn">Riwayat Kamus</button>
+        <button id="btnTextReplacer" class="btn">Text Replacer</button>
         <div class="dropdown">
           <button id="btnDropdownSettings" class="btn dropdown-toggle">Pengaturan ▼</button>
           <div id="dropdownSettingsMenu" class="dropdown-content">
@@ -618,10 +619,30 @@
       <div class="mt-3">
         <div class="flex-between mb-1">
           <label class="section-label text-white m-0">Pengaturan Prompt AI</label>
-          <button id="btnSettingsReset" class="btn btn-outline btn-xs">Reset Default</button>
+          <div class="flex" style="gap: 8px;">
+            <select id="settingsPromptTemplateSelect" class="text-input" style="padding: 2px 8px; font-size: 12px;">
+              <option value="simple">Standar (Bawaan CSTL)</option>
+              <option value="complex-id">Kompleks (Indo)</option>
+              <option value="complex-en">Kompleks (Eng)</option>
+            </select>
+            <button id="btnSettingsReset" class="btn btn-outline btn-xs">Reset Default</button>
+          </div>
         </div>
         <p class="hint m-0">Teks instruksi ini otomatis ditambahkan ke awal saat kamu klik "Copy untuk AI".</p>
         <textarea id="settingsPromptInput" class="mono input-area mt-1"></textarea>
+      </div>
+      <div class="mt-3" style="border: 1px solid var(--border); padding: 12px; border-radius: 6px; background-color: var(--bg-card);">
+        <label class="checkbox-container">
+          <input type="checkbox" id="settingsEnableBackgroundChaining" />
+          <span class="checkbox-mark"></span>
+          <span class="text-white" style="font-weight: bold;">Aktifkan Memori Estafet (Background Chaining)</span>
+        </label>
+        <p class="hint m-0 mt-1">Jika aktif, CSTL akan mengekstrak tag <code>&lt;background&gt;</code> dari hasil AI dan menambahkannya ke prompt berikutnya secara otomatis.</p>
+        <div class="mt-2 flex-between">
+          <label class="hint m-0 text-white">Memori Saat Ini (Current Background):</label>
+          <button id="btnSettingsClearBackground" class="btn btn-outline btn-xs">Kosongkan Memori</button>
+        </div>
+        <textarea id="settingsBackgroundInput" class="mono input-area mt-1" style="height: 60px;" placeholder="(Kosong)"></textarea>
       </div>
       <div class="mt-3">
         <div class="flex-between mb-1">
@@ -779,6 +800,26 @@
   <button id="btnFloatingApiSettings" class="floating-btn" title="Pengaturan API Auto Translate">
     🤖
   </button>
+  
+  <button id="btnFloatingAiAgent" class="floating-btn" title="CSTL AI Agent" style="bottom: 80px; background-color: var(--primary);">
+    💬
+  </button>
+
+  <div id="aiAgentChatPanel" class="agent-panel" style="display: none;">
+    <div class="agent-header">
+      <span style="font-weight: bold; color: var(--text-base);">CSTL AI Agent</span>
+      <button id="btnAgentClose" class="icon-btn" title="Tutup">✖</button>
+    </div>
+    <div id="agentChatHistory" class="agent-history">
+      <div class="agent-msg system">
+        👋 Halo! Saya CSTL Agent. Saya bisa menjawab pertanyaan seputar proyek ini atau membantu mengeksekusi terjemahan layaknya Vibecoding Agent.
+      </div>
+    </div>
+    <div class="agent-input-area">
+      <textarea id="agentInput" class="text-input w-full" style="resize: none; height: 60px; font-family: inherit;" placeholder="Tanyakan arti kata, atau suruh terjemahkan... (Tekan Enter untuk kirim)"></textarea>
+      <button id="btnAgentSend" class="btn btn-primary" style="margin-top: 8px; width: 100%;">Kirim</button>
+    </div>
+  </div>
 
   <div id="apiSettingsModal" class="modal-backdrop">
     <div class="modal modal-md">
@@ -852,6 +893,32 @@
       <div class="modal-actions" style="justify-content: space-between;">
         <button id="btnDictHistoryClear" class="btn btn-danger">Hapus Riwayat</button>
         <button id="btnDictHistoryClose" class="btn btn-outline">Tutup</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Text Replacer Modal -->
+  <div id="textReplacerModal" class="modal-backdrop">
+    <div class="modal modal-wide" style="max-width: 800px;">
+      <h3>Text Replacer (Pre & Post Processing)</h3>
+      <div style="display: flex; gap: 15px; margin-bottom: 10px;">
+        <div style="flex: 1; display: flex; flex-direction: column;">
+          <label class="section-label m-0">Pra-Terjemahan (Sebelum AI)</label>
+          <span class="hint mb-1" style="font-size: 11px;">Format: <code>TeksAsli = Pengganti</code> atau <code>/Regex/gi = Pengganti</code></span>
+          <textarea id="replacerPreInput" class="mono input-area" style="height: 250px; font-size: 13px; resize: vertical;" placeholder="太郎 = Taro&#10;/\s+/g = "></textarea>
+        </div>
+        <div style="flex: 1; display: flex; flex-direction: column;">
+          <label class="section-label m-0">Pasca-Terjemahan (Setelah AI)</label>
+          <span class="hint mb-1" style="font-size: 11px;">Mengganti teks hasil dari AI sebelum diterapkan.</span>
+          <textarea id="replacerPostInput" class="mono input-area" style="height: 250px; font-size: 13px; resize: vertical;" placeholder="Aku = Saya&#10;/&quot;\s*([^&quot;]+?)\s*&quot;/g = &quot;$1&quot;"></textarea>
+        </div>
+      </div>
+      <div class="modal-actions" style="justify-content: space-between;">
+        <div class="hint" style="font-size: 11px;">Baris kosong akan diabaikan. Mendukung *capture groups* regex (mis: $1).</div>
+        <div style="display: flex; gap: 10px;">
+          <button id="btnTextReplacerCancel" class="btn btn-outline">Batal</button>
+          <button id="btnTextReplacerSave" class="btn btn-primary">Simpan</button>
+        </div>
       </div>
     </div>
   </div>

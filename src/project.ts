@@ -388,7 +388,7 @@ export function queueAutoSave(): void {
       luca_profile: state.lucaProfile || DEFAULT_LUCA_PROFILE,
       luca_mc_display_name: state.lucaMcDisplayName || DEFAULT_LUCA_MC_DISPLAY_NAME,
       lucaRawFiles: state.lucaRawFiles, lucaRawBuffers: state.lucaRawBuffers,
-      regex_filter: state.regexFilter, disable_empty_line_validation: state.disableEmptyLineValidation,
+      regex_filter: state.regexFilter, pre_replace_rules: state.preReplaceRules, post_replace_rules: state.postReplaceRules, disable_empty_line_validation: state.disableEmptyLineValidation,
       check_kana_residue: state.checkKanaResidue, check_similarity: state.checkSimilarity,
       show_furigana: state.showFurigana,
       furigana_type: state.furiganaType || 'hiragana',
@@ -406,6 +406,8 @@ export function queueAutoSave(): void {
       glossary_batch_size: state.glossaryBatchSize, ai_check_batch_size: state.aiCheckBatchSize,
       selection_batch_prev_shortcut: state.selectionBatchPrevShortcut,
       selection_batch_next_shortcut: state.selectionBatchNextShortcut,
+      enableBackgroundChaining: state.enableBackgroundChaining,
+      currentBackground: state.currentBackground,
       proofread_settings: {
         scope: (ui.proofreadScope as HTMLSelectElement)?.value,
         regex: (ui.proofreadRegexCheck as HTMLInputElement)?.checked,
@@ -438,6 +440,10 @@ export function openProject(id: string, data: any): void {
   state.lucaRawBuffers = data.lucaRawBuffers || {};
   clearLucaFileLineBytesCache();
   state.regexFilter = data.regex_filter || '';
+  state.preReplaceRules = data.pre_replace_rules || '';
+  state.postReplaceRules = data.post_replace_rules || '';
+  state.enableBackgroundChaining = !!data.enableBackgroundChaining;
+  state.currentBackground = data.currentBackground || '';
   state.disableEmptyLineValidation = !!data.disable_empty_line_validation;
   state.checkKanaResidue = !!data.check_kana_residue;
   state.checkSimilarity = !!data.check_similarity;

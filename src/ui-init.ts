@@ -87,7 +87,8 @@ export function cacheElements(): void {
     'settingsCheckKanaResidue', 'settingsCheckSimilarity', 'settingsSimilarityThreshold', 'settingsSimilarityThresholdWrap',
     'settingsContextTypeSelect',
     'btnQaCheck', 'qaModal', 'qaCheckGlossary', 'qaCheckKana', 'qaCheckSimilarity', 'btnRunQa', 'btnQaReset', 'qaStats', 'qaResults', 'btnQaClose',
-    'btnAutoTranslate', 'btnAutoGlossaryAi', 'btnAutoAiCheck', 'btnFloatingApiSettings', 'apiSettingsModal', 'apiTypeSelect', 'apiUrlInput', 'apiKeyInput', 'apiModelInput', 'apiModelSelect', 'btnFetchModels', 'apiModelFetchStatus', 'apiTemperatureInput', 'apiTopPInput', 'apiRpmInput', 'apiDelayPreview', 'btnApiSettingsCancel', 'btnApiSettingsSave'
+    'btnAutoTranslate', 'btnAutoGlossaryAi', 'btnAutoAiCheck', 'btnFloatingApiSettings', 'apiSettingsModal', 'apiTypeSelect', 'apiUrlInput', 'apiKeyInput', 'apiModelInput', 'apiModelSelect', 'btnFetchModels', 'apiModelFetchStatus', 'apiTemperatureInput', 'apiTopPInput', 'apiRpmInput', 'apiDelayPreview', 'btnApiSettingsCancel', 'btnApiSettingsSave',
+    'btnFloatingAiAgent', 'aiAgentChatPanel', 'btnAgentClose', 'agentChatHistory', 'agentInput', 'btnAgentSend'
   ];
   for (const id of ids) {
     ui[id] = document.getElementById(id);
@@ -415,6 +416,70 @@ export function bindEvents(): void {
 
   bindShortcutCaptureInput(ui.settingsSelectionPrevShortcutInput as HTMLInputElement);
   bindShortcutCaptureInput(ui.settingsSelectionNextShortcutInput as HTMLInputElement);
+
+  // AI Agent Events
+  ui.btnFloatingAiAgent?.addEventListener('click', () => {
+    const panel = ui.aiAgentChatPanel as HTMLElement;
+    panel.style.display = panel.style.display === 'none' ? 'flex' : 'none';
+  });
+
+  ui.btnAgentClose?.addEventListener('click', () => {
+    (ui.aiAgentChatPanel as HTMLElement).style.display = 'none';
+  });
+
+  const doAgentSend = async () => {
+    const input = ui.agentInput as HTMLTextAreaElement;
+    const text = input.value.trim();
+    if (!text) return;
+    
+    input.value = '';
+    
+    const historyEl = ui.agentChatHistory as HTMLElement;
+    const userDiv = document.createElement('div');
+    userDiv.className = 'agent-msg user';
+    userDiv.textContent = text;
+    historyEl.appendChild(userDiv);
+    historyEl.scrollTop = historyEl.scrollHeight;
+    
+    const respDiv = document.createElement('div');
+    respDiv.className = 'agent-msg system';
+    respDiv.textContent = 'Agent is thinking...';
+    historyEl.appendChild(respDiv);
+    historyEl.scrollTop = historyEl.scrollHeight;
+    
+    const sendAgentMessage = (await import('./ai-agent')).sendAgentMessage;
+    
+    try {
+      await sendAgentMessage(text, (msg, role) => {
+        respDiv.className = `agent-msg ${role}`;
+        
+        let html = msg
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/\n/g, '<br>')
+          .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+          .replace(/\*(.*?)\*/g, '<em>$1</em>')
+          .replace(/\`(.*?)\`/g, '<code>$1</code>');
+          
+        respDiv.innerHTML = html;
+        historyEl.scrollTop = historyEl.scrollHeight;
+      });
+    } catch (e: any) {
+      respDiv.className = 'agent-msg system';
+      respDiv.style.color = 'var(--danger)';
+      respDiv.textContent = `Error: ${e.message}`;
+    }
+  };
+
+  ui.btnAgentSend?.addEventListener('click', doAgentSend);
+  ui.agentInput?.addEventListener('keydown', (e: Event) => {
+    const ke = e as KeyboardEvent;
+    if (ke.key === 'Enter' && !ke.shiftKey) {
+      ke.preventDefault();
+      doAgentSend();
+    }
+  });
 }
 
 // ─── Bootstrap ────────────────────────────────────────────────────────────────

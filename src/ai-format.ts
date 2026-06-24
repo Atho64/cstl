@@ -7,7 +7,7 @@ import {
   DEFAULT_PROMPT_HEADER_NUMBERED, DEFAULT_PROMPT_HEADER_BLOCK,
   DEFAULT_PROMPT_HEADER_XML, DEFAULT_PROMPT_HEADER_JSONL, DEFAULT_PROMPT_HEADER_JSON_ARRAY,
 } from './constants';
-import { unescapeStoredNewlines, escapeStoredNewlines, escapeXml, stripPlaintextFences } from './string-utils';
+import { unescapeStoredNewlines, escapeStoredNewlines, escapeXml, stripPlaintextFences, applyReplaceRules } from './string-utils';
 import { getLineDisplayName } from './luca-engine';
 import { isTranslated } from './state';
 import type { Line, ParsedTranslationItem } from './types';
@@ -43,7 +43,9 @@ export function formatLineForAiExport(line: Line): string {
   }
   const speaker = String(line.name || '').trim();
   if (speaker) parts.push(`speaker: ${speaker}`);
-  parts.push(`text: ${unescapeStoredNewlines(line.message)}`);
+  let msg = unescapeStoredNewlines(line.message);
+  msg = applyReplaceRules(msg, state.preReplaceRules).replace(/\n/g, '<br>');
+  parts.push(`text: ${msg}`);
   return parts.join('\n');
 }
 
@@ -54,13 +56,17 @@ export function formatLineForAiExportXml(line: Line): string {
   }
   const speaker = String(line.name || '').trim();
   if (speaker) attrs.push(`speaker="${escapeXml(speaker)}"`);
-  const text = escapeXml(unescapeStoredNewlines(line.message));
+  let msg = unescapeStoredNewlines(line.message);
+  msg = applyReplaceRules(msg, state.preReplaceRules).replace(/\n/g, '<br>');
+  const text = escapeXml(msg);
   return `  <line ${attrs.join(' ')}>\n    <text>${text}</text>\n  </line>`;
 }
 
 export function formatLineForAiExportJsonArray(line: Line): string {
   const speaker = (line.name || '').trim();
-  const text = line.message || '';
+  let msg = unescapeStoredNewlines(line.message || '');
+  msg = applyReplaceRules(msg, state.preReplaceRules).replace(/\n/g, '<br>');
+  const text = msg;
   if (speaker) {
     return `[${line.line_num},${JSON.stringify(speaker)},${JSON.stringify(text)}]`;
   } else {
@@ -75,7 +81,9 @@ export function formatLineForAiExportJsonl(line: Line): string {
   }
   const speaker = String(line.name || '').trim();
   if (speaker) obj.speaker = speaker;
-  obj.text = unescapeStoredNewlines(line.message);
+  let msg = unescapeStoredNewlines(line.message);
+  msg = applyReplaceRules(msg, state.preReplaceRules).replace(/\n/g, '<br>');
+  obj.text = msg;
   return JSON.stringify(obj);
 }
 
@@ -93,7 +101,9 @@ export function getSelectedTranslationPlainText(includeTranslated = true): strin
   const sel = state.lines.filter(l => state.selectedLines.has(l.line_num) && (includeTranslated || !isTranslated(l)));
   return sel.map(l => {
     const dN = l.name || '';
-    return dN ? `${l.line_num}. ${dN}: ${l.message}` : `${l.line_num}. ${l.message}`;
+    let msg = unescapeStoredNewlines(l.message);
+    msg = applyReplaceRules(msg, state.preReplaceRules).replace(/\n/g, '<br>');
+    return dN ? `${l.line_num}. ${dN}: ${msg}` : `${l.line_num}. ${msg}`;
   }).join('\n');
 }
 

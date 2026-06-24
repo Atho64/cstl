@@ -7,7 +7,7 @@ import {
   parseTranslationBlocks, parseTranslationXml, parseTranslationJsonl, parseTranslationJsonArray,
   parseTranslationNumberedPaste, applyPromptVariables,
 } from './ai-format';
-import { unescapeStoredNewlines, escapeStoredNewlines, stringSimilarity } from './string-utils';
+import { unescapeStoredNewlines, escapeStoredNewlines, stringSimilarity, applyReplaceRules } from './string-utils';
 import { rebuildDisplayState, renderPreviewRows, syncCheckboxUI, flashHint, updateButtonStates, pushUndoSnapshot, refreshAll } from './render';
 import { queueAutoSave } from './project';
 import { getGlossaryMatches, getGlossaryPrompt } from './glossary';
@@ -52,6 +52,9 @@ export async function onCopyForAi(): Promise<void> {
   const sections: string[] = [baseHeader];
   if (glossaryBlock) sections.push(glossaryBlock.trim());
   if (contextBlock) sections.push(contextBlock.trim());
+  if (state.enableBackgroundChaining && state.currentBackground) {
+    sections.push(`<background>\n${state.currentBackground.trim()}\n</background>`);
+  }
   sections.push(joinedText.trim());
   const p = sections.join('\n\n');
   try {
@@ -88,8 +91,21 @@ export function onApplyTranslation(options: ApplyTranslationOptions = {}): void 
   };
 
   if (!state.lines.length) return;
-  const rawText = (ui.pasteArea as HTMLTextAreaElement).value.trim();
+  let rawText = (ui.pasteArea as HTMLTextAreaElement).value.trim();
   if (!rawText) fail('Teks di kotak kosong atau tidak valid.');
+
+  if (state.enableBackgroundChaining) {
+    const bgMatch = rawText.match(/<background>([\s\S]*?)<\/background>/i);
+    if (bgMatch) {
+      state.currentBackground = bgMatch[1].trim();
+      rawText = rawText.replace(/<background>[\s\S]*?<\/background>/i, '').trim();
+      flashHint('Memori latar belakang diperbarui!');
+      if (ui.settingsBackgroundInput) {
+        (ui.settingsBackgroundInput as HTMLTextAreaElement).value = state.currentBackground;
+      }
+      queueAutoSave();
+    }
+  }
 
   const pasteFormat = detectTranslationPasteFormat(rawText);
   const selectedUntranslated = new Set(state.lines.filter(l => state.selectedLines.has(l.line_num) && !isTranslated(l)).map(l => l.line_num));
@@ -145,6 +161,12 @@ export function onApplyTranslation(options: ApplyTranslationOptions = {}): void 
     if (!l) { errors.push(`[#${it.num}] Tidak ada di JSON asli.`); continue; }
     const oN = !!(l.name || '').trim();
     let tN = !!(it.name || '').trim();
+    if (tN) {
+      it.name = applyReplaceRules(it.name!, state.postReplaceRules);
+    }
+    // Replace <br> back to literal \n (for Luca format) and apply postReplaceRules
+    it.msg = applyReplaceRules(it.msg.replace(/<br>/gi, '\\n'), state.postReplaceRules);
+
     if (!oN && tN) { it.msg = escapeStoredNewlines(it.rawMsg || it.msg); it.name = null; tN = false; }
 
     if (!ignoreNames) {
@@ -195,4 +217,51 @@ export function onUndoLastApply(): void {
   state.lines = snapshot.lines.map(normalizeLineDict);
   refreshAll();
   queueAutoSave();
+}
+
+export function applyAgentTranslations(updates: {num: number, trans_message: string, trans_name?: string}[]): number {
+  if (!updates || !updates.length) return 0;
+  pushUndoSnapshot();
+  let applied = 0;
+  for (const it of updates) {
+    const l = state.lineByNum.get(it.num);
+    if (!l) continue;
+    
+    // Process newlines
+    let msg = it.trans_message.replace(/<br>/gi, '\\n');
+    msg = applyReplaceRules(msg, state.postReplaceRules);
+    
+    l.trans_message = escapeStoredNewlines(msg);
+    l.is_translated = !!l.trans_message || state.disableEmptyLineValidation;
+    
+    if (it.trans_name) {
+      l.trans_name = applyReplaceRules(it.trans_name, state.postReplaceRules);
+    }
+    
+    state.selectedLines.delete(l.line_num);
+    applied++;
+  }
+  
+  refreshAll();
+  queueAutoSave();
+  return applied;
+}
+
+export function clearAgentTranslations(line_nums: number[]): number {
+  if (!line_nums || !line_nums.length) return 0;
+  pushUndoSnapshot();
+  let cleared = 0;
+  for (const num of line_nums) {
+    const l = state.lineByNum.get(num);
+    if (!l) continue;
+    
+    l.trans_message = '';
+    l.trans_name = '';
+    l.is_translated = false;
+    cleared++;
+  }
+  
+  refreshAll();
+  queueAutoSave();
+  return cleared;
 }

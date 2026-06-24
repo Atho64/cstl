@@ -106,6 +106,9 @@ export function onOpenSettings(): void {
 }
 
 export function onOpenPromptsSettings(): void {
+  (ui.settingsEnableBackgroundChaining as HTMLInputElement).checked = state.enableBackgroundChaining;
+  (ui.settingsBackgroundInput as HTMLTextAreaElement).value = state.currentBackground;
+
   if (state.projectName) {
     (ui.settingsPromptInput as HTMLTextAreaElement).value = state.aiInstructionHeader;
     (ui.settingsGlossaryPromptInput as HTMLTextAreaElement).value = state.glossaryPrompt;
@@ -212,10 +215,16 @@ export function onSavePromptsSettings(): void {
   const glossaryPrompt = (ui.settingsGlossaryPromptInput as HTMLTextAreaElement).value.trim();
   const aiCheckPrompt = (ui.settingsAiCheckPromptInput as HTMLTextAreaElement).value.trim();
   const epubTags = (ui.settingsEpubTagsInput as HTMLInputElement)?.value.trim() || 'p';
+  const enableBackgroundChaining = (ui.settingsEnableBackgroundChaining as HTMLInputElement).checked;
+  const currentBackground = (ui.settingsBackgroundInput as HTMLTextAreaElement).value.trim();
+  
   state.aiInstructionHeader = aiInstructionHeader;
   state.glossaryPrompt = glossaryPrompt;
   state.aiCheckPrompt = aiCheckPrompt;
   state.epubTags = epubTags;
+  state.enableBackgroundChaining = enableBackgroundChaining;
+  state.currentBackground = currentBackground;
+  
   if (ui.settingsPromptsModal) closeModal(ui.settingsPromptsModal as HTMLElement);
   queueAutoSave();
 }

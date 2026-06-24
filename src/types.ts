@@ -52,6 +52,10 @@ export interface AppState {
   sourceLang: string;
   targetLang: string;
   regexFilter: string;
+  preReplaceRules: string;
+  postReplaceRules: string;
+  enableBackgroundChaining: boolean;
+  currentBackground: string;
   disableEmptyLineValidation: boolean;
   showFurigana: boolean;
   furiganaType: 'furigana' | 'hiragana' | 'katakana' | 'romaji';
