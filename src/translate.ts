@@ -87,7 +87,7 @@ export function onApplyTranslation(options: ApplyTranslationOptions = {}): void 
       throw new TranslationApplyError(message, details);
     }
     alert(message + suffix);
-    return undefined as never;
+    throw new Error(message); // Throw to abort execution of onApplyTranslation
   };
 
   if (!state.lines.length) return;
