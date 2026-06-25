@@ -7,7 +7,7 @@ import { parseLucaTxt, getLucaProfile, getActiveLucaProfile, normalizeLucaHeavyQ
 import { WINDOWS_FILE_ORDER_COLLATOR } from './constants';
 import { normalizeFileBaseName, windowsFileOrderCompare, getFileOrderPath } from './string-utils';
 import { refreshAll, flashHint } from './render';
-import { queueAutoSave } from './project';
+import { queueAutoSave, saveLucaDataToOpfs } from './project';
 import { resetSelectionHistory } from './selection';
 import type { Line } from './types';
 
@@ -65,7 +65,13 @@ export async function handleImportLucaTxtLogic(files: FileList | File[]): Promis
       state.selectedLines.clear();
       resetSelectionHistory();
       refreshAll();
-      queueAutoSave();
+      if (state.currentProjectId) {
+        saveLucaDataToOpfs(state.currentProjectId, { lucaRawFiles: state.lucaRawFiles, lucaRawBuffers: state.lucaRawBuffers }).then(() => {
+          queueAutoSave();
+        });
+      } else {
+        queueAutoSave();
+      }
       let msg = `Berhasil impor ${newLines.length} baris (${getActiveLucaProfile().label}).`;
       if (skippedFiles.length > 0) msg += ` (${skippedFiles.length} file duplikat diabaikan)`;
       if (getActiveLucaProfile().id === 'tomoyo-switch') {

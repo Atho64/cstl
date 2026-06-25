@@ -199,7 +199,8 @@ export async function loadDashboardProjects(): Promise<void> {
             updatedAt: data.updatedAt || file.lastModified,
             fileCount: data.imported_files?.length || 0,
             lineCount: data.lines?.length || 0,
-            data,
+            projectType: data.projectType,
+            translationMode: data.translationMode,
           });
         } catch (_) {}
       }
@@ -261,9 +262,9 @@ export function renderDashboardProjects(): void {
       const badgeWrap = document.createElement('div');
       badgeWrap.style.marginBottom = '8px';
       const badge = document.createElement('span');
-      badge.className = p.data.projectType === 'epub' ? 'badge badge-epub' : p.data.projectType === 'luca' ? 'badge badge-luca' : 'badge badge-json';
-      let badgeText = p.data.projectType === 'epub' ? 'EPUB' : p.data.projectType === 'luca' ? 'TXT LUCA' : 'JSON VNTP';
-      if (p.data.translationMode === 'htl') badgeText += ' • HTL';
+      badge.className = p.projectType === 'epub' ? 'badge badge-epub' : p.projectType === 'luca' ? 'badge badge-luca' : 'badge badge-json';
+      let badgeText = p.projectType === 'epub' ? 'EPUB' : p.projectType === 'luca' ? 'TXT LUCA' : 'JSON VNTP';
+      if (p.translationMode === 'htl') badgeText += ' • HTL';
       badge.textContent = badgeText;
       badgeWrap.appendChild(badge);
       meta.appendChild(badgeWrap);
@@ -277,10 +278,25 @@ export function renderDashboardProjects(): void {
     const actions = document.createElement('div');
     actions.className = 'project-actions';
     actions.append(
-      createProjectButton('Buka', 'btn btn-primary btn-sm', () => openProject(p.id, p.data)),
-      createProjectButton('Ubah Nama', 'btn btn-outline btn-sm', () => renameDashboardProject(p.id, p.name, p.data)),
-      createProjectButton('Backup', 'btn btn-outline btn-sm', () => backupDashboardProject(p.name, p.data)),
-      createProjectButton('Hapus', 'btn btn-danger btn-sm', () => deleteProject(p.id, p.data)),
+      createProjectButton('Buka', 'btn btn-primary btn-sm', async function() {
+        this.disabled = true; this.textContent = 'Membuka...';
+        openProject(p.id, await fetchProjectData(p.id));
+        this.disabled = false; this.textContent = 'Buka';
+      }),
+      createProjectButton('Ubah Nama', 'btn btn-outline btn-sm', async function() {
+        this.disabled = true; this.textContent = 'Memproses...';
+        await renameDashboardProject(p.id, p.name, await fetchProjectData(p.id));
+        this.disabled = false; this.textContent = 'Ubah Nama';
+      }),
+      createProjectButton('Backup', 'btn btn-outline btn-sm', async function() {
+        this.disabled = true; this.textContent = 'Membackup...';
+        await backupDashboardProject(p.name, await fetchProjectData(p.id), p.id);
+        this.disabled = false; this.textContent = 'Backup';
+      }),
+      createProjectButton('Hapus', 'btn btn-danger btn-sm', async function() {
+        this.disabled = true; this.textContent = 'Menghapus...';
+        await deleteProject(p.id, await fetchProjectData(p.id));
+      }),
     );
     card.append(info, actions);
     frag.appendChild(card);
@@ -321,6 +337,14 @@ export async function createNewProject(): Promise<void> {
   }
 }
 
+export async function fetchProjectData(id: string): Promise<any> {
+  const root = await getOpfsRoot();
+  const fileHandle = await root.getFileHandle(id);
+  const file = await fileHandle.getFile();
+  const text = await file.text();
+  return JSON.parse(text);
+}
+
 export async function deleteProject(id: string, data: any): Promise<void> {
   if (!confirm('Hapus proyek ini secara permanen?')) return;
   try {
@@ -328,6 +352,10 @@ export async function deleteProject(id: string, data: any): Promise<void> {
     if (data.epubSourceId) {
       try { await root.removeEntry(data.epubSourceId); } catch (_) {}
     }
+    try {
+      const lucaId = id.replace(PROJECT_EXT, '_luca.json');
+      await root.removeEntry(lucaId);
+    } catch (_) {}
     await root.removeEntry(id);
     loadDashboardProjects();
   } catch (e: any) {
@@ -344,7 +372,7 @@ export async function renameDashboardProject(id: string, oldName: string, data: 
 }
 
 // ─── Backup & Restore ─────────────────────────────────────────────────────────
-export async function backupDashboardProject(name: string, data: any): Promise<void> {
+export async function backupDashboardProject(name: string, data: any, id: string): Promise<void> {
   const backupData = JSON.parse(JSON.stringify(data));
   if (backupData.projectType === 'epub' && backupData.epubSourceId) {
     try {
@@ -373,6 +401,29 @@ export async function saveProjectToOpfs(id: string, dataObj: any): Promise<void>
     await writable.close();
   } catch (_) {
     flashHint('Gagal menyimpan ke storage!');
+  }
+}
+export async function saveLucaDataToOpfs(id: string, lucaData: any): Promise<void> {
+  try {
+    const root = await getOpfsRoot();
+    const lucaId = id.replace(PROJECT_EXT, '_luca.json');
+    const fileHandle = await root.getFileHandle(lucaId, { create: true });
+    const writable = await fileHandle.createWritable();
+    await writable.write(JSON.stringify(lucaData));
+    await writable.close();
+  } catch (_) {}
+}
+
+export async function loadLucaDataFromOpfs(id: string): Promise<any> {
+  try {
+    const root = await getOpfsRoot();
+    const lucaId = id.replace(PROJECT_EXT, '_luca.json');
+    const fileHandle = await root.getFileHandle(lucaId);
+    const file = await fileHandle.getFile();
+    const text = await file.text();
+    return JSON.parse(text);
+  } catch (_) {
+    return null;
   }
 }
 
@@ -574,7 +625,6 @@ export async function onRestoreProject(ev: Event): Promise<void> {
       translationMode: p.translationMode || 'ai', jsonRefLang: p.jsonRefLang || '',
       epubTags: p.epubTags || 'p', epubSourceId: restoredEpubSourceId,
       lucaExportLang: p.lucaExportLang || 'en', luca_profile: p.luca_profile || DEFAULT_LUCA_PROFILE,
-      lucaRawFiles: p.lucaRawFiles || {}, lucaRawBuffers: p.lucaRawBuffers || {},
       updatedAt: Date.now(), regex_filter: p.regex_filter || '',
       disable_empty_line_validation: !!p.disable_empty_line_validation,
       check_kana_residue: !!p.check_kana_residue, check_similarity: !!p.check_similarity,
@@ -594,6 +644,9 @@ export async function onRestoreProject(ev: Event): Promise<void> {
       selection_batch_next_shortcut: normalizeShortcutString(p.selection_batch_next_shortcut, DEFAULT_SELECTION_BATCH_NEXT_SHORTCUT),
     };
     await saveProjectToOpfs(id, safeData);
+    if (p.lucaRawBuffers && Object.keys(p.lucaRawBuffers).length > 0) {
+      await saveLucaDataToOpfs(id, { lucaRawFiles: p.lucaRawFiles || {}, lucaRawBuffers: p.lucaRawBuffers });
+    }
     loadDashboardProjects();
     alert(`Proyek "${name}" berhasil dipulihkan!${restoreNote}`);
   } catch (e: any) {
