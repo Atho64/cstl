@@ -89,6 +89,8 @@ export interface AppState {
   aiTemperature: number;
   aiTopP: number;
   aiRpm: number;
+  aiThinkingMode: 'default' | 'off' | 'on';
+  aiFilterThinkingOutput: boolean;
   glossaryPrompt: string;
   aiCheckPrompt: string;
   glossaryText: string;

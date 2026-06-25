@@ -25,6 +25,8 @@ export function loadApiSettings(): void {
       if (p.aiTemperature !== undefined) state.aiTemperature = Number(p.aiTemperature);
       if (p.aiTopP !== undefined) state.aiTopP = Number(p.aiTopP);
       if (p.aiRpm !== undefined) state.aiRpm = Number(p.aiRpm);
+      if (p.aiThinkingMode) state.aiThinkingMode = p.aiThinkingMode;
+      if (p.aiFilterThinkingOutput !== undefined) state.aiFilterThinkingOutput = !!p.aiFilterThinkingOutput;
     }
   } catch (e) {
     console.error('Failed to load API settings', e);
@@ -40,6 +42,8 @@ export function saveApiSettings(): void {
     aiTemperature: state.aiTemperature,
     aiTopP: state.aiTopP,
     aiRpm: state.aiRpm,
+    aiThinkingMode: state.aiThinkingMode,
+    aiFilterThinkingOutput: state.aiFilterThinkingOutput,
   };
   localStorage.setItem(API_STORAGE_KEY, JSON.stringify(d));
 }
@@ -55,6 +59,8 @@ export function onOpenApiSettings(): void {
   if (ui.apiTemperatureInput) (ui.apiTemperatureInput as HTMLInputElement).value = String(state.aiTemperature ?? 1.0);
   if (ui.apiTopPInput) (ui.apiTopPInput as HTMLInputElement).value = String(state.aiTopP ?? 1.0);
   if (ui.apiRpmInput) (ui.apiRpmInput as HTMLInputElement).value = String(state.aiRpm ?? 10);
+  if (ui.apiThinkingSelect) (ui.apiThinkingSelect as HTMLSelectElement).value = state.aiThinkingMode || 'default';
+  if (ui.apiFilterThinkingCheck) (ui.apiFilterThinkingCheck as HTMLInputElement).checked = state.aiFilterThinkingOutput !== false;
   updateDelayPreview();
   if (ui.apiSettingsModal) openModal(ui.apiSettingsModal as HTMLElement);
 }
@@ -183,6 +189,8 @@ export function onSaveApiSettings(): void {
   if (ui.apiTemperatureInput) state.aiTemperature = parseFloat((ui.apiTemperatureInput as HTMLInputElement).value) || 1.0;
   if (ui.apiTopPInput) state.aiTopP = parseFloat((ui.apiTopPInput as HTMLInputElement).value) || 1.0;
   if (ui.apiRpmInput) state.aiRpm = parseInt((ui.apiRpmInput as HTMLInputElement).value) || 10;
+  if (ui.apiThinkingSelect) state.aiThinkingMode = (ui.apiThinkingSelect as HTMLSelectElement).value as any;
+  if (ui.apiFilterThinkingCheck) state.aiFilterThinkingOutput = (ui.apiFilterThinkingCheck as HTMLInputElement).checked;
   saveApiSettings();
   if (ui.apiSettingsModal) closeModal(ui.apiSettingsModal as HTMLElement);
   flashHint('Pengaturan API disimpan.');
@@ -363,6 +371,26 @@ async function fetchOpenAI(prompt: string): Promise<string> {
     top_p: state.aiTopP,
   };
 
+  // ─── Thinking / Reasoning mode injection ───────────────────────────────────
+  const thinkMode = state.aiThinkingMode;
+  if (thinkMode !== 'default') {
+    const apiUrl = state.aiApiUrl || '';
+    // Ollama (localhost / port 11434)
+    if (/localhost|127\.0\.0\.1|11434/.test(apiUrl)) {
+      body.think = (thinkMode === 'on');
+    }
+    // OpenRouter
+    else if (apiUrl.includes('openrouter.ai')) {
+      body.reasoning = thinkMode === 'on'
+        ? { effort: 'high' }
+        : { effort: 'none' };
+    }
+    // OpenAI o-series / reasoning_effort
+    else if (/o1|o3|o4/.test(state.aiModel || '')) {
+      body.reasoning_effort = thinkMode === 'on' ? 'high' : 'low';
+    }
+  }
+
   const res = await fetch(url, {
     method: 'POST',
     headers: {
@@ -378,7 +406,8 @@ async function fetchOpenAI(prompt: string): Promise<string> {
   }
 
   const data = await res.json();
-  return data.choices?.[0]?.message?.content || '';
+  const rawText = data.choices?.[0]?.message?.content || '';
+  return state.aiFilterThinkingOutput ? stripThinkingTags(rawText) : rawText;
 }
 
 async function fetchGemini(prompt: string): Promise<string> {
@@ -391,12 +420,21 @@ async function fetchGemini(prompt: string): Promise<string> {
   }
 
   const temp = state.aiTemperature;
+  const genConfig: any = {
+    temperature: temp,
+    topP: state.aiTopP,
+  };
+
+  // ─── Thinking / Reasoning mode injection (Gemini 2.5+) ─────────────────────
+  const thinkMode = state.aiThinkingMode;
+  if (thinkMode !== 'default') {
+    // thinkingBudget: 0 = disable, -1 = model default (enable)
+    genConfig.thinkingConfig = { thinkingBudget: thinkMode === 'off' ? 0 : -1 };
+  }
+
   const body = {
     contents: [{ parts: [{ text: prompt }] }],
-    generationConfig: {
-      temperature: temp,
-      topP: state.aiTopP,
-    }
+    generationConfig: genConfig,
   };
 
   const res = await fetch(url, {
@@ -411,8 +449,18 @@ async function fetchGemini(prompt: string): Promise<string> {
   }
 
   const data = await res.json();
-  const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-  return text;
+  const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  return state.aiFilterThinkingOutput ? stripThinkingTags(rawText) : rawText;
+}
+
+// ─── Strip Thinking Tags ──────────────────────────────────────────────────────
+// Removes model-internal thinking blocks from output before applying translation.
+// Handles: <think>...</think>, <|think|>...</|think|>, and whitespace cleanup.
+function stripThinkingTags(text: string): string {
+  return text
+    .replace(/<\|think\|>[\s\S]*?<\/\|think\|>/gi, '')
+    .replace(/<think>[\s\S]*?<\/think>/gi, '')
+    .trim();
 }
 
 let isAutoGlossary = false;

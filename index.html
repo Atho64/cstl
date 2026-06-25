@@ -876,6 +876,22 @@
         </div>
       </div>
 
+      <div class="mt-3">
+        <label class="hint m-0" for="apiThinkingSelect">Thinking / Reasoning Mode</label>
+        <select id="apiThinkingSelect" class="text-input w-full mt-1">
+          <option value="default">Default (Ikuti Pengaturan Model)</option>
+          <option value="off">Matikan — Hemat Token &amp; Lebih Cepat</option>
+          <option value="on">Nyalakan — Lebih Akurat</option>
+        </select>
+        <p class="hint mb-0">Gemini 2.5 ✓ &nbsp;|&nbsp; OpenRouter ✓ &nbsp;|&nbsp; Ollama ✓</p>
+      </div>
+
+      <div class="flex-center gap-2 mt-2">
+        <input id="apiFilterThinkingCheck" type="checkbox" checked />
+        <label for="apiFilterThinkingCheck" class="hint m-0" style="cursor:pointer;">Filter &lt;think&gt;...&lt;/think&gt; dari output (untuk Gemma 4, QwQ, dll.)</label>
+      </div>
+
+
       <div class="modal-actions mt-4">
         <span class="grow"></span>
         <button id="btnApiSettingsCancel" class="btn">Batal</button>

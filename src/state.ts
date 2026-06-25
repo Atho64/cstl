@@ -56,6 +56,8 @@ export const state: AppState = {
   aiTemperature: 1.0,
   aiTopP: 1.0,
   aiRpm: 10,
+  aiThinkingMode: 'default',
+  aiFilterThinkingOutput: true,
   glossaryPrompt: DEFAULT_GLOSSARY_PROMPT,
   aiCheckPrompt: DEFAULT_AI_CHECK_PROMPT,
   glossaryText: '',
