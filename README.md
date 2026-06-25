@@ -3,7 +3,8 @@
 <div align="center">
 
   [![Live](https://img.shields.io/badge/Live-atho64.github.io%2Fcstl-blue?style=for-the-badge)](https://atho64.github.io/cstl/)
-  ![Version](https://img.shields.io/badge/Version-M13-purple?style=for-the-badge)
+  ![Version](https://img.shields.io/badge/Version-M15-purple?style=for-the-badge)
+
 </div>
 
 Tool bantu terjemahan visual novel yang jalan di browser. Dibuat karena capek bolak-balik copy-paste manual antara file script dan AI. Semua workflow dari impor, terjemah pakai AI, kelola nama karakter, sampai ekspor bisa dilakukan di satu tempat.
@@ -26,6 +27,36 @@ Alur kerjanya sederhana: pilih baris → copy → tempel ke AI → paste hasilny
 - **AI Check** — Copy terjemahan yang sudah ada ke AI untuk dicek ulang, lalu terapkan koreksinya
 - Prompt terjemahan dan AI check bisa dikustomisasi sendiri
 - Pilihan format output AI (numbered list, XML, dll.)
+
+### Auto Translate API
+Hubungkan langsung ke API tanpa perlu copy-paste manual. Terjemahan, ekstrak glosarium, dan AI check berjalan otomatis dari dalam aplikasi.
+
+- Dukung **OpenAI Compatible** (GPT, Claude via OpenRouter, DeepSeek, Local LLM) dan **Gemini API** (Google AI Studio)
+- Ambil daftar model langsung dari API dengan tombol fetch
+- **Thinking / Reasoning Mode** — Kontrol mode berpikir model untuk menghemat token atau meningkatkan akurasi:
+  - *Matikan* — Gemini 2.5 (`thinkingBudget: 0`), OpenRouter (`reasoning: none`), Ollama (`think: false`)
+  - *Nyalakan* — kebalikannya, masing-masing provider pakai parameternya sendiri
+- **Filter thinking output** — Blok `<think>...</think>` dari model seperti Gemma 4 atau QwQ dihapus otomatis sebelum terjemahan diterapkan, termasuk bagian `thought: true` dari respons Gemini API
+- Limit RPM dengan delay otomatis antar request
+
+### AI Agent
+Chat langsung dengan AI yang punya akses ke data proyek. Bisa tanya, analisis, dan modifikasi terjemahan lewat percakapan.
+
+**Tool yang tersedia:**
+
+| Tool | Fungsi |
+|------|--------|
+| `getProjectStats()` | Ringkasan progress, jumlah baris, daftar file |
+| `getLines(start, end)` | Ambil teks asli + terjemahan untuk rentang baris tertentu |
+| `getContext(line_num, radius)` | Lihat baris sekitar sebuah baris target (konteks atas-bawah) |
+| `searchLines(query)` | Cari kata kunci di teks asli, terjemahan, atau nama karakter |
+| `getCharacterNames()` | Daftar semua nama karakter + deteksi inkonsistensi otomatis |
+| `analyzeQuality(limit)` | Cek baris belum diterjemahkan, terjemahan terlalu pendek, nama tidak konsisten |
+| `getProgressReport()` | Laporan progress terjemahan per file dengan progress bar |
+| `applyTranslations(updates)` | Terapkan terjemahan langsung ke proyek |
+| `clearTranslations(line_nums)` | Hapus terjemahan untuk baris tertentu |
+| `undoLastAction()` | Batalkan aksi terakhir |
+| `getGlossary()` | Ambil daftar glosarium yang didefinisikan pengguna |
 
 ### Glosarium
 Kelola nama karakter, tempat, dan istilah khusus supaya terjemahan konsisten.
@@ -63,7 +94,87 @@ Klik baris manapun untuk buka editor individual. Di sini bisa edit nama karakter
 ### Penyimpanan
 Semua proyek disimpan langsung di browser pakai **OPFS** (Origin Private File System) — tidak ada server, tidak ada akun. Proyek bisa di-backup dan dipulihkan lewat file `.cstl`.
 
+Data biner besar (file mentah LucaSystem) disimpan di file OPFS terpisah supaya auto-save tetap ringan. Dashboard hanya memuat metadata proyek, bukan seluruh isi data — jadi tetap cepat meski proyek sudah banyak.
+
 ---
+
+## Tutorial
+
+### 1. Mulai Proyek Baru
+
+Buka [atho64.github.io/cstl](https://atho64.github.io/cstl/), klik **Buat Proyek Baru**, isi nama proyek dan pilih tipe file yang akan diimpor (JSON, EPUB, atau LucaSystem). Setelah proyek dibuat, klik **Buka** untuk masuk ke workspace.
+
+### 2. Impor Script
+
+Di dalam workspace, klik tombol **Impor** di toolbar atas. Pilih file atau folder yang ingin diimpor. Semua baris akan langsung muncul di tabel. Kalau file sudah pernah diimpor sebelumnya, duplikat akan diabaikan otomatis.
+
+### 3. Terjemahan Manual (Copy-Paste)
+
+Ini alur dasar tanpa API:
+
+1. **Pilih baris** — klik baris satu-satu, atau pakai "Pilih Range" untuk pilih banyak sekaligus
+2. **Copy ke AI** — klik tombol **Copy Terjemahan**, lalu paste ke ChatGPT / Gemini / AI apapun
+3. **Paste hasil** — setelah AI selesai, copy seluruh responnya, paste ke kotak **Paste Hasil AI** di CSTL
+4. **Terapkan** — klik **Terapkan**, CSTL parsing otomatis dan isi terjemahan ke baris yang sesuai
+
+Kalau hasilnya tidak sesuai, klik **Undo** untuk batalkan.
+
+### 4. Auto Translate (Langsung via API)
+
+Kalau tidak mau copy-paste manual, hubungkan ke API:
+
+1. Klik ikon 🤖 di pojok kanan bawah
+2. Pilih **Tipe API** (OpenAI Compatible atau Gemini)
+3. Isi **API Key** dan **Model** (bisa klik tombol ↻ untuk fetch daftar model otomatis)
+4. Atur **RPM** sesuai limit akun, lalu klik **Simpan API**
+5. Pilih baris yang ingin diterjemahkan, klik **Jalankan Auto Translate**
+
+Untuk model thinking seperti Gemma 4 atau Gemini 2.5, aktifkan **Filter `<think>...</think>`** di pengaturan API supaya output terjemahan bersih dari teks reasoning.
+
+### 5. Glosarium
+
+Sebelum mulai terjemahan besar, disarankan isi glosarium dulu:
+
+1. Buka tab **Glosarium** di workspace
+2. Ketik nama karakter, tempat, atau istilah khusus di editor
+3. Atau klik **Import VNDB/AniList** — masukkan ID VN/media, nama karakter otomatis terisi
+4. Glosarium aktif akan otomatis ikut di-copy saat kamu copy teks ke AI
+
+### 6. AI Agent
+
+AI Agent bisa bantu langsung tanpa perlu manual:
+
+1. Klik ikon 💬 di pojok kanan bawah untuk buka panel chat
+2. Contoh yang bisa diminta:
+   - *"Terjemahkan baris 1 sampai 10"* — agent ambil teksnya, terjemahkan, dan terapkan sendiri
+   - *"Cek konsistensi nama karakter"* — agent analisis dan laporkan inkonsistensi
+   - *"Baris mana yang belum diterjemahkan?"* — agent beri ringkasan progress
+   - *"Cari baris yang ada kata 'sayonara'"* — agent search dan tampilkan hasilnya
+3. Semua perubahan yang dilakukan agent bisa di-undo dengan berkata *"undo"* atau klik tombol Undo
+
+### 7. AI Check
+
+Setelah selesai menerjemahkan, bisa minta AI untuk cek ulang kualitasnya:
+
+1. Pilih baris yang sudah diterjemahkan
+2. Klik **Copy AI Check** — teks asli + terjemahan di-copy ke format khusus
+3. Paste ke AI, minta koreksi
+4. Copy hasilnya, paste ke kotak **Paste AI Check**, klik **Terapkan Koreksi**
+
+### 8. Proofread & Replace
+
+Gunakan tab **Proofread** untuk cari dan ganti teks secara massal:
+
+- Aktifkan **Regex** kalau perlu pola matching yang lebih kompleks
+- Centang **Case Sensitive** atau **Exact Match** sesuai kebutuhan
+- Klik **Replace All** untuk ganti semua sekaligus
+
+### 9. Ekspor
+
+Kalau sudah selesai, klik **Ekspor** di toolbar. File hasil terjemahan akan didownload dalam format aslinya (`.json`, `.epub`, atau `.txt` LucaSystem).
+
+Untuk backup proyek beserta semua datanya, klik **Backup** di halaman dashboard — file `.cstl` akan tersimpan dan bisa dipulihkan kapanpun lewat tombol **Pulihkan**.
+
 
 ## Format yang Didukung
 
@@ -81,8 +192,8 @@ Semua proyek disimpan langsung di browser pakai **OPFS** (Origin Private File Sy
 
 | Shortcut | Fungsi |
 |----------|--------|
-| `Alt + ←` | Batch seleksi sebelumnya |
-| `Alt + →` | Batch seleksi berikutnya |
+| `Alt + ↑` | Batch seleksi sebelumnya |
+| `Alt + ↓` | Batch seleksi berikutnya |
 
 Shortcut bisa diubah di **Setting → Shortcut Keyboard**.
 
@@ -90,9 +201,12 @@ Shortcut bisa diubah di **Setting → Shortcut Keyboard**.
 
 ## Stack
 
-Vanilla HTML + CSS + JavaScript. Tidak ada framework. Dependencies:
+**TypeScript** + **Vite** — dicompile ke vanilla JS, tidak ada runtime framework. Dependencies:
 - **JSZip** — parsing file `.zip`
+- **Kuroshiro + Kuromoji** — konversi furigana (hiragana/romaji) untuk teks Jepang
+- **Pako** — kompresi/dekompresi data (dipakai untuk format LucaSystem)
 - **OPFS API** — penyimpanan lokal browser
+- **vite-plugin-pwa** — PWA support (install ke homescreen, offline cache)
 
 ---
 
