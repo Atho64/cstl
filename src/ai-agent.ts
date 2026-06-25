@@ -103,7 +103,14 @@ async function chatCompletionGemini(messages: ChatMessage[]): Promise<string> {
   }
 
   const data = await res.json();
-  const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  // Gemini thinking models return thought parts separately with {thought: true}.
+  // Skip those and only collect actual response text.
+  const parts: any[] = data.candidates?.[0]?.content?.parts || [];
+  const rawText = parts
+    .filter((p: any) => !p.thought)
+    .map((p: any) => p.text || '')
+    .join('')
+    .trim();
   return state.aiFilterThinkingOutput ? stripThinkingTags(rawText) : rawText;
 }
 
