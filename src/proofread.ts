@@ -210,7 +210,7 @@ export function onProofreadReplaceAll(): void {
     regex = buildSearchRegex(query, isRegex, isCase, isExact);
   } catch (e) { return alert('Format Regex tidak valid.'); }
   let count = 0;
-  const undoSnapshot = { lines: JSON.parse(JSON.stringify(state.lines)) };
+  pushUndoSnapshot();
   for (const line of state.lines) {
     if (onlyTrans) {
       if (!isTranslated(line)) continue;
@@ -238,9 +238,10 @@ export function onProofreadReplaceAll(): void {
       }
   }
   if (count > 0) {
-    state.undoStack.push(undoSnapshot);
-    if (state.undoStack.length > MAX_UNDO_STEPS) state.undoStack.shift();
     refreshAll(); renderProofreadResults(); queueAutoSave();
     alert(`Berhasil melakukan Replace All pada ${count} baris teks.`);
-  } else alert('Tidak ada kata yang cocok dengan pencarian.');
+  } else {
+    state.undoStack.pop();
+    alert('Tidak ada kata yang cocok dengan pencarian.');
+  }
 }

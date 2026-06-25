@@ -214,7 +214,17 @@ export function onApplyTranslation(options: ApplyTranslationOptions = {}): void 
 export function onUndoLastApply(): void {
   const snapshot = state.undoStack.pop();
   if (!snapshot) return;
-  state.lines = snapshot.lines.map(normalizeLineDict);
+  for (const saved of snapshot.lines) {
+    const l = state.lineByNum.get(saved.line_num);
+    if (l) {
+      l.trans_name = saved.trans_name;
+      l.trans_message = saved.trans_message;
+      l.is_translated = saved.is_translated;
+      l._hidden = saved._hidden;
+      l._glossary_extracted = saved._glossary_extracted;
+      l._ai_checked = saved._ai_checked;
+    }
+  }
   refreshAll();
   queueAutoSave();
 }

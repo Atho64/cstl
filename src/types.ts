@@ -116,8 +116,18 @@ export type WorkspaceTab = 'translate' | 'glossary' | 'aiCheck' | 'delete';
 
 // ─── Undo ─────────────────────────────────────────────────────────────────────
 
+export interface PartialLineSnapshot {
+  line_num: number;
+  trans_name: string | null;
+  trans_message: string | null;
+  is_translated: boolean;
+  _hidden?: boolean;
+  _glossary_extracted?: boolean;
+  _ai_checked?: boolean;
+}
+
 export interface UndoSnapshot {
-  lines: Line[];
+  lines: PartialLineSnapshot[];
 }
 
 // ─── Display / Render ─────────────────────────────────────────────────────────

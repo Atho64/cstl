@@ -255,10 +255,18 @@ export function refreshAll(): void {
   }
 }
 
-// ─── Undo ─────────────────────────────────────────────────────────────────────
-
 export function pushUndoSnapshot(): void {
-  state.undoStack.push({ lines: JSON.parse(JSON.stringify(state.lines)) });
+  state.undoStack.push({
+    lines: state.lines.map(l => ({
+      line_num: l.line_num,
+      trans_name: l.trans_name,
+      trans_message: l.trans_message,
+      is_translated: l.is_translated,
+      _hidden: l._hidden,
+      _glossary_extracted: l._glossary_extracted,
+      _ai_checked: l._ai_checked,
+    }))
+  });
   if (state.undoStack.length > MAX_UNDO_STEPS) state.undoStack.shift();
   (ui.btnUndo as HTMLButtonElement).disabled = false;
 }
