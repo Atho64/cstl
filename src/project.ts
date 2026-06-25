@@ -374,6 +374,14 @@ export async function renameDashboardProject(id: string, oldName: string, data: 
 // ─── Backup & Restore ─────────────────────────────────────────────────────────
 export async function backupDashboardProject(name: string, data: any, id: string): Promise<void> {
   const backupData = JSON.parse(JSON.stringify(data));
+  // Merge lucaRawBuffers from separate OPFS file if available
+  if (backupData.projectType === 'luca') {
+    const lucaData = await loadLucaDataFromOpfs(id);
+    if (lucaData) {
+      backupData.lucaRawFiles = lucaData.lucaRawFiles || {};
+      backupData.lucaRawBuffers = lucaData.lucaRawBuffers || {};
+    }
+  }
   if (backupData.projectType === 'epub' && backupData.epubSourceId) {
     try {
       backupData.epub_source = await readEpubSourceForBackup(backupData.epubSourceId);
@@ -438,7 +446,6 @@ export function queueAutoSave(): void {
       lucaExportLang: state.lucaExportLang,
       luca_profile: state.lucaProfile || DEFAULT_LUCA_PROFILE,
       luca_mc_display_name: state.lucaMcDisplayName || DEFAULT_LUCA_MC_DISPLAY_NAME,
-      lucaRawFiles: state.lucaRawFiles, lucaRawBuffers: state.lucaRawBuffers,
       regex_filter: state.regexFilter, pre_replace_rules: state.preReplaceRules, post_replace_rules: state.postReplaceRules, disable_empty_line_validation: state.disableEmptyLineValidation,
       check_kana_residue: state.checkKanaResidue, check_similarity: state.checkSimilarity,
       show_furigana: state.showFurigana,
@@ -487,9 +494,21 @@ export function openProject(id: string, data: any): void {
   state.lucaExportLang = data.lucaExportLang || 'en';
   state.lucaProfile = data.luca_profile || DEFAULT_LUCA_PROFILE;
   state.lucaMcDisplayName = data.luca_mc_display_name || DEFAULT_LUCA_MC_DISPLAY_NAME;
-  state.lucaRawFiles = data.lucaRawFiles || {};
-  state.lucaRawBuffers = data.lucaRawBuffers || {};
+  // Load lucaRawBuffers: try separate OPFS file first, then fallback to embedded (old format)
+  state.lucaRawFiles = {};
+  state.lucaRawBuffers = {};
   clearLucaFileLineBytesCache();
+  loadLucaDataFromOpfs(id).then(lucaData => {
+    if (lucaData) {
+      state.lucaRawFiles = lucaData.lucaRawFiles || {};
+      state.lucaRawBuffers = lucaData.lucaRawBuffers || {};
+    } else if (data.lucaRawBuffers && Object.keys(data.lucaRawBuffers).length > 0) {
+      // Migrate old format: save to separate file and clear from main save
+      state.lucaRawFiles = data.lucaRawFiles || {};
+      state.lucaRawBuffers = data.lucaRawBuffers || {};
+      saveLucaDataToOpfs(id, { lucaRawFiles: state.lucaRawFiles, lucaRawBuffers: state.lucaRawBuffers }).then(() => queueAutoSave());
+    }
+  });
   state.regexFilter = data.regex_filter || '';
   state.preReplaceRules = data.pre_replace_rules || '';
   state.postReplaceRules = data.post_replace_rules || '';
@@ -561,7 +580,6 @@ export function closeProject(): void {
       epubTags: state.epubTags, epubSourceId: state.epubSourceId,
       lucaExportLang: state.lucaExportLang, luca_profile: state.lucaProfile || DEFAULT_LUCA_PROFILE,
       luca_mc_display_name: state.lucaMcDisplayName || DEFAULT_LUCA_MC_DISPLAY_NAME,
-      lucaRawFiles: state.lucaRawFiles, lucaRawBuffers: state.lucaRawBuffers,
       regex_filter: state.regexFilter, disable_empty_line_validation: state.disableEmptyLineValidation,
       check_kana_residue: state.checkKanaResidue, check_similarity: state.checkSimilarity,
       show_furigana: state.showFurigana,
