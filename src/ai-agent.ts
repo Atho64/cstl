@@ -1,5 +1,6 @@
 import { state, ui } from './state';
 import { applyAgentTranslations, clearAgentTranslations, onUndoLastApply } from './translate';
+import { stripThinkingTags } from './auto-translate';
 
 export type ChatRole = 'system' | 'user' | 'assistant';
 
@@ -50,7 +51,8 @@ async function chatCompletionOpenAI(messages: ChatMessage[]): Promise<string> {
   }
 
   const data = await res.json();
-  return data.choices?.[0]?.message?.content || '';
+  const rawText = data.choices?.[0]?.message?.content || '';
+  return state.aiFilterThinkingOutput ? stripThinkingTags(rawText) : rawText;
 }
 
 async function chatCompletionGemini(messages: ChatMessage[]): Promise<string> {
@@ -101,7 +103,8 @@ async function chatCompletionGemini(messages: ChatMessage[]): Promise<string> {
   }
 
   const data = await res.json();
-  return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  return state.aiFilterThinkingOutput ? stripThinkingTags(rawText) : rawText;
 }
 
 // ------------------------------------------------------------------

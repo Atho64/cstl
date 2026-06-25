@@ -456,7 +456,7 @@ async function fetchGemini(prompt: string): Promise<string> {
 // ─── Strip Thinking Tags ──────────────────────────────────────────────────────
 // Removes model-internal thinking blocks from output before applying translation.
 // Handles: <think>...</think>, <|think|>...</|think|>, and whitespace cleanup.
-function stripThinkingTags(text: string): string {
+export function stripThinkingTags(text: string): string {
   return text
     .replace(/<\|think\|>[\s\S]*?<\/\|think\|>/gi, '')
     .replace(/<think>[\s\S]*?<\/think>/gi, '')
