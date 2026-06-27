@@ -212,6 +212,21 @@ export function onApplyTranslation(options: ApplyTranslationOptions = {}): void 
 }
 
 export function onUndoLastApply(): void {
+  if (state.undoStack.length === 0) return;
+  
+  // Push current state to redoStack
+  state.redoStack.push({
+    lines: state.lines.map(l => ({
+      line_num: l.line_num,
+      trans_name: l.trans_name,
+      trans_message: l.trans_message,
+      is_translated: l.is_translated,
+      _hidden: l._hidden,
+      _glossary_extracted: l._glossary_extracted,
+      _ai_checked: l._ai_checked,
+    }))
+  });
+
   const snapshot = state.undoStack.pop();
   if (!snapshot) return;
   for (const saved of snapshot.lines) {
@@ -227,6 +242,31 @@ export function onUndoLastApply(): void {
   }
   refreshAll();
   queueAutoSave();
+  flashHint('Undo berhasil.');
+}
+
+export function onRedoLastUndo(): void {
+  if (state.redoStack.length === 0) return;
+  
+  // Push current state to undoStack but WITHOUT clearing redoStack
+  pushUndoSnapshot(false);
+
+  const snapshot = state.redoStack.pop();
+  if (!snapshot) return;
+  for (const saved of snapshot.lines) {
+    const l = state.lineByNum.get(saved.line_num);
+    if (l) {
+      l.trans_name = saved.trans_name;
+      l.trans_message = saved.trans_message;
+      l.is_translated = saved.is_translated;
+      l._hidden = saved._hidden;
+      l._glossary_extracted = saved._glossary_extracted;
+      l._ai_checked = saved._ai_checked;
+    }
+  }
+  refreshAll();
+  queueAutoSave();
+  flashHint('Redo berhasil.');
 }
 
 export function applyAgentTranslations(updates: {num: number, trans_message: string, trans_name?: string}[]): number {

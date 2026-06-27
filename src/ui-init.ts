@@ -13,7 +13,7 @@ import { renderProofreadRow } from './proofread';
 import { renderQaRow } from './qa';
 import { onSelectionHistoryKeydown, isSelectableForActiveTab, recordSelectionHistory, switchWorkspaceTab } from './selection';
 import { onSaveGlossary, onImportGlossaryFile, onExportGlossaryFile, onDeleteTranslation, onCopyForGlossaryAi } from './glossary';
-import { onCopyForAi, onApplyTranslation, onUndoLastApply } from './translate';
+import { onCopyForAi, onApplyTranslation, onUndoLastApply, onRedoLastUndo } from './translate';
 import { onCopyNamesForAi, onApplyNameTranslations, onResetNameTranslations } from './name-translation';
 import { onCopyForAiCheck, onParseAiCheck, onApplyAiCheckCorrections, onClearAiCheck } from './ai-check';
 import { onOpenProofread, onResetProofread, onProofreadReplaceAll, renderProofreadResults } from './proofread';
@@ -65,7 +65,7 @@ export function cacheElements(): void {
     'btnImportFolder', 'btnImportZip', 'btnImportTranslatedFile', 'btnImportTranslatedFolder', 'btnExport', 'btnProofread', 'btnSettings',
     'previewViewport', 'previewContainer', 'progressFill', 'progressText', 'btnSelectAll',
     'btnClearSelection', 'copyCount', 'btnCopyForAi', 'copyStatus', 'pasteArea', 'btnApply', 'checkIgnorePasteNames',
-    'btnUndo', 'nameTableBody', 'statusBar', 'importFileInput', 'importFolderInput', 'importTranslatedFileInput', 'importTranslatedFolderInput',
+    'btnUndo', 'btnRedo', 'nameTableBody', 'statusBar', 'importFileInput', 'importFolderInput', 'importTranslatedFileInput', 'importTranslatedFolderInput',
     'btnCopyNamesForAi', 'copyNameCount', 'pasteNameArea', 'btnApplyNameTranslations', 'btnResetNameTranslations',
     'glossaryPreviewWrap', 'glossaryPreviewText',
     'importZipInput', 'importLucaTxtInput', 'importLucaTxtFolderInput', 'btnImportLucaTxt', 'btnImportLucaTxtFolder',
@@ -224,6 +224,7 @@ export function bindEvents(): void {
   ui.btnClearAiCheck?.addEventListener('click', onClearAiCheck);
   ui.pasteAiCheckArea?.addEventListener('input', updateButtonStates);
   ui.btnUndo?.addEventListener('click', onUndoLastApply);
+  ui.btnRedo?.addEventListener('click', onRedoLastUndo);
   ui.btnProofread?.addEventListener('click', onOpenProofread);
 
   ui.btnSelectAll?.addEventListener('click', () => {

@@ -69,6 +69,7 @@ export const state: AppState = {
   selectionBatchPrevShortcut: DEFAULT_SELECTION_BATCH_PREV_SHORTCUT,
   selectionBatchNextShortcut: DEFAULT_SELECTION_BATCH_NEXT_SHORTCUT,
   undoStack: [],
+  redoStack: [],
   selectedLines: new Set(),
   selectionHistory: [],
   selectionHistoryIndex: -1,

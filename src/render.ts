@@ -250,12 +250,17 @@ export function refreshAll(): void {
   renderNameTable();
   updateStatusBar();
   (ui.btnUndo as HTMLButtonElement).disabled = state.undoStack.length === 0;
+  if (ui.btnRedo) (ui.btnRedo as HTMLButtonElement).disabled = state.redoStack.length === 0;
   if (state.translationMode === 'htl') {
     import('./htl-mode').then(m => m.refreshHtlPanels()).catch(() => {});
   }
 }
 
-export function pushUndoSnapshot(): void {
+export function pushUndoSnapshot(clearRedo = true): void {
+  if (clearRedo) {
+    state.redoStack = [];
+    if (ui.btnRedo) (ui.btnRedo as HTMLButtonElement).disabled = true;
+  }
   state.undoStack.push({
     lines: state.lines.map(l => ({
       line_num: l.line_num,

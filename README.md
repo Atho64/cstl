@@ -28,8 +28,8 @@ Alur kerjanya sederhana: pilih baris → copy → tempel ke AI → paste hasilny
 - Prompt terjemahan dan AI check bisa dikustomisasi sendiri
 - Pilihan format output AI (numbered list, XML, dll.)
 
-### Auto Translate API
-Hubungkan langsung ke API tanpa perlu copy-paste manual. Terjemahan, ekstrak glosarium, dan AI check berjalan otomatis dari dalam aplikasi.
+### API Global (AI)
+Hubungkan aplikasi ke AI tanpa perlu copy-paste manual. Terjemahan, ekstrak glosarium, AI check, dan AI Agent berjalan otomatis dari dalam aplikasi.
 
 - Dukung **OpenAI Compatible** (GPT, Claude via OpenRouter, DeepSeek, Local LLM) dan **Gemini API** (Google AI Studio)
 - Ambil daftar model langsung dari API dengan tombol fetch

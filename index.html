@@ -69,6 +69,9 @@
             <button id="btnImportTranslatedFolder" class="dropdown-item">Impor TL Folder</button>
           </div>
         </div>
+        <button id="btnUndo" class="btn" disabled title="Undo (Batalkan aksi terakhir)">↶</button>
+        <button id="btnRedo" class="btn" disabled title="Redo (Ulangi aksi terakhir)">↷</button>
+        <span class="toolbar-sep"></span>
         <button id="btnExport" class="btn" disabled>Ekspor</button>
         <span class="toolbar-sep"></span>
         <button id="btnProofread" class="btn" disabled>Cari</button>
@@ -148,7 +151,6 @@
           </div>
           <div class="inline-actions" data-htl-hide="true">
             <button id="btnApply" class="btn btn-success grow" disabled>Terapkan Terjemahan</button>
-            <button id="btnUndo" class="btn btn-danger" disabled>Undo</button>
           </div>
           <label class="section-label mt-3" data-htl-hide="true">Daftar Nama Karakter</label>
           <p class="hint mb-2 hint-tight" data-htl-hide="true">Klik nama asli untuk copy. Isi terjemah nama untuk mengganti nama karakter di semua baris terkait.</p>
@@ -574,8 +576,8 @@
         </select>
       </div>
       <div class="mt-3">
-        <label class="section-label text-white m-0">Ukuran Batch Shortcut</label>
-        <p class="hint mt-1">Jumlah baris yang dipilih oleh shortcut batch di tiap tab.</p>
+        <label class="section-label text-white m-0">Jumlah Baris per Batch / Seleksi</label>
+        <p class="hint mt-1">Jumlah baris yang diproses sekali jalan (berlaku untuk shortcut seleksi, Auto Translate, dan AI Check).</p>
         <div class="flex-center gap-4 wrap mt-1">
           <div class="flex-col grow">
             <label class="hint m-0" for="settingsSelectionBatchSizeInput">Translate</label>
@@ -797,7 +799,7 @@
       </div>
     </div>
   </div>
-  <button id="btnFloatingApiSettings" class="floating-btn" title="Pengaturan API Auto Translate">
+  <button id="btnFloatingApiSettings" class="floating-btn" title="Pengaturan API Global">
     🤖
   </button>
   
@@ -823,8 +825,8 @@
 
   <div id="apiSettingsModal" class="modal-backdrop">
     <div class="modal modal-md">
-      <h3>Pengaturan Auto Translate API</h3>
-      <p class="hint">Hubungkan aplikasi langsung ke AI tanpa perlu copy-paste manual.</p>
+      <h3>Pengaturan API Global (AI)</h3>
+      <p class="hint">Hubungkan aplikasi ke AI untuk fitur Auto Translate, AI Check, dan AI Agent.</p>
       
       <div class="mt-3">
         <label class="hint m-0" for="apiTypeSelect">Tipe API</label>

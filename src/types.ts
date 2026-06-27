@@ -102,6 +102,7 @@ export interface AppState {
   selectionBatchPrevShortcut: string;
   selectionBatchNextShortcut: string;
   undoStack: UndoSnapshot[];
+  redoStack: UndoSnapshot[];
   selectedLines: Set<number>;
   selectionHistory: number[][];
   selectionHistoryIndex: number;
