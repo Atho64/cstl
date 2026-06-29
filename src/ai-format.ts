@@ -41,10 +41,11 @@ export function formatLineForAiExport(line: Line): string {
   if (String(line.luca_command || '').toUpperCase() === 'SELECT') {
     parts.push('type: choice');
   }
-  const speaker = String(line.name || '').trim();
+  let speaker = String(line.name || '').trim();
+  speaker = applyReplaceRules(speaker, state.preReplaceRules, 'name') || speaker;
   if (speaker) parts.push(`speaker: ${speaker}`);
   let msg = unescapeStoredNewlines(line.message);
-  msg = applyReplaceRules(msg, state.preReplaceRules).replace(/\n/g, '<br>');
+  msg = applyReplaceRules(msg, state.preReplaceRules, 'msg').replace(/\n/g, '<br>');
   parts.push(`text: ${msg}`);
   return parts.join('\n');
 }
@@ -54,18 +55,20 @@ export function formatLineForAiExportXml(line: Line): string {
   if (String(line.luca_command || '').toUpperCase() === 'SELECT') {
     attrs.push('type="choice"');
   }
-  const speaker = String(line.name || '').trim();
+  let speaker = String(line.name || '').trim();
+  speaker = applyReplaceRules(speaker, state.preReplaceRules, 'name') || speaker;
   if (speaker) attrs.push(`speaker="${escapeXml(speaker)}"`);
   let msg = unescapeStoredNewlines(line.message);
-  msg = applyReplaceRules(msg, state.preReplaceRules).replace(/\n/g, '<br>');
+  msg = applyReplaceRules(msg, state.preReplaceRules, 'msg').replace(/\n/g, '<br>');
   const text = escapeXml(msg);
   return `  <line ${attrs.join(' ')}>\n    <text>${text}</text>\n  </line>`;
 }
 
 export function formatLineForAiExportJsonArray(line: Line): string {
-  const speaker = (line.name || '').trim();
+  let speaker = (line.name || '').trim();
+  speaker = applyReplaceRules(speaker, state.preReplaceRules, 'name') || speaker;
   let msg = unescapeStoredNewlines(line.message || '');
-  msg = applyReplaceRules(msg, state.preReplaceRules).replace(/\n/g, '<br>');
+  msg = applyReplaceRules(msg, state.preReplaceRules, 'msg').replace(/\n/g, '<br>');
   const text = msg;
   if (speaker) {
     return `[${line.line_num},${JSON.stringify(speaker)},${JSON.stringify(text)}]`;
@@ -79,10 +82,11 @@ export function formatLineForAiExportJsonl(line: Line): string {
   if (String(line.luca_command || '').toUpperCase() === 'SELECT') {
     obj.type = 'choice';
   }
-  const speaker = String(line.name || '').trim();
+  let speaker = String(line.name || '').trim();
+  speaker = applyReplaceRules(speaker, state.preReplaceRules, 'name') || speaker;
   if (speaker) obj.speaker = speaker;
   let msg = unescapeStoredNewlines(line.message);
-  msg = applyReplaceRules(msg, state.preReplaceRules).replace(/\n/g, '<br>');
+  msg = applyReplaceRules(msg, state.preReplaceRules, 'msg').replace(/\n/g, '<br>');
   obj.text = msg;
   return JSON.stringify(obj);
 }
@@ -100,9 +104,9 @@ export function getSelectedTranslationText(includeTranslated = true): string {
 export function getSelectedTranslationPlainText(includeTranslated = true): string {
   const sel = state.lines.filter(l => state.selectedLines.has(l.line_num) && (includeTranslated || !isTranslated(l)));
   return sel.map(l => {
-    const dN = l.name || '';
+    const dN = applyReplaceRules(l.name || '', state.preReplaceRules, 'name') || l.name || '';
     let msg = unescapeStoredNewlines(l.message);
-    msg = applyReplaceRules(msg, state.preReplaceRules).replace(/\n/g, '<br>');
+    msg = applyReplaceRules(msg, state.preReplaceRules, 'msg').replace(/\n/g, '<br>');
     return dN ? `${l.line_num}. ${dN}: ${msg}` : `${l.line_num}. ${msg}`;
   }).join('\n');
 }

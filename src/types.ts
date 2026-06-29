@@ -66,6 +66,16 @@ export interface AppState {
   checkKanaResidue: boolean;
   checkSimilarity: boolean;
   similarityThreshold: number;
+  checkLinebreak: boolean;
+  checkLengthRatio: boolean;
+  lengthRatioThreshold: number;
+  checkLanguage: boolean;
+  checkPunctuation: boolean;
+  enableUncertainMarking: boolean;
+  aiBackupKeys: string;
+  aiKeyStrategy: 'fallback' | 'random';
+  aiTranslateMode: 'auto' | 'agent';
+  agentMaxTurns: number;
   currentProjectId: string | null;
   projectName: string;
   projectType: string;

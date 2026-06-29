@@ -273,8 +273,8 @@ export async function onExport(): Promise<void> {
       fn: `${fn.replace(/\.xhtml|\.html/g, '')}.json`,
       content: JSON.stringify(lns.map(l => {
         const e: any = {};
-        e.name = isTranslated(l) ? (l.trans_name || l.name) : l.name;
-        e.message = isTranslated(l) ? l.trans_message : l.message;
+        e.name = isTranslated(l) ? ((l.trans_name || l.name || '').replace(/^\[?\?\]?\s*/,'') || l.name) : l.name;
+        e.message = isTranslated(l) ? (l.trans_message || '').replace(/^\[?\?\]?\s*/,'') : l.message;
         if (e.name) {
           e.name = e.name.replace(/\\n/g, '\n');
         } else {

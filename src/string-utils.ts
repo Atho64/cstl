@@ -126,23 +126,30 @@ export function normalizeKana(text: string): string {
     .replace(/[\u30a1-\u30f6]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0x60));
 }
 
-export function applyReplaceRules(text: string, rulesText: string): string {
+export function applyReplaceRules(text: string, rulesText: string, fieldName?: 'name' | 'msg'): string {
   if (!text || !rulesText) return text;
   let result = text;
   const lines = rulesText.split(/\r?\n/);
   for (const line of lines) {
     if (!line.trim()) continue;
-    
+
+    // Check for field prefix: "name:" or "msg:" (case-insensitive)
+    let ruleLine = line;
+    const fieldMatch = line.match(/^(name|msg)\s*:\s*(.+)$/i);
+    if (fieldMatch) {
+      const ruleField = fieldMatch[1].toLowerCase();
+      if (fieldName && ruleField !== fieldName) continue;
+      ruleLine = fieldMatch[2];
+    }
+
     // Check if it matches `/regex/flags = replacement`
-    const regexMatch = line.match(/^\/(.+)\/([gimsuy]*)\s*=\s*(.*)$/);
+    const regexMatch = ruleLine.match(/^\/(.+)\/([gimsuy]*)\s*=\s*(.*)$/);
     if (regexMatch) {
       try {
         const [, pattern, flags, replacement] = regexMatch;
         // ensure global flag if not present, otherwise it only replaces first occurrence
         const finalFlags = flags.includes('g') ? flags : flags + 'g';
         const re = new RegExp(pattern, finalFlags);
-        // We use JSON.parse to allow users to write \n or \t in replacement string like "\n"
-        // But if they write literal string, we just use it directly, handling \n manually
         const finalReplacement = replacement.replace(/\\n/g, '\n').replace(/\\t/g, '\t');
         result = result.replace(re, finalReplacement);
       } catch (e) {
@@ -150,10 +157,10 @@ export function applyReplaceRules(text: string, rulesText: string): string {
       }
     } else {
       // Literal replacement: `Source = Target`
-      let sepIdx = line.indexOf('=');
+      let sepIdx = ruleLine.indexOf('=');
       if (sepIdx !== -1) {
-        const source = line.substring(0, sepIdx).trim();
-        const replacement = line.substring(sepIdx + 1).trim().replace(/\\n/g, '\n').replace(/\\t/g, '\t');
+        const source = ruleLine.substring(0, sepIdx).trim();
+        const replacement = ruleLine.substring(sepIdx + 1).trim().replace(/\\n/g, '\n').replace(/\\t/g, '\t');
         if (source) {
           result = result.split(source).join(replacement);
         }
@@ -162,7 +169,6 @@ export function applyReplaceRules(text: string, rulesText: string): string {
   }
   return result;
 }
-
 export function kanaToRomaji(text: string): string {
   const kana = normalizeKana(text);
   const digraphs: Record<string, string> = {

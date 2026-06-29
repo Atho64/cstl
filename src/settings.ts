@@ -59,6 +59,16 @@ export function onOpenSettings(): void {
     (ui.settingsSimilarityThreshold as HTMLInputElement).value = String(Math.round((state.similarityThreshold || 0.7) * 100));
     (ui.settingsSimilarityThresholdWrap as HTMLElement).style.display = state.checkSimilarity ? 'flex' : 'none';
   }
+  if (ui.settingsCheckLengthRatio) {
+    (ui.settingsCheckLengthRatio as HTMLInputElement).checked = !!state.checkLengthRatio;
+    (ui.settingsLengthRatioThreshold as HTMLInputElement).value = String(state.lengthRatioThreshold || 2.5);
+    (document.getElementById('settingsLengthRatioWrap') as HTMLElement).style.display = state.checkLengthRatio ? 'flex' : 'none';
+  }
+  if (ui.settingsCheckLinebreak) (ui.settingsCheckLinebreak as HTMLInputElement).checked = state.checkLinebreak !== false;
+  if (ui.settingsCheckLanguage) (ui.settingsCheckLanguage as HTMLInputElement).checked = state.checkLanguage !== false;
+  if (ui.settingsCheckPunctuation) (ui.settingsCheckPunctuation as HTMLInputElement).checked = state.checkPunctuation !== false;
+  if (ui.settingsEnableUncertainMarking) (ui.settingsEnableUncertainMarking as HTMLInputElement).checked = !!state.enableUncertainMarking;
+  if (ui.settingsAgentMaxTurns) (ui.settingsAgentMaxTurns as HTMLInputElement).value = String(state.agentMaxTurns || 10);
   if (ui.settingsAiTranslationFormatSelect) {
     (ui.settingsAiTranslationFormatSelect as HTMLSelectElement).value = normalizeAiTranslationFormat(state.aiTranslationFormat);
   }
@@ -182,6 +192,15 @@ export function onSavePromptSettings(): void {
   state.checkKanaResidue = checkKanaResidue;
   state.checkSimilarity = checkSimilarity;
   state.similarityThreshold = similarityThreshold;
+  state.checkLengthRatio = !!((ui.settingsCheckLengthRatio as HTMLInputElement)?.checked);
+  const lrRaw = parseFloat((ui.settingsLengthRatioThreshold as HTMLInputElement)?.value);
+  state.lengthRatioThreshold = (!isNaN(lrRaw) && lrRaw >= 1 && lrRaw <= 10) ? lrRaw : 2.5;
+  state.checkLinebreak = (ui.settingsCheckLinebreak as HTMLInputElement)?.checked !== false;
+  state.checkLanguage = (ui.settingsCheckLanguage as HTMLInputElement)?.checked !== false;
+  state.checkPunctuation = (ui.settingsCheckPunctuation as HTMLInputElement)?.checked !== false;
+  state.enableUncertainMarking = !!((ui.settingsEnableUncertainMarking as HTMLInputElement)?.checked);
+  const amtRaw = parseInt((ui.settingsAgentMaxTurns as HTMLInputElement)?.value);
+  state.agentMaxTurns = (!isNaN(amtRaw) && amtRaw >= 3 && amtRaw <= 30) ? amtRaw : 10;
   state.aiTranslationFormat = aiTranslationFormat;
   state.contextLines = contextLines;
   state.contextType = contextType as any;

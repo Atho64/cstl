@@ -86,10 +86,63 @@ async function applyHtlMode() { return (await import('./htl-mode')).applyHtlMode
 
 // ─── Modal helpers ────────────────────────────────────────────────────────────
 export function openModal(el: HTMLElement): void { el.classList.add('open'); }
-export function closeModal(el: HTMLElement): void { el.classList.remove('open'); }
+export function closeModal(el: HTMLElement): void {
+  el.classList.add('closing');
+  setTimeout(() => {
+    el.classList.remove('open');
+    el.classList.remove('closing');
+  }, 220); // matches --dur-2
+}
 
 // ─── Dashboard default settings ───────────────────────────────────────────────
 export const DS_STORAGE_KEY = 'cstl_default_settings';
+
+// ─── Color palettes ───────────────────────────────────────────────────────────
+const PALETTES: Record<string, Record<string, string>> = {
+  indigo: {
+    '--primary':       '#6366f1',
+    '--primary-hover': '#4f46e5',
+    '--primary-soft':  'rgba(99,102,241,0.14)',
+    '--accent':        '#a855f7',
+    '--shadow-glow':   '0 0 24px -6px rgba(99,102,241,0.45)',
+  },
+  ocean: {
+    '--primary':       '#0ea5e9',
+    '--primary-hover': '#0284c7',
+    '--primary-soft':  'rgba(14,165,233,0.14)',
+    '--accent':        '#06b6d4',
+    '--shadow-glow':   '0 0 24px -6px rgba(14,165,233,0.45)',
+  },
+  forest: {
+    '--primary':       '#22c55e',
+    '--primary-hover': '#16a34a',
+    '--primary-soft':  'rgba(34,197,94,0.14)',
+    '--accent':        '#84cc16',
+    '--shadow-glow':   '0 0 24px -6px rgba(34,197,94,0.45)',
+  },
+  sunset: {
+    '--primary':       '#f97316',
+    '--primary-hover': '#ea580c',
+    '--primary-soft':  'rgba(249,115,22,0.14)',
+    '--accent':        '#f59e0b',
+    '--shadow-glow':   '0 0 24px -6px rgba(249,115,22,0.45)',
+  },
+  rose: {
+    '--primary':       '#f43f5e',
+    '--primary-hover': '#e11d48',
+    '--primary-soft':  'rgba(244,63,94,0.14)',
+    '--accent':        '#ec4899',
+    '--shadow-glow':   '0 0 24px -6px rgba(244,63,94,0.45)',
+  },
+};
+
+export function applyPalette(name: string): void {
+  const vars = PALETTES[name] ?? PALETTES['indigo'];
+  const root = document.documentElement;
+  for (const [prop, val] of Object.entries(vars)) {
+    root.style.setProperty(prop, val);
+  }
+}
 
 export function getDefaultSettings(): Record<string, any> {
   try {
@@ -110,6 +163,7 @@ export function getDefaultSettings(): Record<string, any> {
     glossaryBatch: DEFAULT_GLOSSARY_BATCH_SIZE,
     aiCheckBatch: DEFAULT_AI_CHECK_BATCH_SIZE,
     regexFilter: '',
+    palette: 'indigo',
   };
 }
 
@@ -124,6 +178,7 @@ export function openDashboardSettings(): void {
   (ui.dsGlossaryBatch as HTMLInputElement).value = d.glossaryBatch;
   (ui.dsAiCheckBatch as HTMLInputElement).value = d.aiCheckBatch;
   (ui.dsRegexFilter as HTMLInputElement).value = d.regexFilter || '';
+  if (ui.paletteSelect) (ui.paletteSelect as HTMLSelectElement).value = d.palette || 'indigo';
   (ui.dashboardSettingsModal as HTMLElement).classList.add('open');
 }
 
@@ -138,7 +193,9 @@ export function saveDashboardSettings(): void {
   d.glossaryBatch = parseInt((ui.dsGlossaryBatch as HTMLInputElement).value) || DEFAULT_GLOSSARY_BATCH_SIZE;
   d.aiCheckBatch = parseInt((ui.dsAiCheckBatch as HTMLInputElement).value) || DEFAULT_AI_CHECK_BATCH_SIZE;
   d.regexFilter = (ui.dsRegexFilter as HTMLInputElement).value || '';
+  d.palette = (ui.paletteSelect as HTMLSelectElement)?.value || 'indigo';
   localStorage.setItem(DS_STORAGE_KEY, JSON.stringify(d));
+  applyPalette(d.palette);
   (ui.dashboardSettingsModal as HTMLElement).classList.remove('open');
 }
 
@@ -178,6 +235,8 @@ export function resetDashboardSettings(): void {
   (ui.dsGlossaryBatch as HTMLInputElement).value = d.glossaryBatch;
   (ui.dsAiCheckBatch as HTMLInputElement).value = d.aiCheckBatch;
   (ui.dsRegexFilter as HTMLInputElement).value = d.regexFilter;
+  if (ui.paletteSelect) (ui.paletteSelect as HTMLSelectElement).value = 'indigo';
+  applyPalette('indigo');
 }
 
 // ─── Dashboard project list ───────────────────────────────────────────────────
@@ -447,7 +506,7 @@ export function queueAutoSave(): void {
       luca_profile: state.lucaProfile || DEFAULT_LUCA_PROFILE,
       luca_mc_display_name: state.lucaMcDisplayName || DEFAULT_LUCA_MC_DISPLAY_NAME,
       regex_filter: state.regexFilter, pre_replace_rules: state.preReplaceRules, post_replace_rules: state.postReplaceRules, disable_empty_line_validation: state.disableEmptyLineValidation,
-      check_kana_residue: state.checkKanaResidue, check_similarity: state.checkSimilarity,
+      check_kana_residue: state.checkKanaResidue, check_similarity: state.checkSimilarity, check_linebreak: state.checkLinebreak, check_length_ratio: state.checkLengthRatio, length_ratio_threshold: state.lengthRatioThreshold, check_language: state.checkLanguage, check_punctuation: state.checkPunctuation, enable_uncertain_marking: state.enableUncertainMarking, agent_max_turns: state.agentMaxTurns,
       show_furigana: state.showFurigana,
       furigana_type: state.furiganaType || 'hiragana',
       font_size: state.fontSize,
@@ -517,6 +576,13 @@ export function openProject(id: string, data: any): void {
   state.disableEmptyLineValidation = !!data.disable_empty_line_validation;
   state.checkKanaResidue = !!data.check_kana_residue;
   state.checkSimilarity = !!data.check_similarity;
+  state.checkLinebreak = data.check_linebreak !== undefined ? !!data.check_linebreak : false;
+  state.checkLengthRatio = !!data.check_length_ratio;
+  state.lengthRatioThreshold = (typeof data.length_ratio_threshold === 'number' && data.length_ratio_threshold > 0) ? data.length_ratio_threshold : 2.5;
+  state.checkLanguage = data.check_language !== undefined ? !!data.check_language : false;
+  state.checkPunctuation = data.check_punctuation !== undefined ? !!data.check_punctuation : false;
+  state.enableUncertainMarking = !!data.enable_uncertain_marking;
+  state.agentMaxTurns = (typeof data.agent_max_turns === 'number' && data.agent_max_turns >= 3) ? data.agent_max_turns : 10;
   state.showFurigana = !!data.show_furigana;
   state.furiganaType = data.furigana_type || 'hiragana';
   state.enableDictionary = !!data.enable_dictionary;
@@ -581,7 +647,7 @@ export function closeProject(): void {
       lucaExportLang: state.lucaExportLang, luca_profile: state.lucaProfile || DEFAULT_LUCA_PROFILE,
       luca_mc_display_name: state.lucaMcDisplayName || DEFAULT_LUCA_MC_DISPLAY_NAME,
       regex_filter: state.regexFilter, disable_empty_line_validation: state.disableEmptyLineValidation,
-      check_kana_residue: state.checkKanaResidue, check_similarity: state.checkSimilarity,
+      check_kana_residue: state.checkKanaResidue, check_similarity: state.checkSimilarity, check_linebreak: state.checkLinebreak, check_length_ratio: state.checkLengthRatio, length_ratio_threshold: state.lengthRatioThreshold, check_language: state.checkLanguage, check_punctuation: state.checkPunctuation, enable_uncertain_marking: state.enableUncertainMarking, agent_max_turns: state.agentMaxTurns,
       show_furigana: state.showFurigana,
       furigana_type: state.furiganaType || 'hiragana',
       font_size: state.fontSize,

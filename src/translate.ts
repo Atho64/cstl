@@ -55,6 +55,9 @@ export async function onCopyForAi(): Promise<void> {
   if (state.enableBackgroundChaining && state.currentBackground) {
     sections.push(`<background>\n${state.currentBackground.trim()}\n</background>`);
   }
+  if (state.enableUncertainMarking) {
+    sections.push('If you are uncertain about a translation, prefix it with [?].');
+  }
   sections.push(joinedText.trim());
   const p = sections.join('\n\n');
   try {
@@ -162,10 +165,10 @@ export function onApplyTranslation(options: ApplyTranslationOptions = {}): void 
     const oN = !!(l.name || '').trim();
     let tN = !!(it.name || '').trim();
     if (tN) {
-      it.name = applyReplaceRules(it.name!, state.postReplaceRules);
+      it.name = applyReplaceRules(it.name!, state.postReplaceRules, 'name');
     }
     // Replace <br> back to literal \n (for Luca format) and apply postReplaceRules
-    it.msg = applyReplaceRules(it.msg.replace(/<br>/gi, '\\n'), state.postReplaceRules);
+    it.msg = applyReplaceRules(it.msg.replace(/<br>/gi, '\\n'), state.postReplaceRules, 'msg');
 
     if (!oN && tN) { it.msg = escapeStoredNewlines(it.rawMsg || it.msg); it.name = null; tN = false; }
 
@@ -279,13 +282,13 @@ export function applyAgentTranslations(updates: {num: number, trans_message: str
     
     // Process newlines
     let msg = it.trans_message.replace(/<br>/gi, '\\n');
-    msg = applyReplaceRules(msg, state.postReplaceRules);
+    msg = applyReplaceRules(msg, state.postReplaceRules, 'msg');
     
     l.trans_message = escapeStoredNewlines(msg);
     l.is_translated = !!l.trans_message || state.disableEmptyLineValidation;
     
     if (it.trans_name) {
-      l.trans_name = applyReplaceRules(it.trans_name, state.postReplaceRules);
+      l.trans_name = applyReplaceRules(it.trans_name, state.postReplaceRules, 'name');
     }
     
     state.selectedLines.delete(l.line_num);

@@ -17,13 +17,17 @@
   <link rel="apple-touch-icon" href="/icon.jpg" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="./styles.css?v=14" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./styles.css?v=17" />
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script type="module" src="./src/app.ts"></script>
 </head>
 <body>
   <div id="dashboardView" class="dashboard-shell open">
+    <div class="dashboard-aurora" aria-hidden="true">
+      <span class="aurora-blob aurora-1"></span>
+      <span class="aurora-blob aurora-2"></span>
+    </div>
     <header class="dashboard-hero">
       <div class="hero-left">
         <h1 class="hero-title">Copas Tool</h1>
@@ -87,8 +91,7 @@
           </div>
         </div>
       </div>
-      <span class="grow"></span>
-      <span id="projectNameDisplay" class="toolbar-label toolbar-project-name desktop-only">Proyek Aktif</span>
+      <span id="projectNameDisplay" class="toolbar-label toolbar-project-name desktop-only"></span>
     </header>
     <main class="split-layout">
       <section class="panel panel-left">
@@ -134,7 +137,7 @@
         <div id="viewTranslate">
           <div class="card-box mb-2" data-htl-hide="true">
             <button id="btnCopyForAi" class="btn btn-primary w-full mb-1" disabled>Copy <span id="copyCount">0</span> Baris</button>
-            <button id="btnAutoTranslate" class="btn btn-success w-full" disabled>Jalankan Auto Translate</button>
+            <div class="flex gap-2"><select id="aiTranslateModeSelect" class="text-input" style="width: auto;"><option value="auto">Auto</option><option value="agent">Agent</option></select><button id="btnAutoTranslate" class="btn btn-success grow" disabled>Jalankan Auto Translate</button></div>
           </div>
           <div id="copyStatus" class="status-toast empty" data-htl-hide="true"></div>
           <div id="glossaryPreviewWrap" class="glossary-preview" hidden data-htl-hide="true">
@@ -279,8 +282,11 @@
   <!-- Dashboard Default Settings Modal -->
   <div id="dashboardSettingsModal" class="modal-backdrop">
     <div class="modal modal-wide">
-      <h3>⚙ Pengaturan Default Proyek Baru</h3>
-      <p class="hint mt-0">Pengaturan ini akan otomatis diterapkan ke setiap proyek baru yang dibuat. Disimpan di browser.</p>
+      <div class="modal-head">
+        <h3>⚙ Pengaturan Default Proyek Baru</h3>
+        <p class="hint mt-1 mb-0">Pengaturan ini akan otomatis diterapkan ke setiap proyek baru yang dibuat. Disimpan di browser.</p>
+      </div>
+      <div class="modal-body">
 
       <div class="mt-2">
         <label class="section-label text-white m-0">Bahasa</label>
@@ -349,10 +355,22 @@
       </div>
 
       <div class="mt-2">
+        <label class="section-label text-white m-0">Color Palette</label>
+        <select id="paletteSelect" class="text-input w-full mt-1">
+          <option value="indigo">Indigo Night (Default)</option>
+          <option value="ocean">Ocean Blue</option>
+          <option value="forest">Forest</option>
+          <option value="sunset">Sunset</option>
+          <option value="rose">Rose</option>
+        </select>
+      </div>
+
+      <div class="mt-2">
         <label class="section-label text-white m-0">Filter Regex</label>
         <input id="dsRegexFilter" type="text" class="text-input w-full mt-1" placeholder="Kosongkan jika tidak perlu" />
       </div>
 
+      </div>
       <div class="modal-actions">
         <button id="btnDashboardSettingsSave" class="btn btn-primary">Simpan Default</button>
         <button id="btnDashboardSettingsReset" class="btn btn-outline">Reset ke Bawaan</button>
@@ -364,32 +382,38 @@
   <!-- Dashboard Default Prompts Modal -->
   <div id="dashboardPromptsModal" class="modal-backdrop">
     <div class="modal modal-wide">
-      <h3>⚙️ Default Prompts Proyek Baru</h3>
-      <p class="hint mt-0">Prompt ini akan otomatis diterapkan ke setiap proyek baru yang dibuat.</p>
-      <div class="mt-2">
-        <label class="section-label text-white m-0">Prompt AI</label>
-        <textarea id="dpPromptInput" class="mono input-area mt-1"></textarea>
+      <div class="modal-head">
+        <h3>⚙️ Default Prompts Proyek Baru</h3>
+        <p class="hint mt-0">Prompt ini akan otomatis diterapkan ke setiap proyek baru yang dibuat.</p>
       </div>
-      <div class="mt-2">
-        <label class="section-label text-white m-0">Prompt Glossary Extractor</label>
-        <textarea id="dpGlossaryPromptInput" class="mono input-area mt-1"></textarea>
-      </div>
-      <div class="mt-2">
-        <label class="section-label text-white m-0">Prompt AI Check</label>
-        <textarea id="dpAiCheckPromptInput" class="mono input-area mt-1"></textarea>
-      </div>
-        <div class="modal-actions mt-3">
-          <button id="btnDashboardPromptsSave" class="btn btn-primary">Simpan Default Prompts</button>
-          <button id="btnDashboardPromptsReset" class="btn btn-outline">Reset ke Bawaan</button>
-          <button id="btnDashboardPromptsCancel" class="btn">Batal</button>
+      <div class="modal-body">
+        <div class="mt-2">
+          <label class="section-label text-white m-0">Prompt AI</label>
+          <textarea id="dpPromptInput" class="mono input-area mt-1"></textarea>
         </div>
+        <div class="mt-2">
+          <label class="section-label text-white m-0">Prompt Glossary Extractor</label>
+          <textarea id="dpGlossaryPromptInput" class="mono input-area mt-1"></textarea>
+        </div>
+        <div class="mt-2">
+          <label class="section-label text-white m-0">Prompt AI Check</label>
+          <textarea id="dpAiCheckPromptInput" class="mono input-area mt-1"></textarea>
+        </div>
+      </div>
+      <div class="modal-actions mt-3">
+        <button id="btnDashboardPromptsSave" class="btn btn-primary">Simpan Default Prompts</button>
+        <button id="btnDashboardPromptsReset" class="btn btn-outline">Reset ke Bawaan</button>
+        <button id="btnDashboardPromptsCancel" class="btn">Batal</button>
+      </div>
     </div>
   </div>
 
   <div id="settingsModal" class="modal-backdrop">
     <div class="modal modal-wide">
-      <h3>Pengaturan</h3>
-      <div class="mt-2">
+      <div class="modal-head">
+        <h3>Pengaturan</h3>
+      </div>
+      <div class="modal-body">
         <label class="section-label text-white m-0">Bahasa Proyek</label>
         <p class="hint mt-1">Pilih bahasa sumber dan bahasa target terjemahan.</p>
         <div class="flex-center gap-4 wrap mt-1">
@@ -420,7 +444,6 @@
             <p class="hint m-0 mt-1">HTL menyembunyikan semua fitur AI. Cocok untuk penerjemah manusia, terutama di mobile.</p>
           </div>
         </div>
-      </div>
       <div class="mt-3">
         <label class="section-label text-white m-0">Regex Filter</label>
         <p class="hint mt-1">Sembunyikan baris yang cocok dengan regex ini (contoh: <code>^[A-Za-z0-9_]+$</code>). Kosongkan jika tidak digunakan.</p>
@@ -461,7 +484,7 @@
           <label class="checkbox-line" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
             <input id="settingsShowFurigana" type="checkbox" />
             <span style="white-space: nowrap;">Tampilkan Furigana Teks:</span>
-            <select id="settingsFuriganaType" class="input" style="width: auto; padding: 2px 4px;">
+            <select id="settingsFuriganaType" class="text-input" style="width: auto; padding: 2px 4px;">
               <option value="hiragana">Hiragana (Default)</option>
               <option value="katakana">Katakana</option>
               <option value="romaji">Romaji</option>
@@ -472,7 +495,7 @@
           <div class="field-group" style="margin-top: 10px;">
             <label style="display: flex; align-items: center; gap: 10px;">
               <span>Ukuran Font Teks Utama:</span>
-              <input type="number" id="settingsFontSize" class="input" style="width: 80px;" min="10" max="48" value="14" />
+              <input type="number" id="settingsFontSize" class="text-input" style="width: 80px;" min="10" max="48" value="14" />
               <span class="hint">px (Default: 14)</span>
             </label>
           </div>
@@ -485,7 +508,7 @@
           <label class="checkbox-line" style="display: flex; align-items: center; gap: 8px;">
             <input id="settingsEnableDictionary" type="checkbox" />
             Aktifkan Kamus Hover
-            <select id="settingsDictionaryEngine" class="input" style="width: auto; padding: 2px 4px;">
+            <select id="settingsDictionaryEngine" class="text-input" style="width: auto; padding: 2px 4px;">
               <option value="llm">AI / LLM (Direkomendasikan)</option>
               <option value="jisho">Tradisional (Jisho / FreeDict)</option>
             </select>
@@ -519,6 +542,47 @@
             <span class="hint m-0">% (terjemahan ditolak jika kemiripan ≥ nilai ini)</span>
           </div>
         </div>
+        <div class="mt-2">
+          <label class="checkbox-line">
+            <input id="settingsCheckLengthRatio" type="checkbox" />
+            Length Ratio — flag terjemahan yang terlalu panjang (risiko text-box overflow)
+          </label>
+          <div id="settingsLengthRatioWrap" class="flex-center gap-4 mt-1" style="display: none;">
+            <label class="hint m-0" for="settingsLengthRatioThreshold">Rasio maksimal:</label>
+            <input id="settingsLengthRatioThreshold" type="number" class="text-input" min="1" max="10" step="0.1" value="2.5" style="width: 72px;" />
+            <span class="hint m-0">x (default 2.5 untuk JP&rarr;ID)</span>
+          </div>
+        </div>
+        <div class="mt-2">
+          <label class="checkbox-line">
+            <input id="settingsCheckLinebreak" type="checkbox" checked />
+            Linebreak Mismatch — flag jumlah baris yang berbeda dengan teks asli
+          </label>
+        </div>
+        <div class="mt-2">
+          <label class="checkbox-line">
+            <input id="settingsCheckLanguage" type="checkbox" checked />
+            Wrong Language — flag terjemahan yang terdeteksi sebagai bahasa Inggris
+          </label>
+        </div>
+        <div class="mt-2">
+          <label class="checkbox-line">
+            <input id="settingsCheckPunctuation" type="checkbox" checked />
+            JP Punctuation Leak — flag tanda baca Jepang yang bocor ke terjemahan
+          </label>
+        </div>
+        <div class="mt-2">
+          <label class="checkbox-line">
+            <input id="settingsEnableUncertainMarking" type="checkbox" />
+            Uncertain Marking — minta AI menandai terjemahan yang tidak yakin dengan [?]
+          </label>
+        </div>
+        <div class="mt-2">
+          <label class="checkbox-line">
+            Agent Max Turns: <input id="settingsAgentMaxTurns" type="number" class="text-input" min="3" max="30" value="10" style="width: 60px; display: inline-block;" /> per chunk
+          </label>
+        </div>
+
       </div>
 
       <div class="mt-3">
@@ -607,60 +671,65 @@
           </div>
         </div>
       </div>
-        <div class="modal-actions mt-3">
+      </div><!-- end modal-body -->
+      <div class="modal-actions mt-3">
           <span class="grow"></span>
           <button id="btnSettingsCancel" class="btn">Batal</button>
           <button id="btnSettingsSave" class="btn btn-primary">Simpan Pengaturan</button>
         </div>
-      </div>
     </div>
 
+    </div>
   <div id="settingsPromptsModal" class="modal-backdrop">
     <div class="modal modal-wide">
-      <h3>Prompt Settings</h3>
-      <div class="mt-3">
-        <div class="flex-between mb-1">
-          <label class="section-label text-white m-0">Pengaturan Prompt AI</label>
-          <div class="flex" style="gap: 8px;">
-            <select id="settingsPromptTemplateSelect" class="text-input" style="padding: 2px 8px; font-size: 12px;">
-              <option value="simple">Standar (Bawaan CSTL)</option>
-              <option value="complex-id">Kompleks (Indo)</option>
-              <option value="complex-en">Kompleks (Eng)</option>
-            </select>
-            <button id="btnSettingsReset" class="btn btn-outline btn-xs">Reset Default</button>
+      <div class="modal-head">
+        <h3>Prompt Settings</h3>
+      </div>
+      <div class="modal-body">
+        <div class="mt-3">
+          <div class="flex-between mb-1">
+            <label class="section-label text-white m-0">Pengaturan Prompt AI</label>
+            <div class="flex" style="gap: 8px;">
+              <select id="settingsPromptTemplateSelect" class="text-input" style="padding: 2px 8px; font-size: 12px;">
+                <option value="simple">Standar (Bawaan CSTL)</option>
+                <option value="complex-id">Kompleks (Indo)</option>
+                <option value="complex-en">Kompleks (Eng)</option>
+              </select>
+              <button id="btnSettingsReset" class="btn btn-outline btn-xs">Reset Default</button>
+            </div>
           </div>
+          <p class="hint m-0">Teks instruksi ini otomatis ditambahkan ke awal saat kamu klik "Copy untuk AI".</p>
+          <textarea id="settingsPromptInput" class="mono input-area mt-1"></textarea>
         </div>
-        <p class="hint m-0">Teks instruksi ini otomatis ditambahkan ke awal saat kamu klik "Copy untuk AI".</p>
-        <textarea id="settingsPromptInput" class="mono input-area mt-1"></textarea>
-      </div>
-      <div class="mt-3" style="border: 1px solid var(--border); padding: 12px; border-radius: 6px; background-color: var(--bg-card);">
-        <label class="checkbox-container">
-          <input type="checkbox" id="settingsEnableBackgroundChaining" />
-          <span class="checkbox-mark"></span>
-          <span class="text-white" style="font-weight: bold;">Aktifkan Memori Estafet (Background Chaining)</span>
-        </label>
-        <p class="hint m-0 mt-1">Jika aktif, CSTL akan mengekstrak tag <code>&lt;background&gt;</code> dari hasil AI dan menambahkannya ke prompt berikutnya secara otomatis.</p>
-        <div class="mt-2 flex-between">
-          <label class="hint m-0 text-white">Memori Saat Ini (Current Background):</label>
-          <button id="btnSettingsClearBackground" class="btn btn-outline btn-xs">Kosongkan Memori</button>
+        <div class="mt-3" style="border: 1px solid var(--border); padding: 12px; border-radius: 6px; background-color: var(--bg-card);">
+          <label class="checkbox-container">
+            <input type="checkbox" id="settingsEnableBackgroundChaining" />
+            <span class="checkbox-mark"></span>
+            <span class="text-white" style="font-weight: bold;">Aktifkan Memori Estafet (Background Chaining)</span>
+          </label>
+          <p class="hint m-0 mt-1">Jika aktif, CSTL akan mengekstrak tag <code>&lt;background&gt;</code> dari hasil AI dan menambahkannya ke prompt berikutnya secara otomatis.</p>
+          <div class="mt-2 flex-between">
+            <label class="hint m-0 text-white">Memori Saat Ini (Current Background):</label>
+            <button id="btnSettingsClearBackground" class="btn btn-outline btn-xs">Kosongkan Memori</button>
+          </div>
+          <textarea id="settingsBackgroundInput" class="mono input-area mt-1" style="height: 60px;" placeholder="(Kosong)"></textarea>
         </div>
-        <textarea id="settingsBackgroundInput" class="mono input-area mt-1" style="height: 60px;" placeholder="(Kosong)"></textarea>
-      </div>
-      <div class="mt-3">
-        <div class="flex-between mb-1">
-          <label class="section-label text-white m-0">Pengaturan Prompt AI Check</label>
-          <button id="btnSettingsAiCheckReset" class="btn btn-outline btn-xs">Reset Default</button>
+        <div class="mt-3">
+          <div class="flex-between mb-1">
+            <label class="section-label text-white m-0">Pengaturan Prompt AI Check</label>
+            <button id="btnSettingsAiCheckReset" class="btn btn-outline btn-xs">Reset Default</button>
+          </div>
+          <p class="hint m-0">Teks instruksi ini digunakan saat menyalin terjemahan untuk dicek ulang oleh AI.</p>
+          <textarea id="settingsAiCheckPromptInput" class="mono input-area mt-1"></textarea>
         </div>
-        <p class="hint m-0">Teks instruksi ini digunakan saat menyalin terjemahan untuk dicek ulang oleh AI.</p>
-        <textarea id="settingsAiCheckPromptInput" class="mono input-area mt-1"></textarea>
-      </div>
-      <div class="mt-3">
-        <div class="flex-between mb-1">
-          <label class="section-label text-white m-0">Pengaturan Prompt Glossary Extractor</label>
-          <button id="btnSettingsGlossaryReset" class="btn btn-outline btn-xs">Reset Default</button>
+        <div class="mt-3">
+          <div class="flex-between mb-1">
+            <label class="section-label text-white m-0">Pengaturan Prompt Glossary Extractor</label>
+            <button id="btnSettingsGlossaryReset" class="btn btn-outline btn-xs">Reset Default</button>
+          </div>
+          <p class="hint m-0">Teks instruksi ini digunakan saat menyalin teks untuk ekstraksi glossary.</p>
+          <textarea id="settingsGlossaryPromptInput" class="mono input-area mt-1"></textarea>
         </div>
-        <p class="hint m-0">Teks instruksi ini digunakan saat menyalin teks untuk ekstraksi glossary.</p>
-        <textarea id="settingsGlossaryPromptInput" class="mono input-area mt-1"></textarea>
       </div>
       <div class="modal-actions mt-3">
         <span class="grow"></span>
@@ -672,11 +741,15 @@
 
   <div id="settingsGlossaryModal" class="modal-backdrop">
     <div class="modal modal-wide">
-      <h3>Smart Glossary</h3>
-      <div class="mt-3">
-        <label class="section-label text-white m-0">Daftar Istilah</label>
-        <p class="hint mt-1">Masukkan daftar istilah bertipe (contoh: [character] Japanese=Indonesian {female name}). Format lama tanpa tipe/deskripsi tetap didukung.</p>
-        <textarea id="settingsGlossaryInput" class="mono input-area mt-1" placeholder="[character] 速川麦 = Hayakawa Mugi {male name}&#10;[place] 渋谷 = Shibuya {place name}"></textarea>
+      <div class="modal-head">
+        <h3>Smart Glossary</h3>
+      </div>
+      <div class="modal-body">
+        <div class="mt-3">
+          <label class="section-label text-white m-0">Daftar Istilah</label>
+          <p class="hint mt-1">Masukkan daftar istilah bertipe (contoh: [character] Japanese=Indonesian {female name}). Format lama tanpa tipe/deskripsi tetap didukung.</p>
+          <textarea id="settingsGlossaryInput" class="mono input-area mt-1" placeholder="[character] 速川麦 = Hayakawa Mugi {male name}&#10;[place] 渋谷 = Shibuya {place name}"></textarea>
+        </div>
       </div>
       <div class="modal-actions mt-3">
         <span class="grow"></span>
@@ -688,7 +761,10 @@
 
   <div id="lineEditorModal" class="modal-backdrop">
     <div class="modal modal-wide">
-      <h3 id="lineEditorTitle">Edit Terjemahan</h3>
+      <div class="modal-head">
+        <h3 id="lineEditorTitle">Edit Terjemahan</h3>
+      </div>
+      <div class="modal-body">
       <label class="section-label">Teks Asli</label>
       <textarea id="lineOriginalView" class="mono input-area small" readonly></textarea>
       <div id="lucaRefWrap" style="display:none;">
@@ -715,6 +791,7 @@
         <input id="lineTranslatedCheck" type="checkbox" />
         Tandai sebagai sudah diterjemahkan
       </label>
+      </div><!-- end modal-body -->
       <div class="modal-actions">
         <span class="grow"></span>
         <button id="btnLineCancel" class="btn">Batal</button>
@@ -725,43 +802,47 @@
 
   <div id="proofreadModal" class="modal-backdrop">
     <div class="modal modal-xl">
-      <h3>Cari & Replace</h3>
-      <div class="card-box mb-2">
-        <div class="flex-col gap-10">
-          <label for="proofreadSearchInput" class="label-bold">Cari:</label>
+      <div class="modal-head">
+        <h3>Cari & Replace</h3>
+      </div>
+      <div class="modal-body">
+        <div class="card-box mb-2">
           <div class="flex-col gap-10">
-            <div class="flex gap-12 wrap">
-              <input id="proofreadSearchInput" class="mono text-input grow min-w-200" type="text" placeholder="Ketik kata atau pola regex..." />
-              <select id="proofreadScope" class="text-input select-sm" style="flex-shrink: 0;">
-                <option value="all">All Text</option>
-                <option value="name">Name Only</option>
-                <option value="message">Message Only</option>
-              </select>
+            <label for="proofreadSearchInput" class="label-bold">Cari:</label>
+            <div class="flex-col gap-10">
+              <div class="flex gap-12 wrap">
+                <input id="proofreadSearchInput" class="mono text-input grow min-w-200" type="text" placeholder="Ketik kata atau pola regex..." />
+                <select id="proofreadScope" class="text-input select-sm" style="flex-shrink: 0;">
+                  <option value="all">All Text</option>
+                  <option value="name">Name Only</option>
+                  <option value="message">Message Only</option>
+                </select>
+              </div>
+              <div class="proofread-filters flex-center gap-12 wrap">
+                <label class="checkbox-line"><input id="proofreadRegexCheck" type="checkbox" />Regex</label>
+                <label class="checkbox-line"><input id="proofreadCaseCheck" type="checkbox" />Case Sensitive</label>
+                <label class="checkbox-line"><input id="proofreadPreserveCaseCheck" type="checkbox" checked />Preserve Case</label>
+                <label class="checkbox-line"><input id="proofreadExactCheck" type="checkbox" />Exact Match</label>
+                <label class="checkbox-line"><input id="proofreadTranslatedOnlyCheck" type="checkbox" checked />Translated Only</label>
+                <label class="checkbox-line"><input id="proofreadJumpCheck" type="checkbox" />Jump</label>
+              </div>
+              <button id="btnProofreadReset" class="btn">Reset</button>
             </div>
-            <div class="proofread-filters flex-center gap-12 wrap">
-              <label class="checkbox-line"><input id="proofreadRegexCheck" type="checkbox" />Regex</label>
-              <label class="checkbox-line"><input id="proofreadCaseCheck" type="checkbox" />Case Sensitive</label>
-              <label class="checkbox-line"><input id="proofreadPreserveCaseCheck" type="checkbox" checked />Preserve Case</label>
-              <label class="checkbox-line"><input id="proofreadExactCheck" type="checkbox" />Exact Match</label>
-              <label class="checkbox-line"><input id="proofreadTranslatedOnlyCheck" type="checkbox" checked />Translated Only</label>
-              <label class="checkbox-line"><input id="proofreadJumpCheck" type="checkbox" />Jump</label>
-            </div>
-            <button id="btnProofreadReset" class="btn">Reset</button>
           </div>
         </div>
-      </div>
-      <div class="card-box mb-2">
-        <div class="flex-col gap-14">
-          <label for="proofreadReplaceInput" class="label-bold">Ganti dengan:</label>
-          <input id="proofreadReplaceInput" class="mono text-input w-full" type="text" placeholder="Teks pengganti untuk Replace All..." />
-          <div class="flex-center">
-            <button id="btnProofreadReplaceAll" class="btn btn-success btn-px-lg">Replace All</button>
+        <div class="card-box mb-2">
+          <div class="flex-col gap-14">
+            <label for="proofreadReplaceInput" class="label-bold">Ganti dengan:</label>
+            <input id="proofreadReplaceInput" class="mono text-input w-full" type="text" placeholder="Teks pengganti untuk Replace All..." />
+            <div class="flex-center">
+              <button id="btnProofreadReplaceAll" class="btn btn-success btn-px-lg">Replace All</button>
+            </div>
           </div>
         </div>
-      </div>
-      <p id="proofreadStatus" class="hint mt-2"></p>
-      <div class="proofread-results-wrap mt-2">
-        <div id="proofreadContainer" class="preview-container"></div>
+        <p id="proofreadStatus" class="hint mt-2"></p>
+        <div class="proofread-results-wrap mt-2">
+          <div id="proofreadContainer" class="preview-container"></div>
+        </div>
       </div>
       <div class="modal-actions">
         <span class="grow"></span>
@@ -772,7 +853,10 @@
 
   <div id="qaModal" class="modal-backdrop">
     <div class="modal modal-xl">
-      <h3>Validasi Quality Control (QC)</h3>
+      <div class="modal-head">
+        <h3>Validasi Quality Control (QC)</h3>
+      </div>
+      <div class="modal-body">
       <div class="card-box mb-2">
         <div class="flex-col gap-10">
           <label class="label-bold">Filter Pengecekan:</label>
@@ -780,10 +864,16 @@
             <label class="checkbox-line"><input id="qaCheckGlossary" type="checkbox" checked />Glossary Not Applied</label>
             <label class="checkbox-line"><input id="qaCheckKana" type="checkbox" checked />Kana/Kanji Residue</label>
             <label class="checkbox-line"><input id="qaCheckSimilarity" type="checkbox" checked />Similarity</label>
+            <label class="checkbox-line"><input id="qaCheckLinebreak" type="checkbox" checked />Linebreak Mismatch</label>
+            <label class="checkbox-line"><input id="qaCheckLength" type="checkbox" checked />Length Ratio</label>
+            <label class="checkbox-line"><input id="qaCheckLanguage" type="checkbox" checked />Wrong Language</label>
+            <label class="checkbox-line"><input id="qaCheckPunctuation" type="checkbox" checked />JP Punctuation Leak</label>
+            <label class="checkbox-line"><input id="qaCheckUncertain" type="checkbox" checked />Uncertain [?]</label>
           </div>
           <div class="flex gap-12 mt-1">
             <button id="btnRunQa" class="btn btn-primary">Jalankan Validasi</button>
             <button id="btnQaReset" class="btn">Reset</button>
+            <button id="btnRetranslateFlagged" class="btn btn-danger" style="display:none;">Retranslate Flagged</button>
           </div>
         </div>
       </div>
@@ -793,6 +883,7 @@
           <div id="qaResults" class="preview-container"></div>
         </div>
       </div>
+      </div><!-- end modal-body -->
       <div class="modal-actions">
         <span class="grow"></span>
         <button id="btnQaClose" class="btn btn-primary">Tutup</button>
@@ -810,6 +901,7 @@
   <div id="aiAgentChatPanel" class="agent-panel" style="display: none;">
     <div class="agent-header">
       <span style="font-weight: bold; color: var(--text-base);">CSTL AI Agent</span>
+      <button id="btnAgentClear" class="icon-btn" title="Hapus riwayat chat">🗑</button>
       <button id="btnAgentClose" class="icon-btn" title="Tutup">✖</button>
     </div>
     <div id="agentChatHistory" class="agent-history">
@@ -825,7 +917,10 @@
 
   <div id="apiSettingsModal" class="modal-backdrop">
     <div class="modal modal-md">
-      <h3>Pengaturan API Global (AI)</h3>
+      <div class="modal-head">
+        <h3>Pengaturan API Global (AI)</h3>
+      </div>
+      <div class="modal-body">
       <p class="hint">Hubungkan aplikasi ke AI untuk fitur Auto Translate, AI Check, dan AI Agent.</p>
       
       <div class="mt-3">
@@ -845,6 +940,19 @@
       <div class="mt-3">
         <label class="hint m-0" for="apiKeyInput">API Key</label>
         <input id="apiKeyInput" class="text-input w-full mt-1" type="password" placeholder="sk-..." />
+      </div>
+
+      <div class="mt-3">
+        <label class="hint m-0">Backup API Keys</label>
+        <textarea id="apiBackupKeysInput" class="text-input w-full mt-1 mono" style="height: 80px; font-size: 12px; resize: vertical;" placeholder="Satu key per baris.&#10;Format: key&#10;atau: key|url|model&#10;&#10;sk-backup-key-1&#10;sk-backup-key-2|https://openrouter.ai/api/v1/chat/completions|openai/mistral-large"></textarea>
+        <p class="hint mb-0">Key utama dicoba dulu. Jika gagal (429/5xx), key backup dipakai.</p>
+        <div class="flex-center gap-4 mt-1">
+          <label class="hint m-0" for="apiKeyStrategySelect">Strategi:</label>
+          <select id="apiKeyStrategySelect" class="text-input" style="width: auto;">
+            <option value="fallback">Fallback (utama dulu)</option>
+            <option value="random">Random (acak)</option>
+          </select>
+        </div>
       </div>
 
       <div class="mt-3">
@@ -894,6 +1002,7 @@
       </div>
 
 
+      </div><!-- end modal-body -->
       <div class="modal-actions mt-4">
         <span class="grow"></span>
         <button id="btnApiSettingsCancel" class="btn">Batal</button>
@@ -904,9 +1013,13 @@
   <!-- Dictionary History Modal -->
   <div id="dictHistoryModal" class="modal-backdrop">
     <div class="modal modal-wide">
-      <h3>Riwayat Kamus</h3>
-      <div id="dictHistoryList" style="max-height: 60vh; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; margin-bottom: 15px;">
-        <!-- History items will be populated here -->
+      <div class="modal-head">
+        <h3>Riwayat Kamus</h3>
+      </div>
+      <div class="modal-body">
+        <div id="dictHistoryList" style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 15px;">
+          <!-- History items will be populated here -->
+        </div>
       </div>
       <div class="modal-actions" style="justify-content: space-between;">
         <button id="btnDictHistoryClear" class="btn btn-danger">Hapus Riwayat</button>
@@ -917,28 +1030,31 @@
 
   <!-- Text Replacer Modal -->
   <div id="textReplacerModal" class="modal-backdrop">
-    <div class="modal modal-wide" style="max-width: 800px;">
-      <h3>Text Replacer (Pre & Post Processing)</h3>
-      <div style="display: flex; gap: 15px; margin-bottom: 10px;">
-        <div style="flex: 1; display: flex; flex-direction: column;">
-          <label class="section-label m-0">Pra-Terjemahan (Sebelum AI)</label>
-          <span class="hint mb-1" style="font-size: 11px;">Format: <code>TeksAsli = Pengganti</code> atau <code>/Regex/gi = Pengganti</code></span>
-          <textarea id="replacerPreInput" class="mono input-area" style="height: 250px; font-size: 13px; resize: vertical;" placeholder="太郎 = Taro&#10;/\s+/g = "></textarea>
-        </div>
-        <div style="flex: 1; display: flex; flex-direction: column;">
-          <label class="section-label m-0">Pasca-Terjemahan (Setelah AI)</label>
-          <span class="hint mb-1" style="font-size: 11px;">Mengganti teks hasil dari AI sebelum diterapkan.</span>
-          <textarea id="replacerPostInput" class="mono input-area" style="height: 250px; font-size: 13px; resize: vertical;" placeholder="Aku = Saya&#10;/&quot;\s*([^&quot;]+?)\s*&quot;/g = &quot;$1&quot;"></textarea>
-        </div>
+    <div class="modal modal-wide">
+      <div class="modal-head">
+        <h3>Text Replacer (Pre & Post Processing)</h3>
       </div>
-      <div class="modal-actions" style="justify-content: space-between;">
-        <div class="hint" style="font-size: 11px;">Baris kosong akan diabaikan. Mendukung *capture groups* regex (mis: $1).</div>
-        <div style="display: flex; gap: 10px;">
-          <button id="btnTextReplacerCancel" class="btn btn-outline">Batal</button>
-          <button id="btnTextReplacerSave" class="btn btn-primary">Simpan</button>
+      <div class="modal-body">
+        <div class="replacer-grid">
+          <div class="flex-col">
+            <label class="section-label m-0">Pra-Terjemahan (Sebelum AI)</label>
+            <span class="hint mb-1" style="font-size: 11px;">Format: <code>TeksAsli = Pengganti</code> atau <code>/Regex/gi = Pengganti</code>. Prefix <code>name:</code> atau <code>msg:</code> untuk target field tertentu.</span>
+            <textarea id="replacerPreInput" class="mono input-area" style="height: 250px; font-size: 13px; resize: vertical;" placeholder="太郎 = Taro&#10;/\s+/g = "></textarea>
+          </div>
+          <div class="flex-col">
+            <label class="section-label m-0">Pasca-Terjemahan (Setelah AI)</label>
+            <span class="hint mb-1" style="font-size: 11px;">Mengganti teks hasil dari AI sebelum diterapkan.</span>
+            <textarea id="replacerPostInput" class="mono input-area" style="height: 250px; font-size: 13px; resize: vertical;" placeholder="Aku = Saya&#10;/&quot;\s*([^&quot;]+?)\s*&quot;/g = &quot;$1&quot;"></textarea>
+          </div>
         </div>
+        <div class="hint mt-2" style="font-size: 11px;">Baris kosong akan diabaikan. Mendukung *capture groups* regex (mis: $1).</div>
+      </div>
+      <div class="modal-actions">
+        <button id="btnTextReplacerCancel" class="btn btn-outline">Batal</button>
+        <button id="btnTextReplacerSave" class="btn btn-primary">Simpan</button>
       </div>
     </div>
+  </div>
   </div>
 
   <!-- Dictionary Popup -->

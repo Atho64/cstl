@@ -27,10 +27,15 @@ export function loadApiSettings(): void {
       if (p.aiRpm !== undefined) state.aiRpm = Number(p.aiRpm);
       if (p.aiThinkingMode) state.aiThinkingMode = p.aiThinkingMode;
       if (p.aiFilterThinkingOutput !== undefined) state.aiFilterThinkingOutput = !!p.aiFilterThinkingOutput;
+      if (p.aiBackupKeys !== undefined) state.aiBackupKeys = p.aiBackupKeys;
+      if (p.aiKeyStrategy) state.aiKeyStrategy = p.aiKeyStrategy;
+      if (p.aiTranslateMode) state.aiTranslateMode = p.aiTranslateMode;
     }
   } catch (e) {
     console.error('Failed to load API settings', e);
   }
+  const modeSelect = document.getElementById('aiTranslateModeSelect') as HTMLSelectElement;
+  if (modeSelect) modeSelect.value = state.aiTranslateMode || 'auto';
 }
 
 export function saveApiSettings(): void {
@@ -44,6 +49,8 @@ export function saveApiSettings(): void {
     aiRpm: state.aiRpm,
     aiThinkingMode: state.aiThinkingMode,
     aiFilterThinkingOutput: state.aiFilterThinkingOutput,
+    aiBackupKeys: state.aiBackupKeys,
+    aiKeyStrategy: state.aiKeyStrategy, aiTranslateMode: state.aiTranslateMode,
   };
   localStorage.setItem(API_STORAGE_KEY, JSON.stringify(d));
 }
@@ -61,6 +68,9 @@ export function onOpenApiSettings(): void {
   if (ui.apiRpmInput) (ui.apiRpmInput as HTMLInputElement).value = String(state.aiRpm ?? 10);
   if (ui.apiThinkingSelect) (ui.apiThinkingSelect as HTMLSelectElement).value = state.aiThinkingMode || 'default';
   if (ui.apiFilterThinkingCheck) (ui.apiFilterThinkingCheck as HTMLInputElement).checked = state.aiFilterThinkingOutput !== false;
+  if (ui.apiBackupKeysInput) (ui.apiBackupKeysInput as HTMLTextAreaElement).value = state.aiBackupKeys || '';
+  if (ui.apiKeyStrategySelect) (ui.apiKeyStrategySelect as HTMLSelectElement).value = state.aiKeyStrategy || 'fallback';
+  if (ui.aiTranslateModeSelect) (ui.aiTranslateModeSelect as HTMLSelectElement).value = state.aiTranslateMode || 'auto';
   updateDelayPreview();
   if (ui.apiSettingsModal) openModal(ui.apiSettingsModal as HTMLElement);
 }
@@ -191,6 +201,9 @@ export function onSaveApiSettings(): void {
   if (ui.apiRpmInput) state.aiRpm = parseInt((ui.apiRpmInput as HTMLInputElement).value) || 10;
   if (ui.apiThinkingSelect) state.aiThinkingMode = (ui.apiThinkingSelect as HTMLSelectElement).value as any;
   if (ui.apiFilterThinkingCheck) state.aiFilterThinkingOutput = (ui.apiFilterThinkingCheck as HTMLInputElement).checked;
+  if (ui.apiBackupKeysInput) state.aiBackupKeys = (ui.apiBackupKeysInput as HTMLTextAreaElement).value;
+  if (ui.apiKeyStrategySelect) state.aiKeyStrategy = (ui.apiKeyStrategySelect as HTMLSelectElement).value as any;
+  if (ui.aiTranslateModeSelect) state.aiTranslateMode = (ui.aiTranslateModeSelect as HTMLSelectElement).value as any;
   saveApiSettings();
   if (ui.apiSettingsModal) closeModal(ui.apiSettingsModal as HTMLElement);
   flashHint('Pengaturan API disimpan.');
@@ -225,6 +238,10 @@ function createRetryableAiFormatError(err: TranslationApplyError): AutoTranslate
 let isAutoTranslating = false;
 
 export async function onAutoTranslate(): Promise<void> {
+  if (state.aiTranslateMode === 'agent') {
+    const { onAgentTranslate } = await import('./agent-translate');
+    return onAgentTranslate();
+  }
   const btn = ui.btnAutoTranslate as HTMLButtonElement;
 
   if (isAutoTranslating) {
@@ -315,6 +332,9 @@ export async function onAutoTranslate(): Promise<void> {
       const sections: string[] = [baseHeader];
       if (glossaryBlock) sections.push(glossaryBlock.trim());
       if (contextBlock) sections.push(contextBlock.trim());
+      if (state.enableUncertainMarking) {
+        sections.push('If you are uncertain about a translation, prefix it with [?].');
+      }
       sections.push(joinedText.trim());
       const prompt = sections.join('\n\n');
 
@@ -333,6 +353,8 @@ export async function onAutoTranslate(): Promise<void> {
       }, (retry) => {
         btn.textContent = `${formatRetryLabel(retry)}... (Klik Stop)`;
       });
+
+
 
       if (!rawResult || !rawResult.trim()) {
         throw new Error('Respons dari API kosong.');
@@ -356,8 +378,52 @@ export async function onAutoTranslate(): Promise<void> {
   }
 }
 
-async function fetchOpenAI(prompt: string): Promise<string> {
-  let url = state.aiApiUrl || 'https://api.openai.com/v1/chat/completions';
+export interface ApiConfig {
+  key: string;
+  url: string;
+  model: string;
+}
+
+export function parseBackupKeys(): ApiConfig[] {
+  const configs: ApiConfig[] = [];
+  // Primary key is always first
+  if (state.aiApiKey) {
+    configs.push({ key: state.aiApiKey, url: state.aiApiUrl, model: state.aiModel });
+  }
+  // Parse backup keys
+  const lines = (state.aiBackupKeys || '').split(/\r?\n/).map(l => l.trim()).filter(l => l && !l.startsWith('#'));
+  for (const line of lines) {
+    const parts = line.split('|');
+    if (parts.length === 1) {
+      // Just a key — use primary url and model
+      configs.push({ key: parts[0], url: state.aiApiUrl, model: state.aiModel });
+    } else if (parts.length >= 3) {
+      // key|url|model
+      configs.push({ key: parts[0], url: parts[1], model: parts[2] });
+    } else if (parts.length === 2) {
+      // key|url — use primary model
+      configs.push({ key: parts[0], url: parts[1], model: state.aiModel });
+    }
+  }
+  return configs;
+}
+
+export function shouldTryNextKey(err: any): boolean {
+  const msg = String(err?.message || '');
+  return msg.includes('HTTP 429') || msg.includes('HTTP 5') || msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('fetch');
+}
+
+export function shuffleArray<T>(arr: T[]): T[] {
+  const copy = [...arr];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
+}
+
+async function fetchOpenAIWithConfig(prompt: string, config: ApiConfig): Promise<string> {
+  let url = config.url || 'https://api.openai.com/v1/chat/completions';
   if (!url.includes('/chat/completions')) {
     if (!url.endsWith('/')) url += '/';
     url += 'chat/completions';
@@ -365,28 +431,20 @@ async function fetchOpenAI(prompt: string): Promise<string> {
 
   const temp = state.aiTemperature;
   const body: any = {
-    model: state.aiModel,
+    model: config.model,
     messages: [{ role: 'user', content: prompt }],
     temperature: temp,
     top_p: state.aiTopP,
   };
 
-  // ─── Thinking / Reasoning mode injection ───────────────────────────────────
   const thinkMode = state.aiThinkingMode;
   if (thinkMode !== 'default') {
-    const apiUrl = state.aiApiUrl || '';
-    // Ollama (localhost / port 11434)
+    const apiUrl = config.url || '';
     if (/localhost|127\.0\.0\.1|11434/.test(apiUrl)) {
       body.think = (thinkMode === 'on');
-    }
-    // OpenRouter
-    else if (apiUrl.includes('openrouter.ai')) {
-      body.reasoning = thinkMode === 'on'
-        ? { effort: 'high' }
-        : { effort: 'none' };
-    }
-    // OpenAI o-series / reasoning_effort
-    else if (/o1|o3|o4/.test(state.aiModel || '')) {
+    } else if (apiUrl.includes('openrouter.ai')) {
+      body.reasoning = thinkMode === 'on' ? { effort: 'high' } : { effort: 'none' };
+    } else if (/o1|o3|o4/.test(config.model || '')) {
       body.reasoning_effort = thinkMode === 'on' ? 'high' : 'low';
     }
   }
@@ -395,7 +453,7 @@ async function fetchOpenAI(prompt: string): Promise<string> {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${state.aiApiKey}`,
+      'Authorization': `Bearer ${config.key}`,
     },
     body: JSON.stringify(body),
   });
@@ -410,13 +468,13 @@ async function fetchOpenAI(prompt: string): Promise<string> {
   return state.aiFilterThinkingOutput ? stripThinkingTags(rawText) : rawText;
 }
 
-async function fetchGemini(prompt: string): Promise<string> {
-  const model = state.aiModel || 'gemini-1.5-flash';
-  let url = state.aiApiUrl;
+async function fetchGeminiWithConfig(prompt: string, config: ApiConfig): Promise<string> {
+  const model = config.model || 'gemini-1.5-flash';
+  let url = config.url;
   if (!url) {
-    url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${state.aiApiKey}`;
+    url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${config.key}`;
   } else if (!url.includes('?key=')) {
-    url += `?key=${state.aiApiKey}`;
+    url += `?key=${config.key}`;
   }
 
   const temp = state.aiTemperature;
@@ -425,10 +483,8 @@ async function fetchGemini(prompt: string): Promise<string> {
     topP: state.aiTopP,
   };
 
-  // ─── Thinking / Reasoning mode injection (Gemini 2.5+) ─────────────────────
   const thinkMode = state.aiThinkingMode;
   if (thinkMode !== 'default') {
-    // thinkingBudget: 0 = disable, -1 = model default (enable)
     genConfig.thinkingConfig = { thinkingBudget: thinkMode === 'off' ? 0 : -1 };
   }
 
@@ -449,8 +505,6 @@ async function fetchGemini(prompt: string): Promise<string> {
   }
 
   const data = await res.json();
-  // Gemini thinking models return thought parts separately with {thought: true}.
-  // We must skip those and only collect actual response text.
   const parts: any[] = data.candidates?.[0]?.content?.parts || [];
   const rawText = parts
     .filter((p: any) => !p.thought)
@@ -460,9 +514,39 @@ async function fetchGemini(prompt: string): Promise<string> {
   return state.aiFilterThinkingOutput ? stripThinkingTags(rawText) : rawText;
 }
 
+export async function fetchApiResult(prompt: string): Promise<string> {
+  const configs = parseBackupKeys();
+  if (configs.length === 0) {
+    throw new Error('Tidak ada API key yang dikonfigurasi.');
+  }
+
+  let ordered = configs;
+  if (state.aiKeyStrategy === 'random') {
+    ordered = shuffleArray(configs);
+  }
+
+  let lastError: Error | null = null;
+  for (let i = 0; i < ordered.length; i++) {
+    const config = ordered[i];
+    try {
+      if (state.aiApiType === 'gemini') {
+        return await fetchGeminiWithConfig(prompt, config);
+      }
+      return await fetchOpenAIWithConfig(prompt, config);
+    } catch (err: any) {
+      lastError = err;
+      // Only try next key on rate-limit, server, or network errors
+      if (i < ordered.length - 1 && shouldTryNextKey(err)) {
+        console.warn(`API key ${i + 1} failed (${err.message}), trying next key...`);
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw lastError || new Error('Semua API key gagal.');
+}
+
 // ─── Strip Thinking Tags ──────────────────────────────────────────────────────
-// Removes model-internal thinking blocks from output before applying translation.
-// Handles: <think>...</think>, <|think|>...</|think|>, and whitespace cleanup.
 export function stripThinkingTags(text: string): string {
   return text
     .replace(/<\|think\|>[\s\S]*?<\/\|think\|>/gi, '')
@@ -482,7 +566,7 @@ export async function onAutoGlossary(): Promise<void> {
   }
 
   if (!state.aiApiKey) {
-    alert('API Key belum diisi! Klik tombol 🤖 di pojok kanan bawah untuk mengatur.');
+    alert('API Key belum diisi! Klik tombol robot di pojok kanan bawah untuk mengatur.');
     onOpenApiSettings();
     return;
   }
@@ -507,8 +591,7 @@ export async function onAutoGlossary(): Promise<void> {
 
       const batchSize = state.glossaryBatchSize || 100;
       const batchLines = untranslatedLines.slice(0, batchSize);
-      
-      // Select them in UI to follow along
+
       state.selectedLines.clear();
       for (const l of batchLines) {
         state.selectedLines.add(l.line_num);
@@ -517,13 +600,13 @@ export async function onAutoGlossary(): Promise<void> {
       import('./selection').then(m => m.scrollPreviewToLine(batchLines[0].line_num));
 
       btn.textContent = `Ekstrak Batch (${batchLines.length} baris)... (Klik Stop)`;
-      
+
       const out = batchLines.map(l => {
         let namePart = '';
         if (l.name) namePart = l.trans_name ? `${l.trans_name}: ` : `${l.name}: `;
         return `${namePart}${l.trans_message || l.message}`;
       }).filter(Boolean);
-      
+
       const { applyPromptVariables } = await import('./ai-format');
       const basePrompt = applyPromptVariables((state.glossaryPrompt || DEFAULT_GLOSSARY_PROMPT).trim());
       const prompt = `${basePrompt}\n\n${out.join('\n')}\n`;
@@ -537,8 +620,8 @@ export async function onAutoGlossary(): Promise<void> {
       }
 
       (ui.pasteGlossaryArea as HTMLTextAreaElement).value = rawResult;
-      onSaveGlossary(); 
-      
+      onSaveGlossary();
+
       for (const l of batchLines) l._glossary_extracted = true;
 
       if (isAutoGlossary && state.aiRpm > 0) {
@@ -571,7 +654,7 @@ export async function onAutoAiCheck(): Promise<void> {
   }
 
   if (!state.aiApiKey) {
-    alert('API Key belum diisi! Klik tombol 🤖 di pojok kanan bawah untuk mengatur.');
+    alert('API Key belum diisi! Klik tombol robot di pojok kanan bawah untuk mengatur.');
     onOpenApiSettings();
     return;
   }
@@ -596,8 +679,7 @@ export async function onAutoAiCheck(): Promise<void> {
 
       const batchSize = state.aiCheckBatchSize || 100;
       const batchLines = uncheckedLines.slice(0, batchSize);
-      
-      // Select them in UI to follow along
+
       state.selectedLines.clear();
       for (const l of batchLines) {
         state.selectedLines.add(l.line_num);
@@ -606,13 +688,13 @@ export async function onAutoAiCheck(): Promise<void> {
       import('./selection').then(m => m.scrollPreviewToLine(batchLines[0].line_num));
 
       btn.textContent = `Cek Batch (${batchLines.length} baris)... (Klik Stop)`;
-      
+
       const out = batchLines.map(l => {
         let namePart = '';
         if (l.name) namePart = l.trans_name ? `${l.trans_name}: ` : `${l.name}: `;
         return `#${l.line_num}\n[Original] ${namePart}${l.message}\n[Translated] ${namePart}${l.trans_message || ''}`;
       });
-      
+
       const { applyPromptVariables } = await import('./ai-format');
       const basePrompt = applyPromptVariables((state.aiCheckPrompt || DEFAULT_AI_CHECK_PROMPT).trim());
       const prompt = `${basePrompt}\n\n${out.join('\n\n')}\n`;
@@ -626,8 +708,7 @@ export async function onAutoAiCheck(): Promise<void> {
       }
 
       (ui.pasteAiCheckArea as HTMLTextAreaElement).value = rawResult;
-      
-      // Auto parse and apply
+
       const { onParseAiCheck } = await import('./ai-check');
       onParseAiCheck();
       onApplyAiCheckCorrections();
@@ -651,14 +732,6 @@ export async function onAutoAiCheck(): Promise<void> {
     btn.textContent = 'Jalankan Auto Cek';
   }
 }
-
-export async function fetchApiResult(prompt: string): Promise<string> {
-  if (state.aiApiType === 'gemini') {
-    return await fetchGemini(prompt);
-  }
-  return await fetchOpenAI(prompt);
-}
-
 async function fetchWithRetry(runAttempt: () => Promise<string>, onRetry: (retry: RetryState) => void): Promise<string> {
   let attempt = 0;
   const maxRetries = 5;

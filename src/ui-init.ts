@@ -17,7 +17,7 @@ import { onCopyForAi, onApplyTranslation, onUndoLastApply, onRedoLastUndo } from
 import { onCopyNamesForAi, onApplyNameTranslations, onResetNameTranslations } from './name-translation';
 import { onCopyForAiCheck, onParseAiCheck, onApplyAiCheckCorrections, onClearAiCheck } from './ai-check';
 import { onOpenProofread, onResetProofread, onProofreadReplaceAll, renderProofreadResults } from './proofread';
-import { onOpenQa, onResetQa, runQaCheck } from './qa';
+import { onOpenQa, onResetQa, runQaCheck, onRetranslateFlagged } from './qa';
 import { onOpenSettings, onSavePromptSettings, onOpenPromptsSettings, onOpenGlossarySettings, onSavePromptsSettings, onSaveGlossarySettings } from './settings';
 import { onExport } from './export';
 import { onImportVndbNames, onImportAnilistNames } from './vndb-anilist';
@@ -60,7 +60,7 @@ export function cacheElements(): void {
   const ids = [
     'dashboardView', 'workspaceView', 'projectList', 'projectFilterInput', 'btnNewProject', 'btnRestoreProject',
     'btnBackToDashboard', 'projectNameDisplay', 'restoreProjectInput', 'btnDropdownImport', 'dropdownImportMenu', 'btnImportFile',
-    'btnDropdownDashboardSettings', 'dropdownDashboardSettingsMenu', 'btnDashboardSettings', 'dashboardSettingsModal', 'btnDashboardSettingsSave', 'btnDashboardSettingsReset', 'btnDashboardSettingsCancel', 'btnDashboardPrompts', 'dashboardPromptsModal', 'dpPromptInput', 'dpGlossaryPromptInput', 'dpAiCheckPromptInput', 'btnDashboardPromptsSave', 'btnDashboardPromptsReset', 'btnDashboardPromptsCancel',
+    'btnDropdownDashboardSettings', 'dropdownDashboardSettingsMenu', 'btnDashboardSettings', 'dashboardSettingsModal', 'btnDashboardSettingsSave', 'btnDashboardSettingsReset', 'paletteSelect', 'btnDashboardSettingsCancel', 'btnDashboardPrompts', 'dashboardPromptsModal', 'dpPromptInput', 'dpGlossaryPromptInput', 'dpAiCheckPromptInput', 'btnDashboardPromptsSave', 'btnDashboardPromptsReset', 'btnDashboardPromptsCancel',
     'dsSourceLang', 'dsTargetLang', 'dsTranslationMode', 'dsAiFormat', 'dsContextLines', 'dsSelectionBatch', 'dsGlossaryBatch', 'dsAiCheckBatch', 'dsRegexFilter',
     'btnImportFolder', 'btnImportZip', 'btnImportTranslatedFile', 'btnImportTranslatedFolder', 'btnExport', 'btnProofread', 'btnSettings',
     'previewViewport', 'previewContainer', 'progressFill', 'progressText', 'btnSelectAll',
@@ -87,9 +87,9 @@ export function cacheElements(): void {
     'proofreadReplaceInput', 'btnProofreadReplaceAll', 'proofreadPreserveCaseCheck', 'proofreadJumpCheck', 'rangeFromInput', 'rangeToInput', 'btnSelectRange',
     'settingsCheckKanaResidue', 'settingsCheckSimilarity', 'settingsSimilarityThreshold', 'settingsSimilarityThresholdWrap',
     'settingsContextTypeSelect',
-    'btnQaCheck', 'qaModal', 'qaCheckGlossary', 'qaCheckKana', 'qaCheckSimilarity', 'btnRunQa', 'btnQaReset', 'qaStats', 'qaResults', 'btnQaClose',
-    'btnAutoTranslate', 'btnAutoGlossaryAi', 'btnAutoAiCheck', 'btnFloatingApiSettings', 'apiSettingsModal', 'apiTypeSelect', 'apiUrlInput', 'apiKeyInput', 'apiModelInput', 'apiModelSelect', 'btnFetchModels', 'apiModelFetchStatus', 'apiTemperatureInput', 'apiTopPInput', 'apiRpmInput', 'apiDelayPreview', 'apiThinkingSelect', 'apiFilterThinkingCheck', 'btnApiSettingsCancel', 'btnApiSettingsSave',
-    'btnFloatingAiAgent', 'aiAgentChatPanel', 'btnAgentClose', 'agentChatHistory', 'agentInput', 'btnAgentSend',
+    'btnQaCheck', 'qaModal', 'qaCheckGlossary', 'qaCheckKana', 'qaCheckSimilarity', 'qaCheckLinebreak', 'qaCheckLength', 'qaCheckLanguage', 'qaCheckPunctuation', 'btnRunQa', 'btnQaReset', 'qaStats', 'qaResults', 'btnQaClose', 'btnRetranslateFlagged', 'settingsCheckLengthRatio', 'settingsLengthRatioThreshold', 'settingsLengthRatioWrap', 'settingsCheckLinebreak', 'settingsCheckLanguage', 'settingsCheckPunctuation', 'settingsEnableUncertainMarking', 'qaCheckUncertain', 'aiTranslateModeSelect', 'settingsAgentMaxTurns',
+    'btnAutoTranslate', 'btnAutoGlossaryAi', 'btnAutoAiCheck', 'btnFloatingApiSettings', 'apiSettingsModal', 'apiTypeSelect', 'apiUrlInput', 'apiKeyInput', 'apiModelInput', 'apiModelSelect', 'btnFetchModels', 'apiModelFetchStatus', 'apiTemperatureInput', 'apiTopPInput', 'apiRpmInput', 'apiDelayPreview', 'apiThinkingSelect', 'apiFilterThinkingCheck', 'apiBackupKeysInput', 'apiKeyStrategySelect', 'btnApiSettingsCancel', 'btnApiSettingsSave',
+    'btnFloatingAiAgent', 'aiAgentChatPanel', 'btnAgentClose', 'btnAgentClear', 'agentChatHistory', 'agentInput', 'btnAgentSend',
     'btnTextReplacer', 'textReplacerModal', 'replacerPreInput', 'replacerPostInput', 'btnTextReplacerCancel', 'btnTextReplacerSave'
   ];
   for (const id of ids) {
@@ -145,7 +145,10 @@ export function bindEvents(): void {
       const rect = isSettingsBtn.getBoundingClientRect();
       const menu = ui.dropdownSettingsMenu as HTMLElement;
       menu.style.top = (rect.bottom + 4) + 'px';
-      menu.style.left = rect.left + 'px';
+      let left = rect.left;
+      const maxLeft = window.innerWidth - menu.offsetWidth - 8;
+      if (left > maxLeft) left = Math.max(8, maxLeft);
+      menu.style.left = left + 'px';
       menu.classList.toggle('show');
     } else {
       if (ui.dropdownSettingsMenu) {
@@ -162,6 +165,14 @@ export function bindEvents(): void {
   ui.restoreProjectInput?.addEventListener('change', onRestoreProject);
 
   ui.btnDashboardSettings?.addEventListener('click', openDashboardSettings);
+  const paletteSel = document.getElementById('paletteSelect');
+  if (paletteSel) {
+    paletteSel.addEventListener('change', () => {
+      const val = (paletteSel as HTMLSelectElement).value;
+      localStorage.setItem('cstl_color_palette', val);
+      applyPalette(val);
+    });
+  }
   ui.btnDashboardPrompts?.addEventListener('click', () => { import('./project').then(m => m.openDashboardPrompts()); });
   ui.btnDashboardPromptsSave?.addEventListener('click', () => { import('./project').then(m => m.saveDashboardPrompts()); });
   ui.btnDashboardPromptsReset?.addEventListener('click', () => { import('./project').then(m => m.resetDashboardPrompts()); });
@@ -324,7 +335,12 @@ export function bindEvents(): void {
   ui.btnSettingsPromptsSave?.addEventListener('click', onSavePromptsSettings);
   ui.btnSettingsGlossarySave?.addEventListener('click', onSaveGlossarySettings);
 
-  if (ui.settingsCheckSimilarity) {
+  if (ui.settingsCheckLengthRatio) {
+    ui.settingsCheckLengthRatio.addEventListener('change', () => {
+      (document.getElementById('settingsLengthRatioWrap') as HTMLElement).style.display = (ui.settingsCheckLengthRatio as HTMLInputElement).checked ? 'flex' : 'none';
+    });
+  }
+if (ui.settingsCheckSimilarity) {
     ui.settingsCheckSimilarity.addEventListener('change', () => {
       (ui.settingsSimilarityThresholdWrap as HTMLElement).style.display = (ui.settingsCheckSimilarity as HTMLInputElement).checked ? 'flex' : 'none';
     });
@@ -364,8 +380,17 @@ export function bindEvents(): void {
   ui.btnQaClose?.addEventListener('click', () => closeModal(ui.qaModal as HTMLElement));
   ui.btnQaReset?.addEventListener('click', onResetQa);
   ui.btnRunQa?.addEventListener('click', runQaCheck);
+  document.getElementById('btnRetranslateFlagged')?.addEventListener('click', onRetranslateFlagged);
+
 
   ui.btnAutoTranslate?.addEventListener('click', onAutoTranslate);
+  const modeSelect = document.getElementById('aiTranslateModeSelect') as HTMLSelectElement;
+  if (modeSelect) {
+    modeSelect.addEventListener('change', () => {
+      state.aiTranslateMode = (modeSelect.value as 'auto' | 'agent');
+      import('./auto-translate').then(m => m.saveApiSettings());
+    });
+  }
   ui.btnAutoGlossaryAi?.addEventListener('click', () => import('./auto-translate').then(m => m.onAutoGlossary()));
   ui.btnAutoAiCheck?.addEventListener('click', () => import('./auto-translate').then(m => m.onAutoAiCheck()));
 
@@ -460,13 +485,147 @@ export function bindEvents(): void {
   bindShortcutCaptureInput(ui.settingsSelectionNextShortcutInput as HTMLInputElement);
 
   // AI Agent Events
-  ui.btnFloatingAiAgent?.addEventListener('click', () => {
-    const panel = ui.aiAgentChatPanel as HTMLElement;
-    panel.style.display = panel.style.display === 'none' ? 'flex' : 'none';
-  });
+  let isDraggingChat = false;
+  let chatStartX = 0, chatStartY = 0;
+  let chatInitLeft = 0, chatInitTop = 0;
+
+  if (ui.btnFloatingAiAgent) {
+    const btn = ui.btnFloatingAiAgent as HTMLElement;
+    const onStart = (e: MouseEvent | TouchEvent) => {
+      isDraggingChat = false;
+      const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+      const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+      chatStartX = clientX;
+      chatStartY = clientY;
+      const rect = btn.getBoundingClientRect();
+      chatInitLeft = rect.left;
+      chatInitTop = rect.top;
+
+      const onMove = (moveEvent: MouseEvent | TouchEvent) => {
+        const moveX = 'touches' in moveEvent ? moveEvent.touches[0].clientX : moveEvent.clientX;
+        const moveY = 'touches' in moveEvent ? moveEvent.touches[0].clientY : moveEvent.clientY;
+        const dx = moveX - chatStartX;
+        const dy = moveY - chatStartY;
+        if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
+          isDraggingChat = true;
+          moveEvent.preventDefault();
+          let newLeft = chatInitLeft + dx;
+          let newTop = chatInitTop + dy;
+          newLeft = Math.max(0, Math.min(window.innerWidth - btn.offsetWidth, newLeft));
+          newTop = Math.max(0, Math.min(window.innerHeight - btn.offsetHeight, newTop));
+          btn.style.left = newLeft + 'px';
+          btn.style.top = newTop + 'px';
+          btn.style.bottom = 'auto';
+          btn.style.right = 'auto';
+        }
+      };
+
+      const onEnd = () => {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onEnd);
+        document.removeEventListener('touchmove', onMove);
+        document.removeEventListener('touchend', onEnd);
+        if (isDraggingChat) {
+          setTimeout(() => { isDraggingChat = false; }, 50);
+        }
+      };
+
+      document.addEventListener('mousemove', onMove, { passive: false });
+      document.addEventListener('mouseup', onEnd);
+      document.addEventListener('touchmove', onMove, { passive: false });
+      document.addEventListener('touchend', onEnd);
+    };
+
+    btn.addEventListener('mousedown', onStart);
+    btn.addEventListener('touchstart', onStart, { passive: false });
+
+    btn.addEventListener('click', async (e) => {
+      if (isDraggingChat) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
+      const panel = ui.aiAgentChatPanel as HTMLElement;
+      const isHidden = panel.style.display === 'none';
+      panel.style.display = isHidden ? 'flex' : 'none';
+      if (isHidden) {
+        const { loadChatHistory, renderChatHistory } = await import('./ai-agent');
+        loadChatHistory();
+        renderChatHistory();
+      }
+    });
+  }
 
   ui.btnAgentClose?.addEventListener('click', () => {
     (ui.aiAgentChatPanel as HTMLElement).style.display = 'none';
+  });
+  // Make the AI Agent chat panel draggable by its header, mirroring the robot icon.
+  if (ui.aiAgentChatPanel) {
+    const panel = ui.aiAgentChatPanel as HTMLElement;
+    const header = panel.querySelector<HTMLElement>('.agent-header');
+    if (header) {
+      let isDraggingPanel = false;
+      let panelStartX = 0, panelStartY = 0;
+      let panelInitLeft = 0, panelInitTop = 0;
+
+      const onPanelStart = (e: MouseEvent | TouchEvent) => {
+        // Ignore presses that start on the header buttons (clear/close).
+        const target = e.target as HTMLElement;
+        if (target.closest('button')) return;
+        isDraggingPanel = false;
+        const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+        const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+        panelStartX = clientX;
+        panelStartY = clientY;
+        const rect = panel.getBoundingClientRect();
+        panelInitLeft = rect.left;
+        panelInitTop = rect.top;
+
+        const onPanelMove = (moveEvent: MouseEvent | TouchEvent) => {
+          const moveX = 'touches' in moveEvent ? moveEvent.touches[0].clientX : moveEvent.clientX;
+          const moveY = 'touches' in moveEvent ? moveEvent.touches[0].clientY : moveEvent.clientY;
+          const dx = moveX - panelStartX;
+          const dy = moveY - panelStartY;
+          if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
+            isDraggingPanel = true;
+            moveEvent.preventDefault();
+            let newLeft = panelInitLeft + dx;
+            let newTop = panelInitTop + dy;
+            newLeft = Math.max(0, Math.min(window.innerWidth - panel.offsetWidth, newLeft));
+            newTop = Math.max(0, Math.min(window.innerHeight - panel.offsetHeight, newTop));
+            panel.style.left = newLeft + 'px';
+            panel.style.top = newTop + 'px';
+            panel.style.bottom = 'auto';
+            panel.style.right = 'auto';
+            header.style.cursor = 'grabbing';
+          }
+        };
+
+        const onPanelEnd = () => {
+          document.removeEventListener('mousemove', onPanelMove);
+          document.removeEventListener('mouseup', onPanelEnd);
+          document.removeEventListener('touchmove', onPanelMove);
+          document.removeEventListener('touchend', onPanelEnd);
+          header.style.cursor = 'grab';
+          if (isDraggingPanel) {
+            setTimeout(() => { isDraggingPanel = false; }, 50);
+          }
+        };
+
+        document.addEventListener('mousemove', onPanelMove, { passive: false });
+        document.addEventListener('mouseup', onPanelEnd);
+        document.addEventListener('touchmove', onPanelMove, { passive: false });
+        document.addEventListener('touchend', onPanelEnd);
+      };
+
+      header.addEventListener('mousedown', onPanelStart);
+      header.addEventListener('touchstart', onPanelStart, { passive: false });
+    }
+  }
+  ui.btnAgentClear?.addEventListener('click', async () => {
+    if (!confirm('Hapus semua riwayat chat untuk proyek ini?')) return;
+    const { clearChatHistory } = await import('./ai-agent');
+    clearChatHistory();
   });
 
   const doAgentSend = async () => {
@@ -526,6 +685,58 @@ export function bindEvents(): void {
 
 // ─── Bootstrap ────────────────────────────────────────────────────────────────
 
+// ─── Color Palette System ────────────────────────────────────────────────────
+interface ColorPalette {
+  '--bg': string; '--bg-2': string; '--panel': string; '--panel-2': string;
+  '--line': string; '--line-2': string; '--primary': string; '--primary-hover': string;
+  '--primary-soft': string; '--accent': string;
+}
+
+const PALETTES: Record<string, ColorPalette> = {
+  indigo: {
+    '--bg': '#0a0e1a', '--bg-2': '#0d1220', '--panel': '#131826', '--panel-2': '#1a2030',
+    '--line': '#252d3f', '--line-2': '#2f3850', '--primary': '#6366f1', '--primary-hover': '#4f46e5',
+    '--primary-soft': 'rgba(99, 102, 241, 0.14)', '--accent': '#a855f7',
+  },
+  ocean: {
+    '--bg': '#0f172a', '--bg-2': '#111c33', '--panel': '#1e293b', '--panel-2': '#243349',
+    '--line': '#334155', '--line-2': '#3e4d66', '--primary': '#3b82f6', '--primary-hover': '#2563eb',
+    '--primary-soft': 'rgba(59, 130, 246, 0.14)', '--accent': '#6366f1',
+  },
+  forest: {
+    '--bg': '#0a1410', '--bg-2': '#0d1a14', '--panel': '#122018', '--panel-2': '#1a2a20',
+    '--line': '#1f3a2b', '--line-2': '#2a4d39', '--primary': '#10b981', '--primary-hover': '#059669',
+    '--primary-soft': 'rgba(16, 185, 129, 0.14)', '--accent': '#34d399',
+  },
+  sunset: {
+    '--bg': '#1a0f0a', '--bg-2': '#1f120c', '--panel': '#241510', '--panel-2': '#2e1c14',
+    '--line': '#3d231a', '--line-2': '#4d2d22', '--primary': '#f97316', '--primary-hover': '#ea580c',
+    '--primary-soft': 'rgba(249, 115, 22, 0.14)', '--accent': '#fb923c',
+  },
+  rose: {
+    '--bg': '#140a12', '--bg-2': '#190c16', '--panel': '#1f1020', '--panel-2': '#281428',
+    '--line': '#3a1f3a', '--line-2': '#4a2a4a', '--primary': '#ec4899', '--primary-hover': '#db2777',
+    '--primary-soft': 'rgba(236, 72, 153, 0.14)', '--accent': '#f472b6',
+  },
+};
+
+function applyPalette(name: string): void {
+  const palette = PALETTES[name] || PALETTES['indigo'];
+  const root = document.documentElement;
+  for (const [key, value] of Object.entries(palette)) {
+    root.style.setProperty(key, value);
+  }
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute('content', palette['--bg']);
+}
+
+function loadPalette(): void {
+  const saved = localStorage.getItem('cstl_color_palette') || 'indigo';
+  applyPalette(saved);
+  const select = document.getElementById('paletteSelect') as HTMLSelectElement;
+  if (select) select.value = saved;
+}
+
 export async function init(): Promise<void> {
   // Register PWA service worker
   if ('serviceWorker' in navigator) {
@@ -534,6 +745,7 @@ export async function init(): Promise<void> {
     }).catch(console.error);
   }
 
+  loadPalette();
   cacheElements();
   initScrollers();
   bindEvents();
