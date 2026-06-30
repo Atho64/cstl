@@ -91,6 +91,16 @@ function loadHistory() {
   }
 }
 
+export function getDictHistory(): DictHistoryEntry[] {
+  return dictHistory;
+}
+
+export function setDictHistory(entries: DictHistoryEntry[]) {
+  dictHistory = Array.isArray(entries) ? entries : [];
+  saveHistory();
+  renderHistoryUI();
+}
+
 function saveHistory() {
   try {
     localStorage.setItem('cstl_dict_history', JSON.stringify(dictHistory));

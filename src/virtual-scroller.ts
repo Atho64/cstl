@@ -181,6 +181,8 @@ export class VirtualScroller<T = any> {
         el.remove();
       }
       this.rowMap.clear();
+      this.heights = new Array(this.items.length).fill(this.estimatedHeight);
+      this.updatePositions();
     }
 
     const toRemove: number[] = [];

@@ -576,7 +576,6 @@ input, textarea, button, select { font-family: inherit; font-size: inherit; }
   border-radius: var(--radius-lg);
   overflow: auto;
   background: var(--bg);
-  overflow-anchor: none;
   min-height: 0;
   overscroll-behavior: contain;
 }

@@ -17,6 +17,7 @@ import { readEpubSourceForBackup, writeEpubSourceFromBackup, cloneExistingEpubSo
 import { resetSelectionHistory, switchWorkspaceTab, normalizeSelectionBatchSize } from './selection';
 import { normalizeLineDict } from './state';
 import { normalizeShortcutString } from './shortcuts';
+import { getDictHistory, setDictHistory } from './dictionary';
 
 // ─── Luca raw-field recovery (migration for saves made before the luca_raw_index fix) ───
 function recoverLucaRawFields(): void {
@@ -505,6 +506,7 @@ export function queueAutoSave(): void {
   setSaveTimeout(setTimeout(async () => {
     const data = {
       version: APP_VERSION, projectName: state.projectName, projectType: state.projectType,
+      source_lang: state.sourceLang, target_lang: state.targetLang,
       translationMode: state.translationMode || 'ai', jsonRefLang: state.jsonRefLang || '',
       epubTags: state.epubTags, epubSourceId: state.epubSourceId,
       lucaExportLang: state.lucaExportLang,
@@ -524,6 +526,10 @@ export function queueAutoSave(): void {
       ai_translation_format: state.aiTranslationFormat || DEFAULT_AI_TRANSLATION_FORMAT,
       glossary_prompt: state.glossaryPrompt, ai_check_prompt: state.aiCheckPrompt,
       agent_prompt: state.agentPrompt,
+      dict_history: getDictHistory(),
+      paste_area: (ui.pasteArea as HTMLTextAreaElement)?.value || '',
+      paste_glossary_area: (ui.pasteGlossaryArea as HTMLTextAreaElement)?.value || '',
+      paste_ai_check_area: (ui.pasteAiCheckArea as HTMLTextAreaElement)?.value || '',
       glossary_text: state.glossaryText, context_lines: state.contextLines,
       context_type: state.contextType, selection_batch_size: state.selectionBatchSize,
       glossary_batch_size: state.glossaryBatchSize, ai_check_batch_size: state.aiCheckBatchSize,
@@ -552,6 +558,8 @@ export function openProject(id: string, data: any): void {
   state.currentProjectId = id;
   state.projectName = data.projectName || 'Unknown Project';
   state.projectType = data.projectType || 'json';
+  state.sourceLang = data.source_lang || state.sourceLang || 'Japanese';
+  state.targetLang = data.target_lang || state.targetLang || 'Indonesian';
   state.translationMode = data.translationMode || 'ai';
   state.jsonRefLang = data.jsonRefLang || '';
   state.epubTags = data.epubTags || 'p';
@@ -632,8 +640,15 @@ export function openProject(id: string, data: any): void {
   state.aiCheckCorrections = [];
   state.activeWorkspaceTab = 'translate';
   resetSelectionHistory();
-  if (ui.pasteAiCheckArea) (ui.pasteAiCheckArea as HTMLTextAreaElement).value = '';
+  if (ui.pasteArea) (ui.pasteArea as HTMLTextAreaElement).value = data.paste_area || '';
+  if (ui.pasteGlossaryArea) (ui.pasteGlossaryArea as HTMLTextAreaElement).value = data.paste_glossary_area || '';
+  if (ui.pasteAiCheckArea) (ui.pasteAiCheckArea as HTMLTextAreaElement).value = data.paste_ai_check_area || '';
   if (ui.aiCheckResults) (ui.aiCheckResults as HTMLElement).textContent = '';
+  setDictHistory(data.dict_history || []);
+  import('./ai-agent').then(({ loadChatHistory, renderChatHistory }) => {
+    loadChatHistory();
+    renderChatHistory();
+  });
   (ui.projectNameDisplay as HTMLElement).textContent = state.translationMode === 'htl'
     ? `${state.projectName} [HTL]`
     : state.projectName;
@@ -649,6 +664,7 @@ export function closeProject(): void {
     clearTimeout(getSaveTimeout()!);
     const data: Record<string, any> = {
       version: APP_VERSION, projectName: state.projectName, projectType: state.projectType,
+      source_lang: state.sourceLang, target_lang: state.targetLang,
       translationMode: state.translationMode || 'ai', jsonRefLang: state.jsonRefLang || '',
       epubTags: state.epubTags, epubSourceId: state.epubSourceId,
       lucaExportLang: state.lucaExportLang, luca_profile: state.lucaProfile || DEFAULT_LUCA_PROFILE,
@@ -667,6 +683,10 @@ export function closeProject(): void {
       ai_translation_format: state.aiTranslationFormat || DEFAULT_AI_TRANSLATION_FORMAT,
       glossary_prompt: state.glossaryPrompt, ai_check_prompt: state.aiCheckPrompt,
       agent_prompt: state.agentPrompt,
+      dict_history: getDictHistory(),
+      paste_area: (ui.pasteArea as HTMLTextAreaElement)?.value || '',
+      paste_glossary_area: (ui.pasteGlossaryArea as HTMLTextAreaElement)?.value || '',
+      paste_ai_check_area: (ui.pasteAiCheckArea as HTMLTextAreaElement)?.value || '',
       glossary_text: state.glossaryText, context_lines: state.contextLines, context_type: state.contextType,
       selection_batch_size: state.selectionBatchSize, glossary_batch_size: state.glossaryBatchSize,
       ai_check_batch_size: state.aiCheckBatchSize,
