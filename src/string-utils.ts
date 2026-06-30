@@ -51,8 +51,26 @@ const WINDOWS_FILE_ORDER_COLLATOR = new Intl.Collator(undefined, {
   sensitivity: 'base',
 });
 
+function splitFileOrderParts(pathOrName: string): { dir: string; stem: string; ext: string } {
+  const normalized = String(pathOrName || '').replace(/\\/g, '/');
+  const slashIndex = normalized.lastIndexOf('/');
+  const dir = slashIndex >= 0 ? normalized.slice(0, slashIndex + 1) : '';
+  const fileName = slashIndex >= 0 ? normalized.slice(slashIndex + 1) : normalized;
+  const dotIndex = fileName.lastIndexOf('.');
+  if (dotIndex <= 0) return { dir, stem: fileName, ext: '' };
+  return {
+    dir,
+    stem: fileName.slice(0, dotIndex),
+    ext: fileName.slice(dotIndex),
+  };
+}
+
 export function windowsFileOrderCompare(a: string, b: string): number {
-  return WINDOWS_FILE_ORDER_COLLATOR.compare(String(a || ''), String(b || ''));
+  const left = splitFileOrderParts(a);
+  const right = splitFileOrderParts(b);
+  return WINDOWS_FILE_ORDER_COLLATOR.compare(left.dir, right.dir)
+    || WINDOWS_FILE_ORDER_COLLATOR.compare(left.stem, right.stem)
+    || WINDOWS_FILE_ORDER_COLLATOR.compare(left.ext, right.ext);
 }
 
 export function getFileOrderPath(file: File): string {
