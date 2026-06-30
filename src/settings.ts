@@ -9,6 +9,7 @@ import {
   DEFAULT_SELECTION_BATCH_SIZE, DEFAULT_GLOSSARY_BATCH_SIZE, DEFAULT_AI_CHECK_BATCH_SIZE,
   DEFAULT_SELECTION_BATCH_PREV_SHORTCUT, DEFAULT_SELECTION_BATCH_NEXT_SHORTCUT,
   DEFAULT_LUCA_MC_DISPLAY_NAME,
+  DEFAULT_AGENT_PROMPT,
 } from './constants';
 import { getDefaultPromptHeaderForFormat, normalizeAiTranslationFormat } from './ai-format';
 import { normalizeSelectionBatchSize } from './selection';
@@ -123,11 +124,13 @@ export function onOpenPromptsSettings(): void {
     (ui.settingsPromptInput as HTMLTextAreaElement).value = state.aiInstructionHeader;
     (ui.settingsGlossaryPromptInput as HTMLTextAreaElement).value = state.glossaryPrompt;
     (ui.settingsAiCheckPromptInput as HTMLTextAreaElement).value = state.aiCheckPrompt;
+    (ui.settingsAgentPromptInput as HTMLTextAreaElement).value = state.agentPrompt;
   } else {
     const format = (ui.settingsAiTranslationFormatSelect as HTMLSelectElement)?.value || DEFAULT_AI_TRANSLATION_FORMAT;
     (ui.settingsPromptInput as HTMLTextAreaElement).value = getDefaultPromptHeaderForFormat(format);
     (ui.settingsGlossaryPromptInput as HTMLTextAreaElement).value = DEFAULT_GLOSSARY_PROMPT;
     (ui.settingsAiCheckPromptInput as HTMLTextAreaElement).value = DEFAULT_AI_CHECK_PROMPT;
+    (ui.settingsAgentPromptInput as HTMLTextAreaElement).value = DEFAULT_AGENT_PROMPT;
   }
   openModal(ui.settingsPromptsModal as HTMLElement);
 }
@@ -233,6 +236,7 @@ export function onSavePromptsSettings(): void {
   const aiInstructionHeader = (ui.settingsPromptInput as HTMLTextAreaElement).value.trim();
   const glossaryPrompt = (ui.settingsGlossaryPromptInput as HTMLTextAreaElement).value.trim();
   const aiCheckPrompt = (ui.settingsAiCheckPromptInput as HTMLTextAreaElement).value.trim();
+  const agentPrompt = (ui.settingsAgentPromptInput as HTMLTextAreaElement).value.trim();
   const epubTags = (ui.settingsEpubTagsInput as HTMLInputElement)?.value.trim() || 'p';
   const enableBackgroundChaining = (ui.settingsEnableBackgroundChaining as HTMLInputElement).checked;
   const currentBackground = (ui.settingsBackgroundInput as HTMLTextAreaElement).value.trim();
@@ -240,6 +244,7 @@ export function onSavePromptsSettings(): void {
   state.aiInstructionHeader = aiInstructionHeader;
   state.glossaryPrompt = glossaryPrompt;
   state.aiCheckPrompt = aiCheckPrompt;
+  state.agentPrompt = agentPrompt;
   state.epubTags = epubTags;
   state.enableBackgroundChaining = enableBackgroundChaining;
   state.currentBackground = currentBackground;

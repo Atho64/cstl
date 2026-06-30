@@ -103,6 +103,7 @@ export interface AppState {
   aiFilterThinkingOutput: boolean;
   glossaryPrompt: string;
   aiCheckPrompt: string;
+  agentPrompt: string;
   glossaryText: string;
   contextLines: number;
   contextType: string;

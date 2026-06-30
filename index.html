@@ -399,6 +399,10 @@
           <label class="section-label text-white m-0">Prompt AI Check</label>
           <textarea id="dpAiCheckPromptInput" class="mono input-area mt-1"></textarea>
         </div>
+        <div class="mt-2">
+          <label class="section-label text-white m-0">Prompt Agent Mode</label>
+          <textarea id="dpAgentPromptInput" class="mono input-area mt-1"></textarea>
+        </div>
       </div>
       <div class="modal-actions mt-3">
         <button id="btnDashboardPromptsSave" class="btn btn-primary">Simpan Default Prompts</button>
@@ -729,6 +733,14 @@
           </div>
           <p class="hint m-0">Teks instruksi ini digunakan saat menyalin teks untuk ekstraksi glossary.</p>
           <textarea id="settingsGlossaryPromptInput" class="mono input-area mt-1"></textarea>
+        </div>
+        <div class="mt-3">
+          <div class="flex-between mb-1">
+            <label class="section-label text-white m-0">Pengaturan Prompt Agent Mode</label>
+            <button id="btnSettingsAgentPromptReset" class="btn btn-outline btn-xs">Reset Default</button>
+          </div>
+          <p class="hint m-0">System prompt untuk mode Agent (terjemahan multi-turn otonom dengan tools).</p>
+          <textarea id="settingsAgentPromptInput" class="mono input-area mt-1"></textarea>
         </div>
       </div>
       <div class="modal-actions mt-3">

@@ -5,7 +5,7 @@ import { chatCompletion, ChatMessage } from './ai-agent';
 import { applyAgentTranslations } from './translate';
 import { getGlossaryPrompt, formatGlossaryEntry } from './glossary';
 import { applyPromptVariables } from './ai-format';
-import { DEFAULT_PROMPT_HEADER } from './constants';
+import { DEFAULT_AGENT_PROMPT } from './constants';
 import { openModal, closeModal } from './project';
 import { flashHint } from './render';
 import type { Line } from './types';
@@ -69,38 +69,10 @@ function executeTool(name: string, args: any): string {
 // ─── Prompt building ──────────────────────────────────────────────────────────
 
 function buildAgentSystemPrompt(): string {
-  let prompt = `You are an autonomous visual novel translation agent. Your task is to translate ${state.sourceLang} VN script lines to ${state.targetLang}.
-
-PROTOCOL — respond with a JSON object only, no other text.
-
-To call tools for context:
-{"action":"tool_calls","tool_calls":[{"name":"read_lines","arguments":{"start":40,"count":5}}]}
-
-To commit translations when ready:
-{"action":"commit","translations":[{"id":10,"trans_message":"Selamat pagi","trans_name":"Alice"}],"glossary_suggestions":[{"source":"アリス","target":"Alice","type":"character","note":"Main heroine"}],"rolling_context":"Alice greeted the protagonist. Casual tone.","file_note":{"characters":["Alice"],"tone":"casual"}}
-
-RULES:
-- Translate ALL lines in the chunk before committing. Every ID must have a translation.
-- Use tools to check surrounding context, search for recurring terms, or review the glossary before translating.
-- Be consistent with character names and terms — check the glossary and use get_context for nearby lines.
-- ALWAYS translate character names. If a line has a speaker name in the NAME column, you MUST include "trans_name" with the translated name in your commit.
-- "id" in translations must match the line IDs given in the chunk.
-- "trans_name" is REQUIRED when the line has a NAME (speaker). Translate the character name and include it. If the line has no speaker (NAME column is empty), omit trans_name.
-- "glossary_suggestions" is optional — suggest new terms you discovered. Use "type": "character" for character names, "type": "term" for other terms.
-- "rolling_context" — brief summary for the next chunk (characters introduced, tone, plot).
-- "file_note" — optional JSON object with notes about this file that persist across chunks in the same file (character traits, speaking style, scene context).
-- Target language: ${state.targetLang}. Source language: ${state.sourceLang}.
-
-AVAILABLE TOOLS:
-1. read_lines(start, count) — Read original + translation for any line range.
-2. search_text(query) — Search all lines for a keyword (max 50 results).
-3. get_context(line_num, radius) — Get surrounding lines (radius 1-20).
-4. get_glossary() — Get current glossary terms.`;
-
+  let prompt = applyPromptVariables((state.agentPrompt || DEFAULT_AGENT_PROMPT).trim());
   if (state.enableUncertainMarking) {
     prompt += '\n\nIf you are uncertain about a translation, prefix it with [?].';
   }
-
   return prompt;
 }
 

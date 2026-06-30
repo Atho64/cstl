@@ -136,12 +136,25 @@ async function chatCompletionOpenAI(messages: ChatMessage[], config: ApiConfig):
     if (!url.endsWith('/')) url += '/';
     url += 'chat/completions';
   }
-  const body = {
+  const body: any = {
     model: config.model || 'gpt-4o-mini',
     messages: messages,
     temperature: state.aiTemperature ?? 1.0,
     top_p: state.aiTopP ?? 1.0,
   };
+
+  const thinkMode = state.aiThinkingMode;
+  if (thinkMode !== 'default') {
+    const apiUrl = config.url || '';
+    if (/localhost|127\.0\.0\.1|11434/.test(apiUrl)) {
+      body.think = (thinkMode === 'on');
+    } else if (apiUrl.includes('openrouter.ai')) {
+      body.reasoning = thinkMode === 'on' ? { effort: 'high' } : { effort: 'none' };
+    } else if (/o1|o3|o4/.test(config.model || '')) {
+      body.reasoning_effort = thinkMode === 'on' ? 'high' : 'low';
+    }
+  }
+
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${config.key}` },
@@ -173,9 +186,16 @@ async function chatCompletionGemini(messages: ChatMessage[], config: ApiConfig):
       contents.push({ role: msg.role === 'assistant' ? 'model' : 'user', parts: [{ text: msg.content }] });
     }
   }
+  const genConfig: any = { temperature: state.aiTemperature ?? 1.0, topP: state.aiTopP ?? 1.0 };
+
+  const thinkMode = state.aiThinkingMode;
+  if (thinkMode !== 'default') {
+    genConfig.thinkingConfig = { thinkingBudget: thinkMode === 'off' ? 0 : -1 };
+  }
+
   const body: any = {
     contents: contents,
-    generationConfig: { temperature: state.aiTemperature ?? 1.0, topP: state.aiTopP ?? 1.0 },
+    generationConfig: genConfig,
   };
   if (systemInstruction) body.systemInstruction = systemInstruction;
   const res = await fetch(url, {

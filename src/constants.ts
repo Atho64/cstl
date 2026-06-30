@@ -96,6 +96,35 @@ You are Ciallo, an expert AI translator and Chief Literary Director.
 export const DEFAULT_GLOSSARY_PROMPT = `Extract important names and story-specific terminology from the following text to build a typed glossary.\nFormat the output STRICTLY as:\n[type] [{{sourceLang}} term] = [{{targetLang}} term] {short description}\n\nAllowed types:\n[character], [place], [organization], [item], [ability], [title], [concept], [term]\n\nDescription examples:\n{male name}, {female name}, {family name}, {given name}, {place name}, {school}, {food}, {honorific}, {concept}\n\nExample:\n[character] 速川麦 = Hayakawa Mugi {male name}\n[character] 辻倉朱比華 = Tsujikura Spica {female name}\n[place] 渋谷 = Shibuya {place name}\n[item] 炬燵 = Kotatsu {household item}\n[term] 義妹 = adik tiri perempuan {family term}\n\nRules:\n1. Do NOT translate the text itself.\n2. Only output the typed glossary list.\n3. Do NOT include common everyday words, ordinary verbs, generic adjectives, or basic nouns unless they are proper nouns, recurring key terms, culturally specific terms, or story-specific concepts.\n4. Prefer character names, family names, given names, place names, organization names, titles, unique items, abilities, honorifics, relationship terms, and recurring setting-specific terminology.\n5. Prefer specific types over [term].\n6. Include gender for character names when inferable from context; otherwise use {character name}.\n7. Put results inside \`\`\`plaintext block.`;
 export const DEFAULT_AI_CHECK_PROMPT = `Check the existing {{targetLang}} translation against the original {{sourceLang}} text.\nOnly return lines that need correction. Do not return lines that are already good.\n\nUse this STRICT format for each correction:\n[line 12]\nreason: why this line needs correction\nname: corrected character name, or blank if unchanged/not applicable\ntext: corrected {{targetLang}} translation without the speaker name prefix\n\nRules:\n1. Keep the original line number exactly.\n2. Give a short, concrete reason.\n3. Use name only for corrected character names; leave it blank when unchanged.\n4. Put only the corrected message in text. Do NOT repeat the speaker name in text.\n5. Correct only the {{targetLang}} translation, not the {{sourceLang}} original.\n6. Respect provided glossary entries.\n7. Put results inside \`\`\`plaintext block.`;
 export const DEFAULT_NAME_TRANSLATION_PROMPT = `Translate or romanize all character names from {{sourceLang}} into natural {{targetLang}} name forms.\nUse the dialogue context only to infer reading, gender, relationship, or naming style.\n\nFormat the output STRICTLY as:\n[character] [{{sourceLang}} name] = [{{targetLang}} name] {short description}\n\nRules:\n1. Keep every source name exactly as given.\n2. Return one line for every name.\n3. Do NOT translate dialogue context.\n4. Do NOT add commentary or markdown outside the result.\n5. Put results inside \`\`\`plaintext block.`;
+
+export const DEFAULT_AGENT_PROMPT = `You are an autonomous visual novel translation agent. Your task is to translate {{sourceLang}} VN script lines to {{targetLang}}.
+
+PROTOCOL — respond with a JSON object only, no other text.
+
+To call tools for context:
+{"action":"tool_calls","tool_calls":[{"name":"read_lines","arguments":{"start":40,"count":5}}]}
+
+To commit translations when ready:
+{"action":"commit","translations":[{"id":10,"trans_message":"\\"Selamat pagi.\\"","trans_name":"Alice"},{"id":11,"trans_message":"Angin berhembus dingin."}],"glossary_suggestions":[{"source":"アリス","target":"Alice","type":"character","note":"Main heroine"}],"rolling_context":"Alice greeted the protagonist. Casual tone.","file_note":{"characters":["Alice"],"tone":"casual"}}
+
+RULES:
+- Translate ALL lines in the chunk before committing. Every ID must have a translation.
+- Use tools to check surrounding context, search for recurring terms, or review the glossary before translating.
+- Be consistent with character names and terms — check the glossary and use get_context for nearby lines.
+- ALWAYS translate character names. If a line has a speaker name in the NAME column, you MUST include "trans_name" with the translated name in your commit.
+- "id" in translations must match the line IDs given in the chunk.
+- "trans_name" is REQUIRED when the line has a NAME (speaker). Translate the character name and include it. If the line has no speaker (NAME column is empty), omit trans_name.
+- Wrap spoken dialogue in double quotes inside trans_message (escape as \\" in JSON). Lines with a speaker are dialogue — add quotes. Lines without a speaker are narration — do not add quotes.
+- "glossary_suggestions" is optional — suggest new terms you discovered. Use "type": "character" for character names, "type": "term" for other terms.
+- "rolling_context" — brief summary for the next chunk (characters introduced, tone, plot).
+- "file_note" — optional JSON object with notes about this file that persist across chunks in the same file (character traits, speaking style, scene context).
+- Target language: {{targetLang}}. Source language: {{sourceLang}}.
+
+AVAILABLE TOOLS:
+1. read_lines(start, count) — Read original + translation for any line range.
+2. search_text(query) — Search all lines for a keyword (max 50 results).
+3. get_context(line_num, radius) — Get surrounding lines (radius 1-20).
+4. get_glossary() — Get current glossary terms.`;
 export const APP_VERSION = 'vM14';
 export const DEFAULT_LUCA_MC_DISPLAY_NAME = 'Tomoya';
 export const DEFAULT_JSON_REF_LANG = ''; // e.g. "en" or "zh" - extra reference language for JSON VNTP projects

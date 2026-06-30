@@ -4,6 +4,7 @@ import { state, ui, setSaveTimeout, getSaveTimeout, getOpfsRoot } from './state'
 import {
   APP_VERSION, PROJECT_EXT,
   DEFAULT_PROMPT_HEADER, DEFAULT_GLOSSARY_PROMPT, DEFAULT_AI_CHECK_PROMPT,
+  DEFAULT_AGENT_PROMPT,
   DEFAULT_LUCA_MC_DISPLAY_NAME,
   DEFAULT_AI_TRANSLATION_FORMAT,
   DEFAULT_SELECTION_BATCH_SIZE, DEFAULT_GLOSSARY_BATCH_SIZE, DEFAULT_AI_CHECK_BATCH_SIZE,
@@ -204,6 +205,7 @@ export function openDashboardPrompts(): void {
   (ui.dpPromptInput as HTMLTextAreaElement).value = d.promptHeader !== undefined ? d.promptHeader : getDefaultPromptHeaderForFormat(d.aiFormat);
   (ui.dpGlossaryPromptInput as HTMLTextAreaElement).value = d.glossaryPrompt !== undefined ? d.glossaryPrompt : DEFAULT_GLOSSARY_PROMPT;
   (ui.dpAiCheckPromptInput as HTMLTextAreaElement).value = d.aiCheckPrompt !== undefined ? d.aiCheckPrompt : DEFAULT_AI_CHECK_PROMPT;
+  (ui.dpAgentPromptInput as HTMLTextAreaElement).value = d.agentPrompt !== undefined ? d.agentPrompt : DEFAULT_AGENT_PROMPT;
   (ui.dashboardPromptsModal as HTMLElement).classList.add('open');
 }
 
@@ -212,6 +214,7 @@ export function saveDashboardPrompts(): void {
   d.promptHeader = (ui.dpPromptInput as HTMLTextAreaElement).value;
   d.glossaryPrompt = (ui.dpGlossaryPromptInput as HTMLTextAreaElement).value;
   d.aiCheckPrompt = (ui.dpAiCheckPromptInput as HTMLTextAreaElement).value;
+  d.agentPrompt = (ui.dpAgentPromptInput as HTMLTextAreaElement).value;
   localStorage.setItem(DS_STORAGE_KEY, JSON.stringify(d));
   (ui.dashboardPromptsModal as HTMLElement).classList.remove('open');
 }
@@ -221,6 +224,7 @@ export function resetDashboardPrompts(): void {
   (ui.dpPromptInput as HTMLTextAreaElement).value = getDefaultPromptHeaderForFormat(d.aiFormat);
   (ui.dpGlossaryPromptInput as HTMLTextAreaElement).value = DEFAULT_GLOSSARY_PROMPT;
   (ui.dpAiCheckPromptInput as HTMLTextAreaElement).value = DEFAULT_AI_CHECK_PROMPT;
+  (ui.dpAgentPromptInput as HTMLTextAreaElement).value = DEFAULT_AGENT_PROMPT;
 }
 
 export function resetDashboardSettings(): void {
@@ -379,6 +383,7 @@ export async function createNewProject(): Promise<void> {
     imported_files: [], lines: [],
     prompt_header: d.promptHeader !== undefined ? d.promptHeader : getDefaultPromptHeaderForFormat(d.aiFormat), ai_translation_format: d.aiFormat,
     glossary_prompt: d.glossaryPrompt !== undefined ? d.glossaryPrompt : DEFAULT_GLOSSARY_PROMPT, ai_check_prompt: d.aiCheckPrompt !== undefined ? d.aiCheckPrompt : DEFAULT_AI_CHECK_PROMPT,
+    agent_prompt: d.agentPrompt !== undefined ? d.agentPrompt : DEFAULT_AGENT_PROMPT,
     glossary_text: '', context_lines: d.contextLines, context_type: 'raw',
     selection_batch_size: d.selectionBatch, glossary_batch_size: d.glossaryBatch, ai_check_batch_size: d.aiCheckBatch,
     selection_batch_prev_shortcut: DEFAULT_SELECTION_BATCH_PREV_SHORTCUT,
@@ -518,6 +523,7 @@ export function queueAutoSave(): void {
       prompt_header: state.aiInstructionHeader,
       ai_translation_format: state.aiTranslationFormat || DEFAULT_AI_TRANSLATION_FORMAT,
       glossary_prompt: state.glossaryPrompt, ai_check_prompt: state.aiCheckPrompt,
+      agent_prompt: state.agentPrompt,
       glossary_text: state.glossaryText, context_lines: state.contextLines,
       context_type: state.contextType, selection_batch_size: state.selectionBatchSize,
       glossary_batch_size: state.glossaryBatchSize, ai_check_batch_size: state.aiCheckBatchSize,
@@ -601,6 +607,7 @@ export function openProject(id: string, data: any): void {
     : DEFAULT_AI_TRANSLATION_FORMAT;
   state.glossaryPrompt = data.glossary_prompt || DEFAULT_GLOSSARY_PROMPT;
   state.aiCheckPrompt = data.ai_check_prompt || DEFAULT_AI_CHECK_PROMPT;
+  state.agentPrompt = data.agent_prompt || DEFAULT_AGENT_PROMPT;
   state.glossaryText = data.glossary_text || '';
   state.contextLines = data.context_lines !== undefined ? data.context_lines : 10;
   state.contextType = data.context_type || 'raw';
@@ -659,6 +666,7 @@ export function closeProject(): void {
       prompt_header: state.aiInstructionHeader,
       ai_translation_format: state.aiTranslationFormat || DEFAULT_AI_TRANSLATION_FORMAT,
       glossary_prompt: state.glossaryPrompt, ai_check_prompt: state.aiCheckPrompt,
+      agent_prompt: state.agentPrompt,
       glossary_text: state.glossaryText, context_lines: state.contextLines, context_type: state.contextType,
       selection_batch_size: state.selectionBatchSize, glossary_batch_size: state.glossaryBatchSize,
       ai_check_batch_size: state.aiCheckBatchSize,
@@ -719,6 +727,7 @@ export async function onRestoreProject(ev: Event): Promise<void> {
       ai_translation_format: p.ai_translation_format != null ? normalizeAiTranslationFormat(p.ai_translation_format) : DEFAULT_AI_TRANSLATION_FORMAT,
       glossary_prompt: p.glossary_prompt || DEFAULT_GLOSSARY_PROMPT,
       ai_check_prompt: p.ai_check_prompt || DEFAULT_AI_CHECK_PROMPT,
+      agent_prompt: p.agent_prompt || DEFAULT_AGENT_PROMPT,
       glossary_text: p.glossary_text || '', context_lines: p.context_lines !== undefined ? p.context_lines : 10,
       context_type: p.context_type || 'raw',
       selection_batch_size: normalizeSelectionBatchSize(p.selection_batch_size),
