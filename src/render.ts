@@ -9,6 +9,7 @@ import { openModal, closeModal } from './project';
 import { getTranslationPastePlaceholder } from './ai-format';
 import { getActiveLineEditorLineNum, setActiveLineEditorLineNum } from './state';
 import { isClannadProtagonistToken, parseLucaTxtText, resolveLucaDisplayName } from './luca-engine';
+import { windowsFileOrderCompare } from './string-utils';
 import type { DisplayRow, Line } from './types';
 
 // ─── Lazy helpers (break circular deps) ──────────────────────────────────────
@@ -19,7 +20,8 @@ function renderGlossaryPreview() { import('./glossary').then(m => m.renderGlossa
 
 export function rebuildDisplayState(): void {
   state.lineByNum.clear();
-  const grouped = new Map<string, Line[]>(state.importedFiles.map(f => [f, []]));
+  const orderedImportedFiles = [...state.importedFiles].sort(windowsFileOrderCompare);
+  const grouped = new Map<string, Line[]>(orderedImportedFiles.map(f => [f, []]));
   let cachedRegex: RegExp | null = null;
   if (state.regexFilter) {
     try {
@@ -39,7 +41,8 @@ export function rebuildDisplayState(): void {
     if (!shouldHide) grouped.get(line.file)!.push(line);
   }
   state.displayRows = [];
-  for (const [fileName, rows] of grouped.entries()) {
+  for (const fileName of Array.from(grouped.keys()).sort(windowsFileOrderCompare)) {
+    const rows = grouped.get(fileName)!;
     if (!rows.length) continue;
     state.displayRows.push({ type: 'separator', file: fileName });
     for (const line of rows) state.displayRows.push({ type: 'line', line });
