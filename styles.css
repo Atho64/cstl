@@ -1479,6 +1479,12 @@ select {
 /* HTL mode */
 body.htl-mode [data-htl-hide="true"] { display: none !important; }
 
+@media (max-width: 768px) {
+  body.htl-mode .panel-right { display: none !important; }
+  body.htl-mode .split-layout { grid-template-rows: 1fr !important; }
+  body.htl-mode .panel-left { height: 100% !important; flex: 1 !important; }
+}
+
 /* Missing utility classes from old CSTL */
 .field-group { display: flex; flex-direction: column; gap: 8px; }
 .form-group { display: flex; flex-direction: column; gap: 8px; }
