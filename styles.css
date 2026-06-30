@@ -576,7 +576,6 @@ input, textarea, button, select { font-family: inherit; font-size: inherit; }
   border-radius: var(--radius-lg);
   overflow: auto;
   background: var(--bg);
-  -webkit-overflow-scrolling: touch;
   overflow-anchor: none;
   min-height: 0;
   overscroll-behavior: contain;
@@ -586,6 +585,7 @@ input, textarea, button, select { font-family: inherit; font-size: inherit; }
   position: relative;
   width: 100%;
   min-height: 100%;
+  will-change: transform;
 }
 
 .preview-row {
@@ -597,7 +597,6 @@ input, textarea, button, select { font-family: inherit; font-size: inherit; }
   border: 1px solid var(--line);
   border-radius: var(--radius);
   padding: 10px 12px;
-  contain: layout;
 }
 .preview-row:hover { background: var(--panel-2); }
 .preview-row.row-selected {
@@ -638,7 +637,7 @@ input, textarea, button, select { font-family: inherit; font-size: inherit; }
   flex-direction: column;
   gap: 6px;
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: var(--content-font-size);
   cursor: pointer;
   min-width: 0;
 }

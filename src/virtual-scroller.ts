@@ -127,7 +127,7 @@ export class VirtualScroller<T = any> {
       if (idx < this.lastStart || idx >= this.lastEnd) continue;
       const rect = el.getBoundingClientRect();
       if (rect.height > 0) {
-        const actualHeight = rect.height + 8;
+        const actualHeight = rect.height;
         if (Math.abs(actualHeight - this.heights[idx]) > 1) {
           this.heights[idx] = actualHeight;
           changed = true;
@@ -157,7 +157,7 @@ export class VirtualScroller<T = any> {
       return;
     }
 
-    const buffer = 15;
+    const buffer = 25;
     let targetStart = this.findStartIndex() - Math.floor(buffer / 2);
     targetStart = Math.max(0, targetStart);
 
@@ -230,7 +230,7 @@ export class VirtualScroller<T = any> {
           const idx = parseInt((el as any).dataset.vindex);
           const rect = el.getBoundingClientRect();
           if (rect.height > 0) {
-            const actualHeight = rect.height + 8;
+            const actualHeight = rect.height;
             if (Math.abs(actualHeight - this.heights[idx]) > 1) {
               this.heights[idx] = actualHeight;
               changed = true;
