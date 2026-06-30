@@ -181,7 +181,9 @@ export class VirtualScroller<T = any> {
         el.remove();
       }
       this.rowMap.clear();
-      this.heights = new Array(this.items.length).fill(this.estimatedHeight);
+      // Keep cached heights for off-screen rows instead of resetting to estimated.
+      // Visible rows will be re-measured after render. This prevents large
+      // totalHeight miscalculations that cause blank space at the bottom.
       this.updatePositions();
     }
 

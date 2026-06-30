@@ -202,7 +202,7 @@ export function bindEvents(): void {
   ui.btnCopyForAi?.addEventListener('click', onCopyForAi);
   ui.btnCopyNamesForAi?.addEventListener('click', onCopyNamesForAi);
   ui.btnCopyForGlossaryAi?.addEventListener('click', onCopyForGlossaryAi);
-  ui.btnApply?.addEventListener('click', onApplyTranslation);
+  ui.btnApply?.addEventListener('click', () => { try { onApplyTranslation(); } catch (_) {} });
   ui.btnApplyNameTranslations?.addEventListener('click', onApplyNameTranslations);
   ui.btnResetNameTranslations?.addEventListener('click', onResetNameTranslations);
   ui.pasteNameArea?.addEventListener('input', updateButtonStates);
