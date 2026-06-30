@@ -209,8 +209,19 @@ export function onSaveApiSettings(): void {
   flashHint('Pengaturan API disimpan.');
 }
 
-function delay(ms: number) {
-  return new Promise(resolve => setTimeout(resolve, ms));
+export function delay(ms: number, shouldCancel?: () => boolean): Promise<void> {
+  if (!shouldCancel) return new Promise(resolve => setTimeout(resolve, ms));
+  return new Promise(resolve => {
+    const start = Date.now();
+    const check = () => {
+      if (shouldCancel() || Date.now() - start >= ms) {
+        resolve();
+      } else {
+        setTimeout(check, 200);
+      }
+    };
+    check();
+  });
 }
 
 type RetryState = {
@@ -352,7 +363,7 @@ export async function onAutoTranslate(): Promise<void> {
         return result;
       }, (retry) => {
         btn.textContent = `${formatRetryLabel(retry)}... (Klik Stop)`;
-      });
+      }, () => !isAutoTranslating);
 
 
 
@@ -363,7 +374,7 @@ export async function onAutoTranslate(): Promise<void> {
       if (isAutoTranslating && state.aiRpm > 0) {
         const waitMs = Math.round(60000 / state.aiRpm);
         btn.textContent = `Menunggu delay (${Math.round(waitMs/1000)}s)... (Klik untuk Stop)`;
-        await delay(waitMs);
+        await delay(waitMs, () => !isAutoTranslating);
       }
     }
   } catch (err: any) {
@@ -613,7 +624,7 @@ export async function onAutoGlossary(): Promise<void> {
 
       let rawResult = await fetchWithRetry(() => fetchApiResult(prompt), (retry) => {
         btn.textContent = `${formatRetryLabel(retry)}... (Klik Stop)`;
-      });
+      }, () => !isAutoGlossary);
 
       if (!rawResult || !rawResult.trim()) {
         throw new Error('Respons dari API kosong.');
@@ -627,7 +638,7 @@ export async function onAutoGlossary(): Promise<void> {
       if (isAutoGlossary && state.aiRpm > 0) {
         const waitMs = Math.round(60000 / state.aiRpm);
         btn.textContent = `Menunggu delay (${Math.round(waitMs/1000)}s)... (Klik untuk Stop)`;
-        await delay(waitMs);
+        await delay(waitMs, () => !isAutoGlossary);
       }
     }
   } catch (err: any) {
@@ -701,7 +712,7 @@ export async function onAutoAiCheck(): Promise<void> {
 
       let rawResult = await fetchWithRetry(() => fetchApiResult(prompt), (retry) => {
         btn.textContent = `${formatRetryLabel(retry)}... (Klik Stop)`;
-      });
+      }, () => !isAutoAiCheck);
 
       if (!rawResult || !rawResult.trim()) {
         throw new Error('Respons dari API kosong.');
@@ -718,7 +729,7 @@ export async function onAutoAiCheck(): Promise<void> {
       if (isAutoAiCheck && state.aiRpm > 0) {
         const waitMs = Math.round(60000 / state.aiRpm);
         btn.textContent = `Menunggu delay (${Math.round(waitMs/1000)}s)... (Klik untuk Stop)`;
-        await delay(waitMs);
+        await delay(waitMs, () => !isAutoAiCheck);
       }
     }
   } catch (err: any) {
@@ -732,10 +743,11 @@ export async function onAutoAiCheck(): Promise<void> {
     btn.textContent = 'Jalankan Auto Cek';
   }
 }
-async function fetchWithRetry(runAttempt: () => Promise<string>, onRetry: (retry: RetryState) => void): Promise<string> {
+async function fetchWithRetry(runAttempt: () => Promise<string>, onRetry: (retry: RetryState) => void, shouldCancel?: () => boolean): Promise<string> {
   let attempt = 0;
   const maxRetries = 5;
   while (attempt < maxRetries) {
+    if (shouldCancel?.()) throw new Error('Dibatalkan oleh pengguna.');
     try {
       return await runAttempt();
     } catch (err: any) {
@@ -745,7 +757,7 @@ async function fetchWithRetry(runAttempt: () => Promise<string>, onRetry: (retry
           throw new Error(`Gagal setelah ${maxRetries} percobaan karena format respons AI terus tidak cocok. ${String(err?.message || err || '')}`.trim());
         }
         onRetry({ attempt, maxRetries, waitMs: 2000, reason: 'format respons AI tidak cocok' });
-        await delay(2000);
+        await delay(2000, shouldCancel);
         continue;
       }
 

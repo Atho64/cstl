@@ -13,6 +13,10 @@ export class VirtualScroller<T = any> {
   ticking: boolean;
   lastStart: number;
   lastEnd: number;
+  private rowMap: Map<number, HTMLElement>;
+  private topSpacer: HTMLDivElement | null;
+  private bottomSpacer: HTMLDivElement | null;
+  private remeasureRAF: number | null;
 
   constructor(
     viewport: HTMLElement,
@@ -32,12 +36,19 @@ export class VirtualScroller<T = any> {
     this.ticking = false;
     this.lastStart = -1;
     this.lastEnd = -1;
+    this.rowMap = new Map();
+    this.topSpacer = null;
+    this.bottomSpacer = null;
+    this.remeasureRAF = null;
 
     this.onScroll = this.onScroll.bind(this);
     this.viewport.addEventListener('scroll', this.onScroll, { passive: true });
     if (window.ResizeObserver) {
       new ResizeObserver(() => {
-        if (this.viewport.clientHeight > 0) this.render(true);
+        if (this.viewport.clientHeight > 0) {
+          this.render(false);
+          this.requestRemeasure();
+        }
       }).observe(this.viewport);
     }
   }
@@ -49,6 +60,10 @@ export class VirtualScroller<T = any> {
     this.scrollTop = this.viewport.scrollTop = 0;
     this.lastStart = -1;
     this.lastEnd = -1;
+    this.container.innerHTML = '';
+    this.rowMap.clear();
+    this.topSpacer = null;
+    this.bottomSpacer = null;
     this.render(true);
   }
 
@@ -66,7 +81,7 @@ export class VirtualScroller<T = any> {
     if (index < 0 || index >= this.items.length) return;
     this.viewport.scrollTop = this.positions[index];
     this.scrollTop = this.viewport.scrollTop;
-    this.render(true);
+    this.render(false);
   }
 
   onScroll(): void {
@@ -98,11 +113,47 @@ export class VirtualScroller<T = any> {
     return Math.max(0, Math.min(low, this.items.length - 1));
   }
 
+  requestRemeasure(): void {
+    if (this.remeasureRAF !== null) return;
+    this.remeasureRAF = requestAnimationFrame(() => {
+      this.remeasureRAF = null;
+      this.remeasure();
+    });
+  }
+
+  private remeasure(): void {
+    let changed = false;
+    for (const [idx, el] of this.rowMap) {
+      if (idx < this.lastStart || idx >= this.lastEnd) continue;
+      const rect = el.getBoundingClientRect();
+      if (rect.height > 0) {
+        const actualHeight = rect.height + 8;
+        if (Math.abs(actualHeight - this.heights[idx]) > 1) {
+          this.heights[idx] = actualHeight;
+          changed = true;
+        }
+      }
+    }
+    if (changed) {
+      this.updatePositions();
+      if (this.topSpacer) {
+        this.topSpacer.style.height = `${this.positions[this.lastStart]}px`;
+      }
+      if (this.bottomSpacer) {
+        const bottomPad = this.lastEnd < this.items.length ? this.totalHeight - this.positions[this.lastEnd] : 0;
+        this.bottomSpacer.style.height = `${bottomPad}px`;
+      }
+    }
+  }
+
   render(force = false): void {
     const viewportHeight = this.viewport.clientHeight || 800;
     const total = this.items.length;
     if (!total) {
       this.container.innerHTML = '';
+      this.rowMap.clear();
+      this.topSpacer = null;
+      this.bottomSpacer = null;
       return;
     }
 
@@ -125,52 +176,78 @@ export class VirtualScroller<T = any> {
     this.lastStart = targetStart;
     this.lastEnd = end;
 
-    const topPad = this.positions[targetStart];
-    const bottomPad = end < total ? this.totalHeight - this.positions[end] : 0;
+    if (force) {
+      for (const [, el] of this.rowMap) {
+        el.remove();
+      }
+      this.rowMap.clear();
+    }
 
-    this.container.innerHTML = '';
+    const toRemove: number[] = [];
+    for (const [idx] of this.rowMap) {
+      if (idx < targetStart || idx >= end) {
+        toRemove.push(idx);
+      }
+    }
+    for (const idx of toRemove) {
+      const el = this.rowMap.get(idx)!;
+      el.remove();
+      this.rowMap.delete(idx);
+    }
 
-    const topSpacer = document.createElement('div');
-    topSpacer.style.height = `${topPad}px`;
-    this.container.appendChild(topSpacer);
+    if (!this.topSpacer || !this.topSpacer.parentNode) {
+      this.topSpacer = document.createElement('div');
+      this.container.insertBefore(this.topSpacer, this.container.firstChild);
+    }
+    if (!this.bottomSpacer || !this.bottomSpacer.parentNode) {
+      this.bottomSpacer = document.createElement('div');
+      this.container.appendChild(this.bottomSpacer);
+    }
 
     const frag = document.createDocumentFragment();
-    const rowElements: HTMLElement[] = [];
+    const newElements: HTMLElement[] = [];
     for (let i = targetStart; i < end; i++) {
-      const el = this.renderItem(this.items[i]);
-      (el as any).dataset.vindex = i;
+      let el = this.rowMap.get(i);
+      if (!el) {
+        el = this.renderItem(this.items[i]);
+        (el as any).dataset.vindex = i;
+        this.rowMap.set(i, el);
+        newElements.push(el);
+      }
       frag.appendChild(el);
-      rowElements.push(el);
     }
-    this.container.appendChild(frag);
+    this.container.insertBefore(frag, this.bottomSpacer);
 
-    const bottomSpacer = document.createElement('div');
-    bottomSpacer.style.height = `${bottomPad}px`;
-    this.container.appendChild(bottomSpacer);
+    const topPad = this.positions[targetStart];
+    const bottomPad = end < total ? this.totalHeight - this.positions[end] : 0;
+    this.topSpacer.style.height = `${topPad}px`;
+    this.bottomSpacer.style.height = `${bottomPad}px`;
 
-    Promise.resolve().then(() => {
-      let changed = false;
-      for (const el of rowElements) {
-        const idx = parseInt((el as any).dataset.vindex);
-        const rect = el.getBoundingClientRect();
-        if (rect.height > 0) {
-          const actualHeight = rect.height + 8;
-          if (Math.abs(actualHeight - this.heights[idx]) > 1) {
-            this.heights[idx] = actualHeight;
-            changed = true;
+    if (newElements.length > 0) {
+      Promise.resolve().then(() => {
+        let changed = false;
+        for (const el of newElements) {
+          const idx = parseInt((el as any).dataset.vindex);
+          const rect = el.getBoundingClientRect();
+          if (rect.height > 0) {
+            const actualHeight = rect.height + 8;
+            if (Math.abs(actualHeight - this.heights[idx]) > 1) {
+              this.heights[idx] = actualHeight;
+              changed = true;
+            }
           }
         }
-      }
-      if (changed) {
-        this.updatePositions();
-        if (this.container.firstElementChild) {
-          (this.container.firstElementChild as HTMLElement).style.height = `${this.positions[this.lastStart]}px`;
+        if (changed) {
+          this.updatePositions();
+          if (this.topSpacer) {
+            this.topSpacer.style.height = `${this.positions[this.lastStart]}px`;
+          }
+          if (this.bottomSpacer) {
+            const updatedBottomPad = this.lastEnd < this.items.length ? this.totalHeight - this.positions[this.lastEnd] : 0;
+            this.bottomSpacer.style.height = `${updatedBottomPad}px`;
+          }
         }
-        if (this.container.lastElementChild) {
-          const updatedBottomPad = this.lastEnd < this.items.length ? this.totalHeight - this.positions[this.lastEnd] : 0;
-          (this.container.lastElementChild as HTMLElement).style.height = `${updatedBottomPad}px`;
-        }
-      }
-    });
+      });
+    }
   }
 }

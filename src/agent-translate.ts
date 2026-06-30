@@ -8,6 +8,7 @@ import { applyPromptVariables } from './ai-format';
 import { DEFAULT_AGENT_PROMPT } from './constants';
 import { openModal, closeModal } from './project';
 import { flashHint } from './render';
+import { delay } from './auto-translate';
 import type { Line } from './types';
 
 // ─── Agent state ──────────────────────────────────────────────────────────────
@@ -316,7 +317,7 @@ export async function onAgentTranslate(): Promise<void> {
       if (isAgentTranslating && state.aiRpm > 0) {
         const waitMs = Math.round(60000 / state.aiRpm);
         btn.textContent = `Menunggu delay (${Math.round(waitMs / 1000)}s)... (Klik Stop)`;
-        await new Promise(resolve => setTimeout(resolve, waitMs));
+        await delay(waitMs, () => !isAgentTranslating);
       }
     }
   } catch (err: any) {

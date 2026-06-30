@@ -119,6 +119,7 @@ export function renderMainRow(rowData: DisplayRow): HTMLElement {
       origDiv.textContent = rawOrig;
       import('./furigana').then(m => m.convertToFurigana(rawOrig)).then(html => {
         origDiv.innerHTML = html;
+        getMainScroller()?.requestRemeasure();
       }).catch((e) => {
         console.error('[CSTL] Furigana render error:', e);
         origDiv.textContent = rawOrig + ` (Furigana Error: ${e.message || e})`;
