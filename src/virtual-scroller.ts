@@ -17,6 +17,7 @@ export class VirtualScroller<T = any> {
   private topSpacer: HTMLDivElement | null;
   private bottomSpacer: HTMLDivElement | null;
   private remeasureRAF: number | null;
+  private rerenderRAF: number | null;
 
   constructor(
     viewport: HTMLElement,
@@ -40,6 +41,7 @@ export class VirtualScroller<T = any> {
     this.topSpacer = null;
     this.bottomSpacer = null;
     this.remeasureRAF = null;
+    this.rerenderRAF = null;
 
     this.onScroll = this.onScroll.bind(this);
     this.viewport.addEventListener('scroll', this.onScroll, { passive: true });
@@ -121,28 +123,58 @@ export class VirtualScroller<T = any> {
     });
   }
 
+  private updateMeasuredHeight(idx: number, el: HTMLElement): boolean {
+    const rect = el.getBoundingClientRect();
+    if (rect.height <= 0) return false;
+    const actualHeight = rect.height;
+    if (Math.abs(actualHeight - this.heights[idx]) <= 1) return false;
+    this.heights[idx] = actualHeight;
+    return true;
+  }
+
+  private applyMeasuredChanges(anchorIndex: number, anchorOffset: number): void {
+    this.updatePositions();
+
+    if (anchorIndex >= 0 && anchorIndex < this.items.length) {
+      const nextScrollTop = this.positions[anchorIndex] + anchorOffset;
+      if (Math.abs(this.viewport.scrollTop - nextScrollTop) > 1) {
+        this.viewport.scrollTop = nextScrollTop;
+        this.scrollTop = this.viewport.scrollTop;
+      }
+    }
+
+    if (this.topSpacer) {
+      this.topSpacer.style.height = `${this.positions[this.lastStart] || 0}px`;
+    }
+    if (this.bottomSpacer) {
+      const endTop = this.positions[this.lastEnd] ?? this.totalHeight;
+      const bottomPad = this.lastEnd < this.items.length ? this.totalHeight - endTop : 0;
+      this.bottomSpacer.style.height = `${Math.max(0, bottomPad)}px`;
+    }
+
+    this.requestRangeRefresh();
+  }
+
+  private requestRangeRefresh(): void {
+    if (this.rerenderRAF !== null) return;
+    this.rerenderRAF = requestAnimationFrame(() => {
+      this.rerenderRAF = null;
+      this.lastStart = -1;
+      this.lastEnd = -1;
+      this.render(false);
+    });
+  }
+
   private remeasure(): void {
+    const anchorIndex = this.findStartIndex();
+    const anchorOffset = anchorIndex >= 0 ? this.scrollTop - this.positions[anchorIndex] : 0;
     let changed = false;
     for (const [idx, el] of this.rowMap) {
       if (idx < this.lastStart || idx >= this.lastEnd) continue;
-      const rect = el.getBoundingClientRect();
-      if (rect.height > 0) {
-        const actualHeight = rect.height;
-        if (Math.abs(actualHeight - this.heights[idx]) > 1) {
-          this.heights[idx] = actualHeight;
-          changed = true;
-        }
-      }
+      if (this.updateMeasuredHeight(idx, el)) changed = true;
     }
     if (changed) {
-      this.updatePositions();
-      if (this.topSpacer) {
-        this.topSpacer.style.height = `${this.positions[this.lastStart]}px`;
-      }
-      if (this.bottomSpacer) {
-        const bottomPad = this.lastEnd < this.items.length ? this.totalHeight - this.positions[this.lastEnd] : 0;
-        this.bottomSpacer.style.height = `${bottomPad}px`;
-      }
+      this.applyMeasuredChanges(anchorIndex, anchorOffset);
     }
   }
 
@@ -229,27 +261,15 @@ export class VirtualScroller<T = any> {
 
     if (newElements.length > 0) {
       Promise.resolve().then(() => {
+        const anchorIndex = this.findStartIndex();
+        const anchorOffset = anchorIndex >= 0 ? this.scrollTop - this.positions[anchorIndex] : 0;
         let changed = false;
         for (const el of newElements) {
           const idx = parseInt((el as any).dataset.vindex);
-          const rect = el.getBoundingClientRect();
-          if (rect.height > 0) {
-            const actualHeight = rect.height;
-            if (Math.abs(actualHeight - this.heights[idx]) > 1) {
-              this.heights[idx] = actualHeight;
-              changed = true;
-            }
-          }
+          if (this.updateMeasuredHeight(idx, el)) changed = true;
         }
         if (changed) {
-          this.updatePositions();
-          if (this.topSpacer) {
-            this.topSpacer.style.height = `${this.positions[this.lastStart]}px`;
-          }
-          if (this.bottomSpacer) {
-            const updatedBottomPad = this.lastEnd < this.items.length ? this.totalHeight - this.positions[this.lastEnd] : 0;
-            this.bottomSpacer.style.height = `${updatedBottomPad}px`;
-          }
+          this.applyMeasuredChanges(anchorIndex, anchorOffset);
         }
       });
     }
