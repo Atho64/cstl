@@ -126,7 +126,9 @@ export class VirtualScroller<T = any> {
   private updateMeasuredHeight(idx: number, el: HTMLElement): boolean {
     const rect = el.getBoundingClientRect();
     if (rect.height <= 0) return false;
-    const actualHeight = rect.height;
+    const viewportHeight = this.viewport.clientHeight || 800;
+    const maxReasonableHeight = Math.max(viewportHeight * 2, this.estimatedHeight * 12);
+    const actualHeight = Math.min(rect.height, maxReasonableHeight);
     if (Math.abs(actualHeight - this.heights[idx]) <= 1) return false;
     this.heights[idx] = actualHeight;
     return true;
@@ -192,10 +194,17 @@ export class VirtualScroller<T = any> {
     const buffer = 25;
     let targetStart = this.findStartIndex() - Math.floor(buffer / 2);
     targetStart = Math.max(0, targetStart);
+    const minRenderedItems = Math.min(total - targetStart, buffer);
 
     let end = targetStart;
     let currentHeight = 0;
-    while (end < total && currentHeight < viewportHeight + buffer * this.estimatedHeight) {
+    while (
+      end < total &&
+      (
+        currentHeight < viewportHeight + buffer * this.estimatedHeight ||
+        end - targetStart < minRenderedItems
+      )
+    ) {
       currentHeight += this.heights[end];
       end++;
     }
