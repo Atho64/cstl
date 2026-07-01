@@ -2,7 +2,7 @@
 
 import { state, ui } from './state';
 import { isTranslated } from './state';
-import { unescapeStoredNewlines, escapeStoredNewlines } from './string-utils';
+import { unescapeStoredNewlines, escapeStoredNewlines, applyReplaceRules } from './string-utils';
 import { getLineDisplayName, formatLineLabel } from './luca-engine';
 import { rebuildDisplayState, renderPreviewRows, syncCheckboxUI, updateButtonStates, pushUndoSnapshot, refreshAll, flashHint } from './render';
 import { queueAutoSave } from './project';
@@ -182,7 +182,10 @@ export function onApplyAiCheckCorrections(): void {
     if (!line || !isTranslated(line)) continue;
     const effectiveName = line.name && correction.name ? correction.name : ((line.trans_name || '').trim() || line.name || '');
     if (line.name && correction.name) line.trans_name = correction.name;
-    line.trans_message = line.name ? stripDuplicateSpeakerPrefix(correction.text, effectiveName) : correction.text;
+    let correctedMsg = correction.text.replace(/<br>/gi, '\\n');
+    correctedMsg = applyReplaceRules(correctedMsg, state.postReplaceRules, 'msg');
+    if (line.name) correctedMsg = stripDuplicateSpeakerPrefix(correctedMsg, effectiveName);
+    line.trans_message = escapeStoredNewlines(correctedMsg);
     line.is_translated = true;
     applied++;
   }

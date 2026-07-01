@@ -170,7 +170,12 @@ export function onApplyTranslation(options: ApplyTranslationOptions = {}): void 
     // Replace <br> back to literal \n (for Luca format) and apply postReplaceRules
     it.msg = applyReplaceRules(it.msg.replace(/<br>/gi, '\\n'), state.postReplaceRules, 'msg');
 
-    if (!oN && tN) { it.msg = escapeStoredNewlines(it.rawMsg || it.msg); it.name = null; tN = false; }
+    if (!oN && tN) {
+      const mergedRaw = it.rawMsg || it.msg;
+      it.msg = escapeStoredNewlines(applyReplaceRules(mergedRaw.replace(/<br>/gi, '\\n'), state.postReplaceRules, 'msg'));
+      it.name = null;
+      tN = false;
+    }
 
     if (!ignoreNames) {
       if (oN && !tN) errors.push(`[#${it.num}] Nama karakter hilang.`);
@@ -309,7 +314,7 @@ export function clearAgentTranslations(line_nums: number[]): number {
     if (!l) continue;
     
     l.trans_message = '';
-    l.trans_name = '';
+    l.trans_name = null;
     l.is_translated = false;
     cleared++;
   }
