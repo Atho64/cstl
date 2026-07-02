@@ -18,7 +18,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="./styles.css?v=17" />
+  <link rel="stylesheet" href="./styles.css?v=22" />
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script type="module" src="./src/app.ts"></script>
 </head>
@@ -97,6 +97,11 @@
       <section class="panel panel-left">
         <div class="panel-header">
           <h2 class="panel-title">Daftar Teks</h2>
+          <div id="currentFileBar" class="current-file-bar is-collapsed">
+            <span class="cfb-label">File:</span>
+            <span class="cfb-name"></span>
+            <span class="cfb-range"></span>
+          </div>
           <div class="progress-wrap">
             <div class="progress-track">
               <div id="progressFill" class="progress-fill"></div>

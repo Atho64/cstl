@@ -9,7 +9,7 @@ import {
   DEFAULT_AGENT_PROMPT
 } from './constants';
 import { VirtualScroller } from './virtual-scroller';
-import { renderMainRow, syncCheckboxUI, updateButtonStates, onSaveLineEditor, flashHint } from './render';
+import { renderMainRow, syncCheckboxUI, updateButtonStates, onSaveLineEditor, flashHint, updateCurrentFileBar } from './render';
 import { renderProofreadRow } from './proofread';
 import { renderQaRow } from './qa';
 import { onSelectionHistoryKeydown, isSelectableForActiveTab, recordSelectionHistory, switchWorkspaceTab } from './selection';
@@ -64,7 +64,7 @@ export function cacheElements(): void {
     'btnDropdownDashboardSettings', 'dropdownDashboardSettingsMenu', 'btnDashboardSettings', 'dashboardSettingsModal', 'btnDashboardSettingsSave', 'btnDashboardSettingsReset', 'paletteSelect', 'btnDashboardSettingsCancel',     'btnDashboardPrompts', 'dashboardPromptsModal', 'dpPromptInput', 'dpGlossaryPromptInput', 'dpAiCheckPromptInput', 'dpAgentPromptInput', 'btnDashboardPromptsSave', 'btnDashboardPromptsReset', 'btnDashboardPromptsCancel',
     'dsSourceLang', 'dsTargetLang', 'dsTranslationMode', 'dsAiFormat', 'dsContextLines', 'dsSelectionBatch', 'dsGlossaryBatch', 'dsAiCheckBatch', 'dsRegexFilter',
     'btnImportFolder', 'btnImportZip', 'btnImportTranslatedFile', 'btnImportTranslatedFolder', 'btnExport', 'btnProofread', 'btnSettings',
-    'previewViewport', 'previewContainer', 'progressFill', 'progressText', 'btnSelectAll',
+    'previewViewport', 'previewContainer', 'currentFileBar', 'progressFill', 'progressText', 'btnSelectAll',
     'btnClearSelection', 'copyCount', 'btnCopyForAi', 'copyStatus', 'pasteArea', 'btnApply', 'checkIgnorePasteNames',
     'btnUndo', 'btnRedo', 'nameTableBody', 'statusBar', 'importFileInput', 'importFolderInput', 'importTranslatedFileInput', 'importTranslatedFolderInput',
     'btnCopyNamesForAi', 'copyNameCount', 'pasteNameArea', 'btnApplyNameTranslations', 'btnResetNameTranslations',
@@ -101,7 +101,9 @@ export function cacheElements(): void {
 // ─── Scroller Initialization ──────────────────────────────────────────────────
 
 export function initScrollers(): void {
-  setMainScroller(new VirtualScroller(ui.previewViewport as HTMLElement, ui.previewContainer as HTMLElement, 85, renderMainRow));
+  const mainScroller = new VirtualScroller(ui.previewViewport as HTMLElement, ui.previewContainer as HTMLElement, 85, renderMainRow);
+  mainScroller.onVisibleRangeChange = (start) => updateCurrentFileBar(start);
+  setMainScroller(mainScroller);
   const proofreadViewport = (ui.proofreadContainer as HTMLElement).closest('.proofread-results-wrap') as HTMLElement;
   setProofreadScroller(new VirtualScroller(proofreadViewport, ui.proofreadContainer as HTMLElement, 90, renderProofreadRow));
   const qaViewport = (ui.qaResults as HTMLElement).closest('.proofread-results-wrap') as HTMLElement;
@@ -740,6 +742,10 @@ function loadPalette(): void {
 }
 
 export async function init(): Promise<void> {
+  const globalWindow = window as any;
+  if (globalWindow.__cstlInitialized) return;
+  globalWindow.__cstlInitialized = true;
+
   // Register PWA service worker
   if ('serviceWorker' in navigator) {
     import('virtual:pwa-register').then(({ registerSW }) => {

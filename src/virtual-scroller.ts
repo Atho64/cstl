@@ -13,11 +13,17 @@ export class VirtualScroller<T = any> {
   ticking: boolean;
   lastStart: number;
   lastEnd: number;
+  onVisibleRangeChange?: (startIndex: number, endIndex: number) => void;
   private rowMap: Map<number, HTMLElement>;
   private topSpacer: HTMLDivElement | null;
   private bottomSpacer: HTMLDivElement | null;
   private remeasureRAF: number | null;
   private rerenderRAF: number | null;
+  private isUserScrolling: boolean;
+  private scrollIdleTimer: number | null;
+  private resizeObserver: ResizeObserver | null;
+  private measureRAF: number | null;
+  private disposed: boolean;
 
   constructor(
     viewport: HTMLElement,
@@ -42,20 +48,43 @@ export class VirtualScroller<T = any> {
     this.bottomSpacer = null;
     this.remeasureRAF = null;
     this.rerenderRAF = null;
+    this.isUserScrolling = false;
+    this.scrollIdleTimer = null;
+    this.resizeObserver = null;
+    this.measureRAF = null;
+    this.disposed = false;
 
     this.onScroll = this.onScroll.bind(this);
     this.viewport.addEventListener('scroll', this.onScroll, { passive: true });
     if (window.ResizeObserver) {
-      new ResizeObserver(() => {
+      this.resizeObserver = new ResizeObserver(() => {
         if (this.viewport.clientHeight > 0) {
           this.render(false);
           this.requestRemeasure();
         }
-      }).observe(this.viewport);
+      });
+      this.resizeObserver.observe(this.viewport);
     }
   }
 
+  dispose(): void {
+    this.disposed = true;
+    this.viewport.removeEventListener('scroll', this.onScroll);
+    this.resizeObserver?.disconnect();
+    this.resizeObserver = null;
+    if (this.remeasureRAF !== null) cancelAnimationFrame(this.remeasureRAF);
+    if (this.rerenderRAF !== null) cancelAnimationFrame(this.rerenderRAF);
+    if (this.measureRAF !== null) cancelAnimationFrame(this.measureRAF);
+    if (this.scrollIdleTimer !== null) window.clearTimeout(this.scrollIdleTimer);
+    this.remeasureRAF = null;
+    this.rerenderRAF = null;
+    this.measureRAF = null;
+    this.scrollIdleTimer = null;
+    this.rowMap.clear();
+  }
+
   setItems(items: T[]): void {
+    if (this.disposed) return;
     this.items = items;
     this.heights = new Array(items.length).fill(this.estimatedHeight);
     this.updatePositions();
@@ -80,13 +109,27 @@ export class VirtualScroller<T = any> {
   }
 
   scrollToIndex(index: number): void {
+    if (this.disposed) return;
     if (index < 0 || index >= this.items.length) return;
     this.viewport.scrollTop = this.positions[index];
     this.scrollTop = this.viewport.scrollTop;
     this.render(false);
   }
 
+  getRenderedElement(index: number): HTMLElement | undefined {
+    return this.rowMap.get(index);
+  }
+
   onScroll(): void {
+    if (this.disposed) return;
+    this.isUserScrolling = true;
+    if (this.scrollIdleTimer !== null) window.clearTimeout(this.scrollIdleTimer);
+    this.scrollIdleTimer = window.setTimeout(() => {
+      this.isUserScrolling = false;
+      this.scrollTop = this.viewport.scrollTop;
+      this.requestRemeasure();
+    }, 120);
+
     if (!this.ticking) {
       window.requestAnimationFrame(() => {
         this.scrollTop = this.viewport.scrollTop;
@@ -116,6 +159,7 @@ export class VirtualScroller<T = any> {
   }
 
   requestRemeasure(): void {
+    if (this.disposed) return;
     if (this.remeasureRAF !== null) return;
     this.remeasureRAF = requestAnimationFrame(() => {
       this.remeasureRAF = null;
@@ -137,12 +181,14 @@ export class VirtualScroller<T = any> {
   private applyMeasuredChanges(anchorIndex: number, anchorOffset: number): void {
     this.updatePositions();
 
-    if (anchorIndex >= 0 && anchorIndex < this.items.length) {
+    if (!this.isUserScrolling && anchorIndex >= 0 && anchorIndex < this.items.length) {
       const nextScrollTop = this.positions[anchorIndex] + anchorOffset;
       if (Math.abs(this.viewport.scrollTop - nextScrollTop) > 1) {
         this.viewport.scrollTop = nextScrollTop;
         this.scrollTop = this.viewport.scrollTop;
       }
+    } else {
+      this.scrollTop = this.viewport.scrollTop;
     }
 
     if (this.topSpacer) {
@@ -181,6 +227,7 @@ export class VirtualScroller<T = any> {
   }
 
   render(force = false): void {
+    if (this.disposed) return;
     const viewportHeight = this.viewport.clientHeight || 800;
     const total = this.items.length;
     if (!total) {
@@ -188,10 +235,11 @@ export class VirtualScroller<T = any> {
       this.rowMap.clear();
       this.topSpacer = null;
       this.bottomSpacer = null;
+      this.onVisibleRangeChange?.(-1, -1);
       return;
     }
 
-    const buffer = 25;
+    const buffer = 26;
     let targetStart = this.findStartIndex() - Math.floor(buffer / 2);
     targetStart = Math.max(0, targetStart);
     const minRenderedItems = Math.min(total - targetStart, buffer);
@@ -211,6 +259,7 @@ export class VirtualScroller<T = any> {
     end = Math.min(total, end);
 
     if (!force && this.lastStart === targetStart && this.lastEnd === end) {
+      this.onVisibleRangeChange?.(targetStart, end);
       return;
     }
 
@@ -268,8 +317,13 @@ export class VirtualScroller<T = any> {
     this.topSpacer.style.height = `${topPad}px`;
     this.bottomSpacer.style.height = `${bottomPad}px`;
 
+    this.onVisibleRangeChange?.(targetStart, end);
+
     if (newElements.length > 0) {
-      Promise.resolve().then(() => {
+      if (this.measureRAF !== null) cancelAnimationFrame(this.measureRAF);
+      this.measureRAF = requestAnimationFrame(() => {
+        this.measureRAF = null;
+        if (this.disposed) return;
         const anchorIndex = this.findStartIndex();
         const anchorOffset = anchorIndex >= 0 ? this.scrollTop - this.positions[anchorIndex] : 0;
         let changed = false;

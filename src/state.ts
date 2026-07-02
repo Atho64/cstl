@@ -108,13 +108,22 @@ let _saveTimeout: ReturnType<typeof setTimeout> | null = null;
 let _hintToken = 0;
 
 export function getMainScroller() { return _mainScroller; }
-export function setMainScroller(s: any) { _mainScroller = s; }
+export function setMainScroller(s: any) {
+  if (_mainScroller && _mainScroller !== s) _mainScroller.dispose?.();
+  _mainScroller = s;
+}
 
 export function getProofreadScroller() { return _proofreadScroller; }
-export function setProofreadScroller(s: any) { _proofreadScroller = s; }
+export function setProofreadScroller(s: any) {
+  if (_proofreadScroller && _proofreadScroller !== s) _proofreadScroller.dispose?.();
+  _proofreadScroller = s;
+}
 
 export function getQaScroller() { return _qaScroller; }
-export function setQaScroller(s: any) { _qaScroller = s; }
+export function setQaScroller(s: any) {
+  if (_qaScroller && _qaScroller !== s) _qaScroller.dispose?.();
+  _qaScroller = s;
+}
 
 export function getActiveLineEditorLineNum() { return _activeLineEditorLineNum; }
 export function setActiveLineEditorLineNum(n: number | null) { _activeLineEditorLineNum = n; }

@@ -18,6 +18,11 @@ function renderGlossaryPreview() { import('./glossary').then(m => m.renderGlossa
 
 // ─── Display State ────────────────────────────────────────────────────────────
 
+// Indices (into state.displayRows) of every file separator row, kept in order.
+// Used by updateCurrentFileBar() to find the current file while scrolling.
+let separatorIndices: number[] = [];
+let fileLineRanges = new Map<string, { first: number; last: number }>();
+
 export function rebuildDisplayState(): void {
   state.lineByNum.clear();
   const orderedImportedFiles = [...state.importedFiles].sort(windowsFileOrderCompare);
@@ -41,9 +46,16 @@ export function rebuildDisplayState(): void {
     if (!shouldHide) grouped.get(line.file)!.push(line);
   }
   state.displayRows = [];
+  separatorIndices = [];
+  fileLineRanges = new Map();
   for (const fileName of Array.from(grouped.keys()).sort(windowsFileOrderCompare)) {
     const rows = grouped.get(fileName)!;
     if (!rows.length) continue;
+    fileLineRanges.set(fileName, {
+      first: rows[0].line_num,
+      last: rows[rows.length - 1].line_num,
+    });
+    separatorIndices.push(state.displayRows.length);
     state.displayRows.push({ type: 'separator', file: fileName });
     for (const line of rows) state.displayRows.push({ type: 'line', line });
   }
@@ -58,6 +70,55 @@ export function renderPreviewRows(): void {
     mainScroller.setItems(state.displayRows);
   }
   updateButtonStates();
+}
+
+// ─── Current File Indicator (sticky bar over the text list) ───────────────────
+
+// Binary-search the largest separator index <= startIndex (the file header that
+// owns the line currently at the top of the viewport).
+function findCurrentSeparatorIndex(startIndex: number): number {
+  if (!separatorIndices.length) return -1;
+  let lo = 0, hi = separatorIndices.length - 1, ans = 0;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    if (separatorIndices[mid] <= startIndex) { ans = mid; lo = mid + 1; }
+    else hi = mid - 1;
+  }
+  return separatorIndices[ans];
+}
+
+export function updateCurrentFileBar(startIndex: number): void {
+  const bar = ui.currentFileBar as HTMLElement | undefined;
+  if (!bar) return;
+  const rows = state.displayRows;
+  if (startIndex < 0 || !rows.length || !separatorIndices.length) {
+    bar.classList.add('is-collapsed');
+    if (bar.dataset.file) delete bar.dataset.file;
+    if (bar.dataset.range) delete bar.dataset.range;
+    return;
+  }
+  const scroller = getMainScroller();
+  // Use the actual top-visible row for accurate file detection. startIndex is
+  // buffered; findStartIndex() returns the real top row via a cheap binary
+  // search over cached positions (pure data, no DOM measurement / forced reflow).
+  const topIdx = scroller ? scroller.findStartIndex() : Math.min(startIndex, rows.length - 1);
+  const sepIdx = findCurrentSeparatorIndex(Math.min(topIdx, rows.length - 1));
+  if (sepIdx < 0) { bar.classList.add('is-collapsed'); return; }
+  const file = rows[sepIdx].file || '';
+
+  bar.classList.remove('is-collapsed');
+  const range = fileLineRanges.get(file);
+  const rangeLabel = range
+    ? `(line ${range.first}${range.first === range.last ? '' : `-${range.last}`})`
+    : '';
+  if (bar.dataset.file !== file || bar.dataset.range !== rangeLabel) {
+    bar.dataset.file = file;
+    bar.dataset.range = rangeLabel;
+    const nameEl = bar.querySelector('.cfb-name');
+    if (nameEl) nameEl.textContent = file;
+    const rangeEl = bar.querySelector('.cfb-range');
+    if (rangeEl) rangeEl.textContent = rangeLabel;
+  }
 }
 
 // ─── Row Renderer (VirtualScroller callback) ──────────────────────────────────

@@ -154,6 +154,8 @@ input, textarea, button, select { font-family: inherit; font-size: inherit; }
   border-bottom: 1px solid var(--line);
   gap: 18px;
   animation: slide-down var(--dur-3) var(--ease) both;
+  position: relative;
+  z-index: 20;
 }
 
 .hero-left {
@@ -199,6 +201,8 @@ input, textarea, button, select { font-family: inherit; font-size: inherit; }
   max-width: 1400px;
   margin: 0 auto;
   width: 100%;
+  position: relative;
+  z-index: 1;
 }
 
 .dashboard-content.is-empty {
@@ -527,6 +531,7 @@ input, textarea, button, select { font-family: inherit; font-size: inherit; }
 .panel-left {
   border-bottom: 1px solid var(--line);
   background: var(--bg-2);
+  position: relative;
 }
 @media (min-width: 1024px) {
   .panel-left { border-bottom: none; border-right: 1px solid var(--line); }
@@ -535,8 +540,8 @@ input, textarea, button, select { font-family: inherit; font-size: inherit; }
 .panel-right { background: var(--bg-2); overflow-y: auto; }
 
 .panel-header {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   margin-bottom: 14px;
   gap: 12px;
@@ -569,6 +574,7 @@ input, textarea, button, select { font-family: inherit; font-size: inherit; }
   letter-spacing: -0.2px;
 }
 
+
 .preview-viewport {
   flex: 1;
   position: relative;
@@ -578,6 +584,9 @@ input, textarea, button, select { font-family: inherit; font-size: inherit; }
   background: var(--bg);
   min-height: 0;
   overscroll-behavior: contain;
+  overflow-anchor: none;
+  scrollbar-gutter: stable;
+  -webkit-overflow-scrolling: touch;
 }
 
 .preview-container {
@@ -596,6 +605,7 @@ input, textarea, button, select { font-family: inherit; font-size: inherit; }
   border: 1px solid var(--line);
   border-radius: var(--radius);
   padding: 10px 12px;
+  contain: layout paint;
 }
 .preview-row:hover { background: var(--panel-2); }
 .preview-row.row-selected {
@@ -612,6 +622,33 @@ input, textarea, button, select { font-family: inherit; font-size: inherit; }
   border-radius: 0;
   padding: 14px 8px 8px 8px;
 }
+/* Current file header - compact status chip inside the panel header. */
+.current-file-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-self: center;
+  max-width: 100%;
+  min-width: 0;
+  padding: 5px 10px;
+  background: linear-gradient(90deg, var(--primary-soft), transparent);
+  border: 1px solid var(--line);
+  border-left: 2px solid var(--primary);
+  border-radius: var(--radius);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--primary);
+  overflow: hidden;
+  white-space: nowrap;
+}
+.current-file-bar.is-collapsed {
+  display: none;
+}
+.current-file-bar::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--primary); flex-shrink: 0; }
+.current-file-bar .cfb-label { color: var(--muted); font-weight: 600; flex-shrink: 0; }
+.current-file-bar .cfb-name { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.current-file-bar .cfb-range { color: var(--muted); flex-shrink: 0; }
 
 .checkbox-cell {
   display: flex;
@@ -1023,6 +1060,30 @@ select {
   .toolbar { padding: 8px 10px; gap: 6px; }
   .btn-text { display: none; }
   .toolbar-actions .btn:not(.btn-icon) { padding: 9px 11px; }
+
+  .panel-header {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 8px;
+  }
+  .panel-header .current-file-bar {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-self: stretch;
+    width: 100%;
+  }
+  .current-file-bar {
+    white-space: normal;
+    align-items: flex-start;
+  }
+  .current-file-bar .cfb-name {
+    overflow: visible;
+    text-overflow: clip;
+    word-break: break-word;
+  }
+  .current-file-bar .cfb-range {
+    margin-left: auto;
+  }
 
   .split-layout { grid-template-rows: 45vh 1fr; }
   .panel-left { flex: none; height: 45vh; padding: 10px; }
