@@ -692,6 +692,8 @@ export function closeProject(): void {
       ai_check_batch_size: state.aiCheckBatchSize,
       selection_batch_prev_shortcut: state.selectionBatchPrevShortcut,
       selection_batch_next_shortcut: state.selectionBatchNextShortcut,
+      enableBackgroundChaining: state.enableBackgroundChaining,
+      currentBackground: state.currentBackground,
     };
     saveProjectToOpfs(state.currentProjectId!, data).then(() => finishClose());
   } else {
@@ -755,6 +757,8 @@ export async function onRestoreProject(ev: Event): Promise<void> {
       ai_check_batch_size: normalizeSelectionBatchSize(p.ai_check_batch_size, DEFAULT_AI_CHECK_BATCH_SIZE),
       selection_batch_prev_shortcut: normalizeShortcutString(p.selection_batch_prev_shortcut, DEFAULT_SELECTION_BATCH_PREV_SHORTCUT),
       selection_batch_next_shortcut: normalizeShortcutString(p.selection_batch_next_shortcut, DEFAULT_SELECTION_BATCH_NEXT_SHORTCUT),
+      enableBackgroundChaining: !!p.enableBackgroundChaining,
+      currentBackground: p.currentBackground || '',
     };
     await saveProjectToOpfs(id, safeData);
     if (p.lucaRawBuffers && Object.keys(p.lucaRawBuffers).length > 0) {
