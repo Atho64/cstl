@@ -54,9 +54,20 @@ Chat langsung dengan AI yang punya akses ke data proyek. Bisa tanya, analisis, d
 | `analyzeQuality(limit)` | Cek baris belum diterjemahkan, terjemahan terlalu pendek, nama tidak konsisten |
 | `getProgressReport()` | Laporan progress terjemahan per file dengan progress bar |
 | `applyTranslations(updates)` | Terapkan terjemahan langsung ke proyek |
+| `editLine(line_num, fields)` | Edit satu baris (semua field: message, name, trans_message, dll) |
+| `editLines(updates)` | Edit beberapa baris sekaligus |
 | `clearTranslations(line_nums)` | Hapus terjemahan untuk baris tertentu |
 | `undoLastAction()` | Batalkan aksi terakhir |
+| `redoLastAction()` | Kembalikan aksi yang dibatalkan |
 | `getGlossary()` | Ambil daftar glosarium yang didefinisikan pengguna |
+| `editPrompt(prompt_type, new_prompt)` | Edit prompt terjemahan/glosarium/AI check/agent |
+| `editGlossary(new_glossary)` | Edit teks glosarium |
+| `listSettings()` | Tampilkan daftar semua setting yang bisa diubah |
+| `toggleSetting(setting_name, value)` | Ubah/toggle setting aplikasi |
+| `getMemory(category?)` | Ambil memori agent (optional filter category) |
+| `listMemory()` | Tampilkan semua memori agent |
+| `saveMemory(key, value, category, scope?)` | Simpan/update memori (global/project) |
+| `deleteMemory(key)` | Hapus memori by key |
 
 ### Glosarium
 Kelola nama karakter, tempat, dan istilah khusus supaya terjemahan konsisten.

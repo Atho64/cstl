@@ -776,6 +776,41 @@
     </div>
   </div>
 
+  <div id="agentMemoryModal" class="modal-backdrop">
+    <div class="modal modal-wide">
+      <div class="modal-head">
+        <h3>🧠 Memori AI Agent</h3>
+      </div>
+      <div class="modal-body">
+        <p class="hint">Memori yang disimpan akan di-inject ke system prompt AI Agent setiap chat. Global berlaku untuk semua proyek, Project hanya untuk proyek ini.</p>
+        <div id="agentMemoryList" class="mt-2" style="max-height: 300px; overflow-y: auto;"></div>
+        <div class="mt-3" style="border-top: 1px solid var(--border-base); padding-top: 12px;">
+          <label class="section-label">Tambah / Edit Memori</label>
+          <div style="display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap;">
+            <input id="agentMemoryKey" class="text-input" placeholder="key (contoh: style_natural)" style="flex: 1; min-width: 150px;">
+            <select id="agentMemoryCategory" class="select" style="width: 130px;">
+              <option value="style">style</option>
+              <option value="terminology">terminology</option>
+              <option value="character">character</option>
+              <option value="preference">preference</option>
+              <option value="note">note</option>
+            </select>
+            <select id="agentMemoryScope" class="select" style="width: 100px;">
+              <option value="project">project</option>
+              <option value="global">global</option>
+            </select>
+          </div>
+          <textarea id="agentMemoryValue" class="input-area mt-1" placeholder="Isi memori (contoh: User suka terjemahan natural, bukan harfiah)" style="min-height: 60px;"></textarea>
+        </div>
+      </div>
+      <div class="modal-actions mt-3">
+        <span class="grow"></span>
+        <button id="btnAgentMemoryCancel" class="btn">Tutup</button>
+        <button id="btnAgentMemorySave" class="btn btn-primary">Simpan Memori</button>
+      </div>
+    </div>
+  </div>
+
   <div id="lineEditorModal" class="modal-backdrop">
     <div class="modal modal-wide">
       <div class="modal-head">
@@ -918,6 +953,7 @@
   <div id="aiAgentChatPanel" class="agent-panel" style="display: none;">
     <div class="agent-header">
       <span style="font-weight: bold; color: var(--text-base);">CSTL AI Agent</span>
+      <button id="btnAgentMemory" class="icon-btn" title="Memori Agent">🧠</button>
       <button id="btnAgentClear" class="icon-btn" title="Hapus riwayat chat">🗑</button>
       <button id="btnAgentClose" class="icon-btn" title="Tutup">✖</button>
     </div>

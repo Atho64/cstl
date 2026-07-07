@@ -1,12 +1,20 @@
 import { state, ui } from './state';
-import { applyAgentTranslations, clearAgentTranslations, onUndoLastApply } from './translate';
+import { applyAgentTranslations, clearAgentTranslations, onUndoLastApply, onRedoLastUndo } from './translate';
 import { stripThinkingTags, parseBackupKeys, shouldTryNextKey, shuffleArray } from './auto-translate';
+import { queueAutoSave } from './project';
+import { refreshAll, pushUndoSnapshot } from './render';
+import { renderGlossaryPreview } from './glossary';
+import { applyHtlMode } from './htl-mode';
+import { escapeStoredNewlines } from './string-utils';
+import type { Line } from './types';
+import type { AgentMemory, MemoryCategory, MemoryScope } from './types';
 
 export type ChatRole = 'system' | 'user' | 'assistant';
 
 export interface ChatMessage {
   role: ChatRole;
   content: string;
+  _internal?: boolean; // tool call JSON & tool results — tidak disimpan/dirender
 }
 
 interface ApiConfig {
@@ -30,8 +38,8 @@ function getChatStorageKey(): string {
 
 export function saveChatHistory(): void {
   try {
-    // Save only non-system messages (system prompt is rebuilt on load)
-    const toSave = chatHistory.filter(m => m.role !== 'system');
+    // Save only non-system, non-internal messages (system prompt is rebuilt on load)
+    const toSave = chatHistory.filter(m => m.role !== 'system' && !m._internal);
     localStorage.setItem(getChatStorageKey(), JSON.stringify(toSave));
   } catch (e) {
     console.warn('Gagal menyimpan chat history:', e);
@@ -78,6 +86,7 @@ export function renderChatHistory(): void {
   let hasContent = false;
   for (const m of chatHistory) {
     if (m.role === 'system') continue;
+    if (m._internal) continue;
     const div = document.createElement('div');
     div.className = `agent-msg ${m.role}`;
     let html = m.content
@@ -343,7 +352,446 @@ function applyTranslations(updates: {num: number, trans_message: string, trans_n
   }
 }
 
-function executeTool(name: string, args: any): string {
+// ── Tool: editPrompt — edit prompt terjemahan/AI check/glosarium/agent ──
+
+function editPrompt(promptType: string, newPrompt: string): string {
+  const pt = String(promptType || '').toLowerCase().trim();
+  const np = String(newPrompt || '').trim();
+  if (!np) return 'Error: new_prompt tidak boleh kosong.';
+  const map: Record<string, string> = {
+    translation: 'aiInstructionHeader',
+    glossary: 'glossaryPrompt',
+    ai_check: 'aiCheckPrompt',
+    aicheck: 'aiCheckPrompt',
+    agent: 'agentPrompt',
+  };
+  const field = map[pt];
+  if (!field) {
+    return `Error: prompt_type tidak valid — "${promptType}". Pilihan: translation, glossary, ai_check, agent.`;
+  }
+  (state as any)[field] = np;
+  queueAutoSave();
+  return `Prompt "${pt}" berhasil diperbarui (${np.length} karakter).`;
+}
+
+// ── Tool: editGlossary — edit teks glosarium ──
+
+function editGlossary(newGlossary: string): string {
+  const ng = String(newGlossary ?? '');
+  state.glossaryText = ng;
+  renderGlossaryPreview();
+  queueAutoSave();
+  const entryCount = ng.trim() ? ng.trim().split(/\r?\n/).filter((l: string) => l.trim()).length : 0;
+  return `Glosarium berhasil diperbarui (${entryCount} baris).`;
+}
+
+// ── Tool: toggleSetting — toggle/ubah semua setting di AppState ──
+
+interface SettingMeta {
+  field: keyof typeof state;
+  type: 'boolean' | 'number' | 'string';
+  desc: string;
+}
+
+const SETTING_REGISTRY: Record<string, SettingMeta> = {
+  // Boolean toggles
+  showFurigana: { field: 'showFurigana', type: 'boolean', desc: 'Tampilkan furigana di teks Jepang' },
+  enableDictionary: { field: 'enableDictionary', type: 'boolean', desc: 'Aktifkan kamus pop-up' },
+  checkKanaResidue: { field: 'checkKanaResidue', type: 'boolean', desc: 'Cek sisa kana di terjemahan' },
+  checkSimilarity: { field: 'checkSimilarity', type: 'boolean', desc: 'Cek kemiripan asli-terjemahan' },
+  checkLinebreak: { field: 'checkLinebreak', type: 'boolean', desc: 'Cek konsistensi linebreak' },
+  checkLengthRatio: { field: 'checkLengthRatio', type: 'boolean', desc: 'Cek rasio panjang terjemahan' },
+  checkLanguage: { field: 'checkLanguage', type: 'boolean', desc: 'Cek bahasa terjemahan' },
+  checkPunctuation: { field: 'checkPunctuation', type: 'boolean', desc: 'Cek tanda baca' },
+  enableUncertainMarking: { field: 'enableUncertainMarking', type: 'boolean', desc: 'Tandai baris yang belum pasti' },
+  enableBackgroundChaining: { field: 'enableBackgroundChaining', type: 'boolean', desc: 'Aktifkan background chaining' },
+  disableEmptyLineValidation: { field: 'disableEmptyLineValidation', type: 'boolean', desc: 'Matikan validasi baris kosong' },
+  aiFilterThinkingOutput: { field: 'aiFilterThinkingOutput', type: 'boolean', desc: 'Filter <think> tag dari output AI' },
+  // Number settings
+  fontSize: { field: 'fontSize', type: 'number', desc: 'Ukuran font (8-32)' },
+  contextLines: { field: 'contextLines', type: 'number', desc: 'Jumlah baris konteks (0-100)' },
+  selectionBatchSize: { field: 'selectionBatchSize', type: 'number', desc: 'Ukuran batch seleksi (1-500)' },
+  glossaryBatchSize: { field: 'glossaryBatchSize', type: 'number', desc: 'Ukuran batch glosarium (1-500)' },
+  aiCheckBatchSize: { field: 'aiCheckBatchSize', type: 'number', desc: 'Ukuran batch AI check (1-500)' },
+  agentMaxTurns: { field: 'agentMaxTurns', type: 'number', desc: 'Maksimum turn AI agent (3-30)' },
+  similarityThreshold: { field: 'similarityThreshold', type: 'number', desc: 'Threshold kemiripan (0.01-0.99)' },
+  lengthRatioThreshold: { field: 'lengthRatioThreshold', type: 'number', desc: 'Threshold rasio panjang (1-10)' },
+  // String settings
+  sourceLang: { field: 'sourceLang', type: 'string', desc: 'Bahasa sumber' },
+  targetLang: { field: 'targetLang', type: 'string', desc: 'Bahasa target' },
+  regexFilter: { field: 'regexFilter', type: 'string', desc: 'Regex filter baris' },
+  epubTags: { field: 'epubTags', type: 'string', desc: 'Tag HTML untuk parsing EPUB' },
+  aiThinkingMode: { field: 'aiThinkingMode', type: 'string', desc: 'Mode thinking AI (default|off|on)' },
+};
+
+function listSettings(): string {
+  const lines: string[] = ['=== DAFTAR SETTING ==='];
+  for (const [name, meta] of Object.entries(SETTING_REGISTRY)) {
+    const current = (state as any)[meta.field];
+    const valStr = meta.type === 'boolean' ? (current ? 'ON' : 'OFF') : String(current);
+    lines.push(`- ${name} (${meta.type}): ${valStr} — ${meta.desc}`);
+  }
+  return lines.join('\n');
+}
+
+function toggleSetting(settingName: string, value: any): string {
+  const meta = SETTING_REGISTRY[String(settingName || '').trim()];
+  if (!meta) {
+    return `Error: setting tidak dikenal — "${settingName}". Gunakan listSettings() untuk melihat daftar setting yang tersedia.`;
+  }
+  const field = meta.field;
+  let applied: any;
+
+  if (meta.type === 'boolean') {
+    // value bisa: true/false, "on"/"off", "true"/"false", 1/0, atau undefined (toggle)
+    if (value === undefined || value === null || value === '') {
+      applied = !(state as any)[field];
+    } else if (typeof value === 'boolean') {
+      applied = value;
+    } else if (typeof value === 'number') {
+      applied = value !== 0;
+    } else {
+      const s = String(value).toLowerCase().trim();
+      if (s === 'on' || s === 'true' || s === '1' || s === 'yes') applied = true;
+      else if (s === 'off' || s === 'false' || s === '0' || s === 'no') applied = false;
+      else return `Error: nilai boolean tidak valid — "${value}". Gunakan true/false, on/off, atau 1/0.`;
+    }
+    (state as any)[field] = applied;
+  } else if (meta.type === 'number') {
+    const num = typeof value === 'number' ? value : parseFloat(String(value));
+    if (isNaN(num)) return `Error: nilai number tidak valid — "${value}".`;
+    // Validasi range
+    if (field === 'fontSize' && (num < 8 || num > 32)) return 'Error: fontSize harus 8-32.';
+    if (field === 'contextLines' && (num < 0 || num > 100)) return 'Error: contextLines harus 0-100.';
+    if ((field === 'selectionBatchSize' || field === 'glossaryBatchSize' || field === 'aiCheckBatchSize') && (num < 1 || num > 500)) return `Error: ${field} harus 1-500.`;
+    if (field === 'agentMaxTurns' && (num < 3 || num > 30)) return 'Error: agentMaxTurns harus 3-30.';
+    if (field === 'similarityThreshold' && (num < 0.01 || num > 0.99)) return 'Error: similarityThreshold harus 0.01-0.99.';
+    if (field === 'lengthRatioThreshold' && (num < 1 || num > 10)) return 'Error: lengthRatioThreshold harus 1-10.';
+    applied = num;
+    (state as any)[field] = applied;
+  } else {
+    // string
+    if (value === undefined || value === null) return `Error: nilai string diperlukan untuk "${settingName}".`;
+    const s = String(value);
+    // Validasi khusus
+    if (field === 'regexFilter' && s) {
+      try { new RegExp(s, 'u'); } catch (e: any) { return `Error: regex tidak valid: ${e.message}`; }
+    }
+    if (field === 'aiThinkingMode' && !['default', 'off', 'on'].includes(s.toLowerCase())) {
+      return 'Error: aiThinkingMode harus "default", "off", atau "on".';
+    }
+    applied = s;
+    (state as any)[field] = applied;
+  }
+
+  // Side effects
+  if (field === 'fontSize') {
+    document.documentElement.style.setProperty('--content-font-size', applied + 'px');
+  }
+  if (field === 'translationMode') {
+    applyHtlMode();
+  }
+  refreshAll();
+  renderGlossaryPreview();
+  queueAutoSave();
+
+  const valDisplay = meta.type === 'boolean' ? (applied ? 'ON' : 'OFF') : String(applied);
+  return `Setting "${settingName}" berhasil diubah ke ${valDisplay}.`;
+}
+
+// ── Tool: editLine — edit semua field di satu baris ──
+
+const EDITABLE_LINE_FIELDS = new Set([
+  'message', 'name', 'trans_message', 'trans_name', 'is_translated',
+  'file', '_hidden', '_glossary_extracted', '_ai_checked',
+  // LucaSystem
+  'luca_command', 'luca_pre', 'luca_post', 'luca_text_prefix',
+  // EPUB
+  'epub_selector', 'epub_id',
+]);
+
+function applyLineEdit(l: Line, fields: Record<string, any>): string[] {
+  const changed: string[] = [];
+  for (const [key, val] of Object.entries(fields)) {
+    if (!EDITABLE_LINE_FIELDS.has(key)) continue;
+    if (key === 'is_translated' || key === '_hidden' || key === '_glossary_extracted' || key === '_ai_checked') {
+      (l as any)[key] = !!val;
+    } else if (val === null) {
+      (l as any)[key] = null;
+    } else {
+      // Sanitize newlines untuk field teks (konsisten dengan normalizeLineDict)
+      (l as any)[key] = String(val).replace(/\r?\n/g, '\\n').trim();
+    }
+    changed.push(key);
+  }
+  return changed;
+}
+
+function editLine(lineNum: number, fields: Record<string, any>): string {
+  const l = state.lineByNum.get(lineNum);
+  if (!l) return `Error: baris ${lineNum} tidak ditemukan.`;
+  if (!fields || typeof fields !== 'object') return 'Error: fields harus berupa object.';
+  const validFields = Object.keys(fields).filter(k => EDITABLE_LINE_FIELDS.has(k));
+  if (!validFields.length) {
+    return `Error: tidak ada field yang valid. Field yang bisa diedit: ${[...EDITABLE_LINE_FIELDS].join(', ')}.`;
+  }
+  pushUndoSnapshot();
+  const changed = applyLineEdit(l, fields);
+  refreshAll();
+  queueAutoSave();
+  return `Baris ${lineNum} berhasil diedit. Field diubah: ${changed.join(', ')}.`;
+}
+
+function editLines(updates: {line_num: number, fields: Record<string, any>}[]): string {
+  if (!updates || !updates.length) return 'Error: updates tidak boleh kosong.';
+  pushUndoSnapshot();
+  let edited = 0;
+  const errors: string[] = [];
+  for (const u of updates) {
+    const l = state.lineByNum.get(u.line_num);
+    if (!l) { errors.push(`Baris ${u.line_num} tidak ditemukan.`); continue; }
+    if (!u.fields || typeof u.fields !== 'object') { errors.push(`Baris ${u.line_num}: fields tidak valid.`); continue; }
+    const changed = applyLineEdit(l, u.fields);
+    if (changed.length) edited++;
+    else errors.push(`Baris ${u.line_num}: tidak ada field valid.`);
+  }
+  refreshAll();
+  queueAutoSave();
+  const parts = [`${edited} baris berhasil diedit.`];
+  if (errors.length) parts.push(`Error: ${errors.join(' ')}`);
+  return parts.join(' ');
+}
+
+// ── Agent Memory: Storage ───────────────────────────────────────────────────
+
+const MEMORY_GLOBAL_KEY = 'cstl_agent_memory_global';
+const MAX_MEMORIES = 50;
+
+function getMemoryStorageKey(scope: MemoryScope): string {
+  return scope === 'global'
+    ? MEMORY_GLOBAL_KEY
+    : state.currentProjectId
+      ? `cstl_agent_memory_${state.currentProjectId}`
+      : MEMORY_GLOBAL_KEY;
+}
+
+function loadMemoriesFromStorage(scope: MemoryScope): AgentMemory[] {
+  try {
+    const raw = localStorage.getItem(getMemoryStorageKey(scope));
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((m: any) => m && m.key && m.value && m.category && m.scope);
+  } catch {
+    return [];
+  }
+}
+
+function saveMemoriesToStorage(scope: MemoryScope, memories: AgentMemory[]): void {
+  try {
+    localStorage.setItem(getMemoryStorageKey(scope), JSON.stringify(memories));
+  } catch (e) {
+    console.warn('Gagal menyimpan agent memory:', e);
+  }
+}
+
+export function loadAllAgentMemories(): void {
+  const globalMems = loadMemoriesFromStorage('global');
+  const projectMems = state.currentProjectId
+    ? loadMemoriesFromStorage('project')
+    : [];
+  state.agentMemories = [...globalMems, ...projectMems];
+}
+
+// ── Agent Memory: Tools ──────────────────────────────────────────────────────
+
+function getMemory(category?: string): string {
+  let mems = state.agentMemories;
+  if (category) {
+    const cat = String(category).toLowerCase().trim();
+    mems = mems.filter(m => m.category === cat);
+  }
+  if (!mems.length) return 'Tidak ada memori yang tersimpan.';
+  const lines = ['=== MEMORI AI AGENT ==='];
+  for (const m of mems) {
+    lines.push(`[${m.scope}/${m.category}] ${m.key}: ${m.value}`);
+  }
+  return lines.join('\n');
+}
+
+function listMemory(): string {
+  return getMemory();
+}
+
+function saveMemory(key: string, value: string, category: string, scope?: string): string {
+  const k = String(key || '').trim();
+  if (!k) return 'Error: key tidak boleh kosong.';
+  const v = String(value || '').trim();
+  if (!v) return 'Error: value tidak boleh kosong.';
+  const validCategories: MemoryCategory[] = ['style', 'terminology', 'character', 'preference', 'note'];
+  const cat = String(category || 'note').toLowerCase().trim() as MemoryCategory;
+  if (!validCategories.includes(cat)) {
+    return `Error: category tidak valid — "${category}". Pilihan: ${validCategories.join(', ')}.`;
+  }
+  const sc: MemoryScope = (scope === 'global' || scope === 'project') ? scope : 'project';
+
+  const now = Date.now();
+  const existing = state.agentMemories.findIndex(m => m.key === k && m.scope === sc);
+  if (existing >= 0) {
+    state.agentMemories[existing].value = v;
+    state.agentMemories[existing].category = cat;
+    state.agentMemories[existing].updated = now;
+  } else {
+    if (state.agentMemories.length >= MAX_MEMORIES) {
+      return `Error: batas maksimum memori tercapai (${MAX_MEMORIES}). Hapus memori lama dengan deleteMemory().`;
+    }
+    state.agentMemories.push({ key: k, value: v, category: cat, scope: sc, created: now, updated: now });
+  }
+
+  // Persist ke localStorage
+  const scopeMems = state.agentMemories.filter(m => m.scope === sc);
+  saveMemoriesToStorage(sc, scopeMems);
+
+  return `Memori "${k}" berhasil disimpan (${sc}/${cat}).`;
+}
+
+function deleteMemory(key: string): string {
+  const k = String(key || '').trim();
+  if (!k) return 'Error: key tidak boleh kosong.';
+  const idx = state.agentMemories.findIndex(m => m.key === k);
+  if (idx < 0) return `Error: memori "${k}" tidak ditemukan.`;
+  const removed = state.agentMemories[idx];
+  state.agentMemories.splice(idx, 1);
+  // Persist
+  if (removed) {
+    const scopeMems = state.agentMemories.filter(m => m.scope === removed.scope);
+    saveMemoriesToStorage(removed.scope, scopeMems);
+  }
+  return `Memori "${k}" berhasil dihapus.`;
+}
+
+// ── Agent Memory: System Prompt Injection ────────────────────────────────────
+
+function buildMemoryPromptSection(): string {
+  if (!state.agentMemories.length) return '';
+  const globalMems = state.agentMemories.filter(m => m.scope === 'global');
+  const projectMems = state.agentMemories.filter(m => m.scope === 'project');
+  const parts: string[] = [];
+  if (globalMems.length) {
+    parts.push('MEMORI PENGGUNA (Global — berlaku untuk semua proyek):');
+    for (const m of globalMems) {
+      parts.push(`- [${m.category}] ${m.value}`);
+    }
+  }
+  if (projectMems.length) {
+    parts.push('\nMEMORI PROYEK INI:');
+    for (const m of projectMems) {
+      parts.push(`- [${m.category}] ${m.value}`);
+    }
+  }
+  return parts.length ? parts.join('\n') : '';
+}
+
+// ── Web Search Tools: Wikipedia + Jisho + VNDB ───────────────────────────────
+
+async function searchWikipedia(query: string, lang: string): Promise<string> {
+  const l = lang || 'en';
+  const url = `https://${l}.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&format=json&origin=*&srlimit=5`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Wikipedia HTTP ${res.status}`);
+  const data = await res.json();
+  const results = data?.query?.search;
+  if (!results || !results.length) return `Tidak ditemukan hasil Wikipedia untuk: "${query}"`;
+  const lines: string[] = [`=== WIKIPEDIA (${l}) — "${query}" ===`];
+  for (const r of results) {
+    const snippet = String(r.snippet || '').replace(/<[^>]+>/g, '').trim();
+    lines.push(`[${r.title}] ${snippet}`);
+  }
+  return lines.join('\n');
+}
+
+async function searchJisho(query: string): Promise<string> {
+  const url = `https://jisho.org/api/v1/search/words?keyword=${encodeURIComponent(query)}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Jisho HTTP ${res.status}`);
+  const data = await res.json();
+  const results = data?.data;
+  if (!results || !results.length) return `Tidak ditemukan hasil Jisho untuk: "${query}"`;
+  const lines: string[] = [`=== JISHO — "${query}" ===`];
+  for (const r of results.slice(0, 5)) {
+    const japanese = r.japanese?.[0];
+    const word = japanese?.word || japanese?.reading || '?';
+    const reading = japanese?.reading || '';
+    const senses = (r.senses || []).slice(0, 3).map((s: any) => {
+      const gloss = (s.english_definitions || []).join('; ');
+      const pos = (s.parts_of_speech || []).join(', ');
+      return `  ${pos ? `[${pos}] ` : ''}${gloss}`;
+    });
+    lines.push(`${word}${reading ? ` (${reading})` : ''}:\n${senses.join('\n')}`);
+  }
+  return lines.join('\n');
+}
+
+async function searchVndb(query: string): Promise<string> {
+  const body = {
+    filters: ['search', '=', query],
+    fields: 'id,title,alttitle,devstatus,released,tags.name,length,rating',
+    sort: 'searchrank',
+    results: 5,
+  };
+  const res = await fetch('https://api.vndb.org/kana/vn', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`VNDB HTTP ${res.status}`);
+  const data = await res.json();
+  const results = data?.results;
+  if (!results || !results.length) return `Tidak ditemukan hasil VNDB untuk: "${query}"`;
+  const lines: string[] = [`=== VNDB — "${query}" ===`];
+  for (const v of results) {
+    const title = v.title || '?';
+    const original = v.alttitle || '';
+    const id = v.id || '';
+    const released = v.released || '';
+    const rating = v.rating ? ` ★${(v.rating / 10).toFixed(1)}` : '';
+    const length = v.length ? ` [${v.length}]` : '';
+    const tags = (v.tags || []).slice(0, 5).map((t: any) => t.name).join(', ');
+    lines.push(`${id}: ${title}${original ? ` (${original})` : ''}${released ? ` [${released}]` : ''}${rating}${length}${tags ? `\n  Tags: ${tags}` : ''}`);
+  }
+  return lines.join('\n');
+}
+
+async function webSearch(query: string, source: string): Promise<string> {
+  const q = String(query || '').trim();
+  if (!q) return 'Error: query tidak boleh kosong.';
+  const s = String(source || 'auto').toLowerCase().trim();
+  try {
+    if (s === 'wikipedia' || s === 'wiki') {
+      return await searchWikipedia(q, 'en');
+    } else if (s === 'jisho') {
+      return await searchJisho(q);
+    } else if (s === 'vndb') {
+      return await searchVndb(q);
+    } else {
+      // auto: coba semua sumber yang relevan
+      const results: string[] = [];
+      const containsJp = /[\u3040-\u30ff\u4e00-\u9fff]/.test(q);
+      if (containsJp) {
+        try { results.push(await searchJisho(q)); } catch (e: any) { results.push(`Jisho error: ${e.message}`); }
+      }
+      try { results.push(await searchWikipedia(q, 'en')); } catch (e: any) { results.push(`Wikipedia error: ${e.message}`); }
+      if (!containsJp) {
+        try { results.push(await searchVndb(q)); } catch (e: any) { results.push(`VNDB error: ${e.message}`); }
+      }
+      return results.length ? results.join('\n\n') : 'Tidak ada hasil.';
+    }
+  } catch (e: any) {
+    return `Error saat web search: ${e.message}`;
+  }
+}
+
+async function executeTool(name: string, args: any): Promise<string> {
   switch (name) {
     case 'getProjectStats': return getProjectStats();
     case 'getLines': return getLines(args.start, args.end);
@@ -353,6 +801,8 @@ function executeTool(name: string, args: any): string {
     case 'analyzeQuality': return analyzeQuality(args.limit);
     case 'getProgressReport': return getProgressReport();
     case 'applyTranslations': return applyTranslations(args.updates);
+    case 'editLine': return editLine(args.line_num, args.fields);
+    case 'editLines': return editLines(args.updates);
     case 'clearTranslations': {
       const cleared = clearAgentTranslations(args.line_nums || []);
       return `Berhasil menghapus terjemahan untuk ${cleared} baris.`;
@@ -360,8 +810,29 @@ function executeTool(name: string, args: any): string {
     case 'undoLastAction':
       onUndoLastApply();
       return 'Aksi terakhir berhasil dibatalkan.';
+    case 'redoLastAction':
+      onRedoLastUndo();
+      return 'Aksi yang dibatalkan berhasil dikembalikan.';
     case 'getGlossary':
       return state.glossaryText || 'Glosarium belum didefinisikan.';
+    case 'editPrompt':
+      return editPrompt(args.prompt_type, args.new_prompt);
+    case 'editGlossary':
+      return editGlossary(args.new_glossary);
+    case 'toggleSetting':
+      return toggleSetting(args.setting_name, args.value);
+    case 'listSettings':
+      return listSettings();
+    case 'getMemory':
+      return getMemory(args.category);
+    case 'listMemory':
+      return listMemory();
+    case 'saveMemory':
+      return saveMemory(args.key, args.value, args.category, args.scope);
+    case 'deleteMemory':
+      return deleteMemory(args.key);
+    case 'webSearch':
+      return await webSearch(args.query, args.source);
     default:
       return `Error: Tool tidak dikenal — "${name}"`;
   }
@@ -462,7 +933,7 @@ INFO PROYEK SAAT INI:
 - Bahasa Target: ${state.targetLang}
 - Total Baris: ${state.lines.length}
 - Sudah Diterjemahkan: ${state.lines.filter(l => l.is_translated).length}
-
+${buildMemoryPromptSection()}
 DAFTAR TOOL YANG TERSEDIA:
 1. getProjectStats() — Ringkasan progress, jumlah baris, daftar file.
 2. getLines(start, end) — Ambil teks asli + terjemahan untuk rentang baris tertentu.
@@ -472,9 +943,21 @@ DAFTAR TOOL YANG TERSEDIA:
 6. analyzeQuality(limit) — Analisis masalah kualitas: baris belum diterjemahkan, terjemahan terlalu pendek, nama karakter inkonsisten.
 7. getProgressReport() — Laporan progress terjemahan per file.
 8. applyTranslations(updates) — Terapkan terjemahan langsung ke proyek. updates adalah array: [{num, trans_message, trans_name (opsional)}].
-9. clearTranslations(line_nums) — Hapus terjemahan untuk baris-baris tertentu. line_nums adalah array angka.
-10. undoLastAction() — Batalkan aksi terakhir (apply atau clear).
-11. getGlossary() — Ambil daftar glosarium yang didefinisikan pengguna.
+9. editLine(line_num, fields) — Edit satu baris. fields adalah object berisi field yang ingin diubah. Field yang bisa diedit: message, name, trans_message, trans_name, is_translated, file, _hidden, luca_command, luca_pre, luca_post, luca_text_prefix, epub_selector, epub_id. Contoh: {"line_num": 42, "fields": {"message": "teks baru", "name": "Spica"}}.
+10. editLines(updates) — Edit beberapa baris sekaligus. updates adalah array: [{line_num, fields}]. Field sama dengan editLine.
+11. clearTranslations(line_nums) — Hapus terjemahan untuk baris-baris tertentu. line_nums adalah array angka.
+12. undoLastAction() — Batalkan aksi terakhir (apply, edit, atau clear).
+13. redoLastAction() — Kembalikan aksi yang dibatalkan dengan undoLastAction.
+14. getGlossary() — Ambil daftar glosarium yang didefinisikan pengguna.
+15. editPrompt(prompt_type, new_prompt) — Edit prompt. prompt_type: "translation" | "glossary" | "ai_check" | "agent". new_prompt: teks prompt baru (wajib diisi, tidak boleh kosong).
+16. editGlossary(new_glossary) — Edit teks glosarium. new_glossary: teks glosarium baru (bisa kosong untuk menghapus).
+17. listSettings() — Tampilkan daftar semua setting yang bisa diubah beserta nilai saat ini.
+18. toggleSetting(setting_name, value) — Ubah/toggle setting. setting_name: nama setting (lihat listSettings). value: untuk boolean gunakan true/false/on/off/1/0 (atau kosongkan untuk toggle); untuk number gunakan angka; untuk string gunakan teks.
+19. getMemory(category?) — Ambil memori yang tersimpan. category opsional: "style" | "terminology" | "character" | "preference" | "note".
+20. listMemory() — Tampilkan semua memori (sama dengan getMemory tanpa filter).
+21. saveMemory(key, value, category, scope?) — Simpan/update memori. key: identifikasi unik. value: isi memori. category: "style" | "terminology" | "character" | "preference" | "note". scope: "global" (berlaku semua proyek) atau "project" (hanya proyek ini, default).
+22. deleteMemory(key) — Hapus memori by key.
+23. webSearch(query, source?) — Cari informasi dari web. query: kata kunci pencarian. source (opsional): "wikipedia" | "jisho" | "vndb" | "auto" (default). "jisho" untuk kamus Jepang, "wikipedia" untuk ensiklopedia, "vndb" untuk info visual novel. "auto" akan memilih sumber yang relevan (deteksi karakter Jepang → Jisho, selain itu Wikipedia+VNDB).
 
 CARA MEMANGGIL TOOL:
 Kirim respons JSON. Kamu bisa memanggil beberapa tool sekaligus dalam satu respons:
@@ -494,6 +977,20 @@ ATURAN PENTING:
 - Saat menerjemahkan dengan applyTranslations, ALWAYS sertakan trans_name untuk baris yang punya nama karakter.
 - Untuk analisis kualitas, gunakan analyzeQuality terlebih dahulu sebelum memberikan rekomendasi.
 - Jika ada nama karakter yang inkonsisten, sarankan perbaikan dan minta konfirmasi sebelum menerapkan.
+- Jika butuh mencari arti kata Jepang, info istilah, atau referensi visual novel dari web, gunakan webSearch(query, source). Gunakan source "jisho" untuk kosakata Jepang, "wikipedia" untuk info umum, "vndb" untuk visual novel, atau "auto" jika belum yakin.
+- Sebelum mengubah setting dengan toggleSetting, gunakan listSettings() dulu untuk melihat nilai saat ini dan pastikan setting tersedia.
+- Sebelum mengedit prompt, tampilkan prompt saat ini (atau tanyakan) lalu konfirmasi perubahan dengan pengguna.
+- Sebelum mengedit glosarium, tampilkan glosarium saat ini (getGlossary) lalu konfirmasi perubahan dengan pengguna.
+- MEMORI: Simpan memori SECARA OTOMATIS (tanpa menunggu user bilang "ingat ini") ketika:
+  (1) User koreksi terjemahan dan koreksinya mengungkap preferensi style (misal: "jangan pakai 'kamu', pakai nama" → saveMemory ke category "style", scope "global"))
+  (2) User konfirmasi keputusan nama karakter atau istilah (misal: "iya, スピカ = Spica" → saveMemory ke category "character", scope "project")
+  (3) User menyebut preferensi terjemahan secara langsung (misal: "aku suka terjemahan yang natural" → saveMemory ke category "preference", scope "global")
+  (4) User koreksi pola yang sama 2+ kali — langsung simpan, tidak perlu tanya lagi
+  (5) User memberi konteks tentang cerita/tone proyek (misal: "VN ini tone-nya school life romantis" → saveMemory ke category "note", scope "project")
+  Gunakan scope "global" untuk preferensi umum yang berlaku semua proyek, "project" untuk yang spesifik proyek ini.
+  Hapus memori outdated dengan deleteMemory() jika user mengubah preferensi atau koreksi sebelumnya.
+  Jangan simpan hal trivial, hal yang sudah ada di glossary, atau progres terjemahan.
+  Setelah menyimpan, beri tahu user singkat: "(Tersimpan di memori: ...)" supaya transparan.
 - Jawab dalam Bahasa Indonesia kecuali pengguna meminta sebaliknya.
 - Jangan tampilkan proses berpikir internalmu. Langsung berikan jawaban atau panggil tool.`;
 }
@@ -535,11 +1032,11 @@ export async function sendAgentMessage(userMessage: string, onUpdate: (msg: stri
       throw e;
     }
 
-    chatHistory.push({ role: 'assistant', content: responseText });
-    saveChatHistory();
-
     // Try to parse tool calls
     const parsed = parseToolCalls(responseText);
+
+    chatHistory.push({ role: 'assistant', content: responseText, _internal: !!(parsed && parsed.calls.length > 0) });
+    saveChatHistory();
 
     if (parsed && parsed.calls.length > 0) {
       const toolNames = parsed.calls.map(c => c.name).join(', ');
@@ -548,11 +1045,11 @@ export async function sendAgentMessage(userMessage: string, onUpdate: (msg: stri
       // Execute all tools and collect results
       const toolResults: string[] = [];
       for (const call of parsed.calls) {
-        const result = executeTool(call.name, call.arguments);
+        const result = await executeTool(call.name, call.arguments);
         toolResults.push(`Tool "${call.name}" result:\n${result}`);
       }
 
-      chatHistory.push({ role: 'user', content: toolResults.join('\n\n') });
+      chatHistory.push({ role: 'user', content: toolResults.join('\n\n'), _internal: true });
       saveChatHistory();
       // Loop continues — AI can call more tools or respond with text
     } else {

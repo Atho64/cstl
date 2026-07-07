@@ -92,6 +92,7 @@ export const state: AppState = {
   qaMatches: [],
   aiCheckCorrections: [],
   dashboardProjects: [],
+  agentMemories: [],
 };
 
 // ─── Shared UI Element Cache ──────────────────────────────────────────────────

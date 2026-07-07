@@ -124,6 +124,7 @@ export interface AppState {
   qaMatches: QaMatch[];
   aiCheckCorrections: AiCheckCorrection[];
   dashboardProjects: DashboardProject[];
+  agentMemories: AgentMemory[];
 }
 
 export type WorkspaceTab = 'translate' | 'glossary' | 'aiCheck' | 'delete';
@@ -196,6 +197,20 @@ export interface DashboardProject {
   totalLines: number;
   translatedLines: number;
   updatedAt: number;
+}
+
+// ─── AI Agent Memory ──────────────────────────────────────────────────────────
+
+export type MemoryCategory = 'style' | 'terminology' | 'character' | 'preference' | 'note';
+export type MemoryScope = 'global' | 'project';
+
+export interface AgentMemory {
+  key: string;
+  value: string;
+  category: MemoryCategory;
+  scope: MemoryScope;
+  created: number;
+  updated: number;
 }
 
 // ─── Glossary ─────────────────────────────────────────────────────────────────

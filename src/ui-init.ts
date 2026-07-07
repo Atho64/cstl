@@ -90,7 +90,8 @@ export function cacheElements(): void {
     'settingsContextTypeSelect',
     'btnQaCheck', 'qaModal', 'qaCheckGlossary', 'qaCheckKana', 'qaCheckSimilarity', 'qaCheckLinebreak', 'qaCheckLength', 'qaCheckLanguage', 'qaCheckPunctuation', 'btnRunQa', 'btnQaReset', 'qaStats', 'qaResults', 'btnQaClose', 'btnRetranslateFlagged', 'settingsCheckLengthRatio', 'settingsLengthRatioThreshold', 'settingsLengthRatioWrap', 'settingsCheckLinebreak', 'settingsCheckLanguage', 'settingsCheckPunctuation', 'settingsEnableUncertainMarking', 'qaCheckUncertain', 'aiTranslateModeSelect', 'settingsAgentMaxTurns',
     'btnAutoTranslate', 'btnAutoGlossaryAi', 'btnAutoAiCheck', 'btnFloatingApiSettings', 'apiSettingsModal', 'apiTypeSelect', 'apiUrlInput', 'apiKeyInput', 'apiModelInput', 'apiModelSelect', 'btnFetchModels', 'apiModelFetchStatus', 'apiTemperatureInput', 'apiTopPInput', 'apiRpmInput', 'apiDelayPreview', 'apiThinkingSelect', 'apiFilterThinkingCheck', 'apiBackupKeysInput', 'apiKeyStrategySelect', 'btnApiSettingsCancel', 'btnApiSettingsSave',
-    'btnFloatingAiAgent', 'aiAgentChatPanel', 'btnAgentClose', 'btnAgentClear', 'agentChatHistory', 'agentInput', 'btnAgentSend',
+    'btnFloatingAiAgent', 'aiAgentChatPanel', 'btnAgentClose', 'btnAgentClear', 'btnAgentMemory', 'agentChatHistory', 'agentInput', 'btnAgentSend',
+    'agentMemoryModal', 'agentMemoryList', 'agentMemoryKey', 'agentMemoryCategory', 'agentMemoryScope', 'agentMemoryValue', 'btnAgentMemoryCancel', 'btnAgentMemorySave',
     'btnTextReplacer', 'textReplacerModal', 'replacerPreInput', 'replacerPostInput', 'btnTextReplacerCancel', 'btnTextReplacerSave'
   ];
   for (const id of ids) {
@@ -630,6 +631,84 @@ if (ui.settingsCheckSimilarity) {
     if (!confirm('Hapus semua riwayat chat untuk proyek ini?')) return;
     const { clearChatHistory } = await import('./ai-agent');
     clearChatHistory();
+  });
+
+  // ── Agent Memory UI ──
+  function renderAgentMemoryList(): void {
+    const listEl = ui.agentMemoryList as HTMLElement;
+    if (!listEl) return;
+    listEl.innerHTML = '';
+    if (!state.agentMemories.length) {
+      listEl.innerHTML = '<p class="hint">Belum ada memori tersimpan.</p>';
+      return;
+    }
+    for (const m of state.agentMemories) {
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex; gap:8px; align-items:flex-start; padding:8px; border-bottom:1px solid var(--border-base);';
+      const info = document.createElement('div');
+      info.style.flex = '1';
+      info.innerHTML = `<span style="opacity:0.6;font-size:0.85em;">[${m.scope}/${m.category}]</span> <strong>${m.key}</strong><br><span style="font-size:0.9em;">${m.value}</span>`;
+      row.appendChild(info);
+      const editBtn = document.createElement('button');
+      editBtn.className = 'icon-btn';
+      editBtn.textContent = '✏';
+      editBtn.title = 'Edit';
+      editBtn.onclick = () => {
+        (ui.agentMemoryKey as HTMLInputElement).value = m.key;
+        (ui.agentMemoryValue as HTMLTextAreaElement).value = m.value;
+        (ui.agentMemoryCategory as HTMLSelectElement).value = m.category;
+        (ui.agentMemoryScope as HTMLSelectElement).value = m.scope;
+      };
+      row.appendChild(editBtn);
+      const delBtn = document.createElement('button');
+      delBtn.className = 'icon-btn';
+      delBtn.textContent = '🗑';
+      delBtn.title = 'Hapus';
+      delBtn.onclick = () => {
+        state.agentMemories = state.agentMemories.filter(x => x.key !== m.key || x.scope !== m.scope);
+        // Persist
+        const scopeMems = state.agentMemories.filter(x => x.scope === m.scope);
+        try {
+          const key = m.scope === 'global' ? 'cstl_agent_memory_global' : `cstl_agent_memory_${state.currentProjectId}`;
+          localStorage.setItem(key, JSON.stringify(scopeMems));
+        } catch {}
+        renderAgentMemoryList();
+      };
+      row.appendChild(delBtn);
+      listEl.appendChild(row);
+    }
+  }
+
+  ui.btnAgentMemory?.addEventListener('click', () => {
+    renderAgentMemoryList();
+    (ui.agentMemoryModal as HTMLElement).style.display = 'flex';
+  });
+  ui.btnAgentMemoryCancel?.addEventListener('click', () => {
+    (ui.agentMemoryModal as HTMLElement).style.display = 'none';
+  });
+  ui.btnAgentMemorySave?.addEventListener('click', async () => {
+    const key = (ui.agentMemoryKey as HTMLInputElement).value.trim();
+    const value = (ui.agentMemoryValue as HTMLTextAreaElement).value.trim();
+    const category = (ui.agentMemoryCategory as HTMLSelectElement).value;
+    const scope = (ui.agentMemoryScope as HTMLSelectElement).value as 'global' | 'project';
+    if (!key || !value) { alert('Key dan value tidak boleh kosong.'); return; }
+    const now = Date.now();
+    const existing = state.agentMemories.findIndex(m => m.key === key && m.scope === scope);
+    if (existing >= 0) {
+      state.agentMemories[existing].value = value;
+      state.agentMemories[existing].category = category as any;
+      state.agentMemories[existing].updated = now;
+    } else {
+      state.agentMemories.push({ key, value, category: category as any, scope, created: now, updated: now });
+    }
+    const scopeMems = state.agentMemories.filter(m => m.scope === scope);
+    try {
+      const storageKey = scope === 'global' ? 'cstl_agent_memory_global' : `cstl_agent_memory_${state.currentProjectId}`;
+      localStorage.setItem(storageKey, JSON.stringify(scopeMems));
+    } catch {}
+    (ui.agentMemoryKey as HTMLInputElement).value = '';
+    (ui.agentMemoryValue as HTMLTextAreaElement).value = '';
+    renderAgentMemoryList();
   });
 
   const doAgentSend = async () => {

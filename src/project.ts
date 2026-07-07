@@ -645,7 +645,8 @@ export function openProject(id: string, data: any): void {
   if (ui.pasteAiCheckArea) (ui.pasteAiCheckArea as HTMLTextAreaElement).value = data.paste_ai_check_area || '';
   if (ui.aiCheckResults) (ui.aiCheckResults as HTMLElement).textContent = '';
   setDictHistory(data.dict_history || []);
-  import('./ai-agent').then(({ loadChatHistory, renderChatHistory }) => {
+  import('./ai-agent').then(({ loadChatHistory, renderChatHistory, loadAllAgentMemories }) => {
+    loadAllAgentMemories();
     loadChatHistory();
     renderChatHistory();
   });
