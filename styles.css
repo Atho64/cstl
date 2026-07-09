@@ -1280,6 +1280,14 @@ select {
 }
 .icon-btn:hover { background: var(--btn-bg-hover, var(--panel)); border-color: var(--muted-2); }
 
+/* Lucide SVG icons */
+.lucide-icon { display: inline-block; vertical-align: middle; flex-shrink: 0; }
+.icon-wrap { display: inline-flex; align-items: center; justify-content: center; }
+.icon-btn .lucide-icon { width: 16px; height: 16px; }
+.btn .lucide-icon { width: 16px; height: 16px; }
+h3 .lucide-icon { width: 18px; height: 18px; vertical-align: -3px; margin-right: 4px; }
+.floating-btn .lucide-icon { width: 22px; height: 22px; }
+
 /* Floating button (robot icon, chat icon) */
 .floating-btn {
   position: fixed;
@@ -1521,6 +1529,15 @@ select {
   color: var(--text);
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+.ai-check-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-bottom: 8px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--line);
 }
 
 /* Checkbox custom */

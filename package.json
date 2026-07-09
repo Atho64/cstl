@@ -20,6 +20,7 @@
     "jszip": "^3.10.1",
     "kuroshiro": "^1.2.0",
     "kuroshiro-analyzer-kuromoji": "^1.1.0",
+    "lucide-static": "^1.23.0",
     "pako": "^2.2.0",
     "path-browserify": "^1.0.1",
     "vite-plugin-node-polyfills": "^0.28.0"

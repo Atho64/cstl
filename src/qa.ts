@@ -113,6 +113,8 @@ export function onResetQa(): void {
   if (jp) jp.checked = true;
   const un = document.getElementById('qaCheckUncertain') as HTMLInputElement;
   if (un) un.checked = true;
+  const un2 = document.getElementById('qaCheckUntransName') as HTMLInputElement;
+  if (un2) un2.checked = true;
   state.qaMatches = [];
   getQaScroller().setItems([]);
   ui.qaStats.textContent = 'Status: Siap dijalankan.';
@@ -132,6 +134,7 @@ export function runQaCheck(): void {
   const checkLanguage = (document.getElementById('qaCheckLanguage') as HTMLInputElement)?.checked ?? false;
   const checkPunct = (document.getElementById('qaCheckPunctuation') as HTMLInputElement)?.checked ?? false;
   const checkUncertain = (document.getElementById('qaCheckUncertain') as HTMLInputElement)?.checked ?? false;
+  const checkUntransName = (document.getElementById('qaCheckUntransName') as HTMLInputElement)?.checked ?? false;
 
   const glossaryMap = checkGloss ? parseGlossaryToMap(state.glossaryText) : new Map();
   const simThreshold = state.similarityThreshold || 0.7;
@@ -145,6 +148,7 @@ export function runQaCheck(): void {
   let langCount = 0;
   let punctCount = 0;
   let uncertainCount = 0;
+  let untransNameCount = 0;
 
   for (const l of state.lines) {
     if (!isTranslated(l) || !l.trans_message) continue;
@@ -161,6 +165,23 @@ export function runQaCheck(): void {
       if (kanaRegex.test(transRawMsg) || (transRawName && kanaRegex.test(transRawName))) {
         errors.push('Kana/Kanji Residue');
         kanaCount++;
+      }
+    }
+
+    if (checkUntransName) {
+      const origName = (l.name || '').trim();
+      if (origName && kanaRegex.test(origName)) {
+        const transName = (l.trans_name || '').trim();
+        if (!transName) {
+          errors.push('Name Not Translated');
+          untransNameCount++;
+        } else if (transName === origName) {
+          errors.push('Name Copied (JP)');
+          untransNameCount++;
+        } else if (kanaRegex.test(transName)) {
+          errors.push('Name JP Residue');
+          untransNameCount++;
+        }
       }
     }
 
@@ -271,7 +292,8 @@ export function runQaCheck(): void {
   if (langCount) parts.push(`Lang: ${langCount}`);
   if (punctCount) parts.push(`Punct: ${punctCount}`);
   if (uncertainCount) parts.push(`Uncertain: ${uncertainCount}`);
-  const total = kanaCount + simCount + glossCount + linebreakCount + lengthCount + langCount + punctCount + uncertainCount;
+  if (untransNameCount) parts.push(`Name: ${untransNameCount}`);
+  const total = kanaCount + simCount + glossCount + linebreakCount + lengthCount + langCount + punctCount + uncertainCount + untransNameCount;
   ui.qaStats.textContent = `Selesai. ${total} pelanggaran pada ${state.qaMatches.length} baris (${parts.join(', ') || 'bersih'}).`;
   getQaScroller().setItems(state.qaMatches);
 
@@ -324,6 +346,7 @@ export function renderQaRow(r: QaMatch): HTMLElement {
     else if (err.startsWith('Wrong')) badge.style.background = '#ef4444';
     else if (err.startsWith('JP')) badge.style.background = '#f97316';
     else if (err.startsWith('Uncertain')) badge.style.background = '#6366f1';
+    else if (err.startsWith('Name')) badge.style.background = '#14b8a6';
     else badge.style.background = 'var(--primary)';
     badge.textContent = err;
     titleEl.appendChild(badge);

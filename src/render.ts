@@ -382,7 +382,7 @@ export function updateButtonStates(): void {
   const unextractedCount = state.lines.filter(l => !l._glossary_extracted && !l._hidden).length;
   setDisabled('btnAutoGlossaryAi', unextractedCount === 0);
   setDisabled('btnCopyForAiCheck', translatedSelectionCount === 0);
-  const uncheckedCount = state.lines.filter(l => isTranslated(l) && !l._ai_checked && !l._hidden).length;
+  const uncheckedCount = state.lines.filter(l => isTranslated(l) && !l._ai_checked && !l._ai_confirmed && !l._hidden).length;
   setDisabled('btnAutoAiCheck', uncheckedCount === 0);
   setDisabled('btnExtractEpubRubyNames', !(state.projectType === 'epub' && state.epubSourceId));
   setDisabled('pasteArea', !hasData);

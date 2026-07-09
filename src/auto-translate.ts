@@ -264,7 +264,7 @@ export async function onAutoTranslate(): Promise<void> {
   }
 
   if (!state.aiApiKey) {
-    alert('API Key belum diisi! Klik tombol 🤖 di pojok kanan bawah untuk mengatur.');
+    alert('API Key belum diisi! Klik tombol robot di pojok kanan bawah untuk mengatur.');
     onOpenApiSettings();
     return;
   }
@@ -309,72 +309,192 @@ export async function onAutoTranslate(): Promise<void> {
 
       const sel = batch;
       
-      btn.textContent = `Menerjemahkan ${sel.length} baris... (Klik untuk Stop)`;
+      const parallelSize = Math.max(1, Math.min(10, state.parallelBatchSize || 1));
 
-      let contextBlock = '';
-      if (state.contextLines > 0) {
-        const firstSelLineNum = sel[0].line_num;
-        const firstSelIdx = state.lines.findIndex(l => l.line_num === firstSelLineNum);
-        if (firstSelIdx > 0) {
-          const startIdx = Math.max(0, firstSelIdx - state.contextLines);
-          const ctxLines = state.lines.slice(startIdx, firstSelIdx);
-          const ctxOut: string[] = [];
-          for (const l of ctxLines) {
-            const origNameStr = l.name ? `${l.name}: ` : '';
-            const transNameStr = (l.trans_name || l.name) ? `${(l.trans_name || l.name)!.trim()}: ` : '';
-            if (state.contextType === 'raw') {
-              ctxOut.push(`${origNameStr}${l.message}`);
-            } else if (state.contextType === 'both') {
-              ctxOut.push(`[Original] ${origNameStr}${l.message}\n[Translated] ${transNameStr}${l.trans_message || ''}`);
-            } else {
-              ctxOut.push(`${transNameStr}${l.trans_message || l.message}`);
+      if (parallelSize === 1) {
+        // Original sequential mode
+        btn.textContent = `Menerjemahkan ${sel.length} baris... (Klik untuk Stop)`;
+
+        let contextBlock = '';
+        if (state.contextLines > 0) {
+          const firstSelLineNum = sel[0].line_num;
+          const firstSelIdx = state.lines.findIndex(l => l.line_num === firstSelLineNum);
+          if (firstSelIdx > 0) {
+            const startIdx = Math.max(0, firstSelIdx - state.contextLines);
+            const ctxLines = state.lines.slice(startIdx, firstSelIdx);
+            const ctxOut: string[] = [];
+            for (const l of ctxLines) {
+              const origNameStr = l.name ? `${l.name}: ` : '';
+              const transNameStr = (l.trans_name || l.name) ? `${(l.trans_name || l.name)!.trim()}: ` : '';
+              if (state.contextType === 'raw') {
+                ctxOut.push(`${origNameStr}${l.message}`);
+              } else if (state.contextType === 'both') {
+                ctxOut.push(`[Original] ${origNameStr}${l.message}\n[Translated] ${transNameStr}${l.trans_message || ''}`);
+              } else {
+                ctxOut.push(`${transNameStr}${l.trans_message || l.message}`);
+              }
+            }
+            if (ctxOut.length > 0) {
+              contextBlock = `\n\n<Context>\nThese lines are for context only. Do NOT translate them.\n${ctxOut.join('\n')}\n</Context>`;
             }
           }
-          if (ctxOut.length > 0) {
-            contextBlock = `\n\n<Context>\nThese lines are for context only. Do NOT translate them.\n${ctxOut.join('\n')}\n</Context>`;
+        }
+
+        const joinedText = buildSelectedTranslationExport(false);
+        const glossaryBlock = getGlossaryPrompt(joinedText);
+        const baseHeader = applyPromptVariables((state.aiInstructionHeader || DEFAULT_PROMPT_HEADER).trim());
+        
+        const sections: string[] = [baseHeader];
+        if (glossaryBlock) sections.push(glossaryBlock.trim());
+        if (contextBlock) sections.push(contextBlock.trim());
+        if (state.enableUncertainMarking) {
+          sections.push('If you are uncertain about a translation, prefix it with [?].');
+        }
+        sections.push(joinedText.trim());
+        const prompt = sections.join('\n\n');
+
+        let rawResult = await fetchWithRetry(async () => {
+          const result = await fetchApiResult(prompt);
+          (ui.pasteArea as HTMLTextAreaElement).value = result;
+          try {
+            Translate.onApplyTranslation({ suppressAlerts: true });
+          } catch (err: any) {
+            if (err instanceof TranslationApplyError) {
+              throw createRetryableAiFormatError(err);
+            }
+            throw err;
+          }
+          return result;
+        }, (retry) => {
+          btn.textContent = `${formatRetryLabel(retry)}... (Klik Stop)`;
+        }, () => !isAutoTranslating);
+
+        if (!rawResult || !rawResult.trim()) {
+          throw new Error('Respons dari API kosong.');
+        }
+
+        if (isAutoTranslating && state.aiRpm > 0) {
+          const waitMs = Math.round(60000 / state.aiRpm);
+          btn.textContent = `Menunggu delay (${Math.round(waitMs/1000)}s)... (Klik untuk Stop)`;
+          await delay(waitMs, () => !isAutoTranslating);
+        }
+      } else {
+        // Parallel mode: split batch into sub-batches and send concurrently
+        const subBatchSize = Math.ceil(sel.length / parallelSize);
+        const subBatches: typeof sel[] = [];
+        for (let i = 0; i < sel.length; i += subBatchSize) {
+          subBatches.push(sel.slice(i, i + subBatchSize));
+        }
+
+        btn.textContent = `Menerjemahkan ${sel.length} baris (${subBatches.length}x paralel)... (Klik untuk Stop)`;
+
+        const baseHeader = applyPromptVariables((state.aiInstructionHeader || DEFAULT_PROMPT_HEADER).trim());
+        const glossaryBlock = getGlossaryPrompt('');
+
+        const buildSubPrompt = (subBatch: typeof sel): string => {
+          // Temporarily set selectedLines to just this sub-batch
+          state.selectedLines.clear();
+          for (const l of subBatch) state.selectedLines.add(l.line_num);
+          const subText = buildSelectedTranslationExport(false);
+
+          let contextBlock = '';
+          if (state.contextLines > 0) {
+            const firstSelLineNum = subBatch[0].line_num;
+            const firstSelIdx = state.lines.findIndex(l => l.line_num === firstSelLineNum);
+            if (firstSelIdx > 0) {
+              const startIdx = Math.max(0, firstSelIdx - state.contextLines);
+              const ctxLines = state.lines.slice(startIdx, firstSelIdx);
+              const ctxOut: string[] = [];
+              for (const l of ctxLines) {
+                const origNameStr = l.name ? `${l.name}: ` : '';
+                const transNameStr = (l.trans_name || l.name) ? `${(l.trans_name || l.name)!.trim()}: ` : '';
+                if (state.contextType === 'raw') {
+                  ctxOut.push(`${origNameStr}${l.message}`);
+                } else if (state.contextType === 'both') {
+                  ctxOut.push(`[Original] ${origNameStr}${l.message}\n[Translated] ${transNameStr}${l.trans_message || ''}`);
+                } else {
+                  ctxOut.push(`${transNameStr}${l.trans_message || l.message}`);
+                }
+              }
+              if (ctxOut.length > 0) {
+                contextBlock = `\n\n<Context>\nThese lines are for context only. Do NOT translate them.\n${ctxOut.join('\n')}\n</Context>`;
+              }
+            }
+          }
+
+          const sections: string[] = [baseHeader];
+          if (glossaryBlock) sections.push(glossaryBlock.trim());
+          if (contextBlock) sections.push(contextBlock.trim());
+          if (state.enableUncertainMarking) {
+            sections.push('If you are uncertain about a translation, prefix it with [?].');
+          }
+          sections.push(subText.trim());
+          return sections.join('\n\n');
+        };
+
+        // Build all prompts first (while selectedLines is set per sub-batch)
+        const subPrompts = subBatches.map(sb => ({ batch: sb, prompt: buildSubPrompt(sb) }));
+
+        // Restore full selection for UI
+        state.selectedLines.clear();
+        for (const l of sel) state.selectedLines.add(l.line_num);
+
+        // Send all sub-batches concurrently
+        // NOTE: selectedLines adalah shared state. Karena sub-batch jalan paralel,
+        // kita tidak boleh ubah selectedLines saat apply — onApplyTranslation baca
+        // pasteArea (teks hasil) DAN selectedLines (baris target). Solusinya:
+        // apply hasil sequential setelah semua fetch selesai, bukan di dalam paralel.
+        const fetchResults = await Promise.allSettled(subPrompts.map(async (sp, idx) => {
+          if (!isAutoTranslating) throw new Error('Dibatalkan oleh pengguna.');
+          const result = await fetchWithRetry(async () => {
+            return await fetchApiResult(sp.prompt);
+          }, (retry) => {
+            btn.textContent = `Paralel ${idx + 1}/${subPrompts.length}: ${formatRetryLabel(retry)}... (Klik Stop)`;
+          }, () => !isAutoTranslating);
+          return { sp, result };
+        }));
+
+        // Apply hasil sequential (tidak paralel) supaya selectedLines tidak race
+        for (const r of fetchResults) {
+          if (r.status !== 'fulfilled') continue;
+          const { sp, result } = r.value;
+          if (!isAutoTranslating) break;
+          state.selectedLines.clear();
+          for (const l of sp.batch) state.selectedLines.add(l.line_num);
+          (ui.pasteArea as HTMLTextAreaElement).value = result;
+          try {
+            Translate.onApplyTranslation({ suppressAlerts: true });
+          } catch (err: any) {
+            if (err instanceof TranslationApplyError) {
+              // skip, lanjut sub-batch berikutnya
+              console.warn(`Sub-batch apply gagal: ${err.message}`);
+            } else {
+              throw err;
+            }
           }
         }
-      }
 
-      const joinedText = buildSelectedTranslationExport(false);
-      const glossaryBlock = getGlossaryPrompt(joinedText);
-      const baseHeader = applyPromptVariables((state.aiInstructionHeader || DEFAULT_PROMPT_HEADER).trim());
-      
-      const sections: string[] = [baseHeader];
-      if (glossaryBlock) sections.push(glossaryBlock.trim());
-      if (contextBlock) sections.push(contextBlock.trim());
-      if (state.enableUncertainMarking) {
-        sections.push('If you are uncertain about a translation, prefix it with [?].');
-      }
-      sections.push(joinedText.trim());
-      const prompt = sections.join('\n\n');
+        // Restore full selection
+        state.selectedLines.clear();
+        for (const l of sel) state.selectedLines.add(l.line_num);
 
-      let rawResult = await fetchWithRetry(async () => {
-        const result = await fetchApiResult(prompt);
-        (ui.pasteArea as HTMLTextAreaElement).value = result;
-        try {
-          Translate.onApplyTranslation({ suppressAlerts: true });
-        } catch (err: any) {
-          if (err instanceof TranslationApplyError) {
-            throw createRetryableAiFormatError(err);
-          }
-          throw err;
+        // Check results
+        let successCount = 0;
+        let lastErr: string = '';
+        for (let i = 0; i < fetchResults.length; i++) {
+          const r = fetchResults[i];
+          if (r.status === 'fulfilled') successCount++;
+          else lastErr = String((r as any).reason?.message || r);
         }
-        return result;
-      }, (retry) => {
-        btn.textContent = `${formatRetryLabel(retry)}... (Klik Stop)`;
-      }, () => !isAutoTranslating);
+        if (successCount === 0) {
+          throw new Error(`Semua ${subPrompts.length} request paralel gagal. ${lastErr}`);
+        }
 
-
-
-      if (!rawResult || !rawResult.trim()) {
-        throw new Error('Respons dari API kosong.');
-      }
-
-      if (isAutoTranslating && state.aiRpm > 0) {
-        const waitMs = Math.round(60000 / state.aiRpm);
-        btn.textContent = `Menunggu delay (${Math.round(waitMs/1000)}s)... (Klik untuk Stop)`;
-        await delay(waitMs, () => !isAutoTranslating);
+        if (isAutoTranslating && state.aiRpm > 0) {
+          const waitMs = Math.round(60000 / state.aiRpm);
+          btn.textContent = `Menunggu delay (${Math.round(waitMs/1000)}s)... (Klik untuk Stop)`;
+          await delay(waitMs, () => !isAutoTranslating);
+        }
       }
     }
   } catch (err: any) {
@@ -654,6 +774,7 @@ export async function onAutoGlossary(): Promise<void> {
 }
 
 let isAutoAiCheck = false;
+let autoAiCheckStats = { totalChecked: 0, totalCorrections: 0, totalApplied: 0, byCategory: new Map<string, number>() };
 export async function onAutoAiCheck(): Promise<void> {
   const btn = ui.btnAutoAiCheck as HTMLButtonElement;
   if (isAutoAiCheck) {
@@ -670,21 +791,28 @@ export async function onAutoAiCheck(): Promise<void> {
     return;
   }
 
-  const targetLines = state.lines.filter(l => isTranslated(l) && !l._ai_checked && !l._hidden);
+  // Skip confirmed lines and QC-flagged lines (if QC results exist)
+  const targetLines = state.lines.filter(l => isTranslated(l) && !l._ai_checked && !l._ai_confirmed && !l._hidden);
   if (targetLines.length === 0) {
     alert('Selesai! Semua baris terjemahan telah di-cek AI.');
     return;
   }
 
+  // Check if review mode is enabled
+  const reviewMode = (document.getElementById('settingsAiCheckReviewMode') as HTMLInputElement)?.checked ?? false;
+
   isAutoAiCheck = true;
   btn.classList.remove('btn-success');
   btn.classList.add('btn-danger');
+  autoAiCheckStats = { totalChecked: 0, totalCorrections: 0, totalApplied: 0, byCategory: new Map<string, number>() };
 
   try {
     while (isAutoAiCheck) {
-      const uncheckedLines = state.lines.filter(l => isTranslated(l) && !l._ai_checked && !l._hidden);
+      const uncheckedLines = state.lines.filter(l => isTranslated(l) && !l._ai_checked && !l._ai_confirmed && !l._hidden);
       if (uncheckedLines.length === 0) {
-        alert('Selesai! Semua baris terjemahan telah di-cek AI.');
+        // Show summary
+        const catSummary = Array.from(autoAiCheckStats.byCategory.entries()).map(([k, v]) => `${k}: ${v}`).join(', ');
+        alert(`Selesai! AI Check selesai.\n\nTotal dicek: ${autoAiCheckStats.totalChecked}\nKoreksi ditemukan: ${autoAiCheckStats.totalCorrections}\nKoreksi diterapkan: ${autoAiCheckStats.totalApplied}${catSummary ? `\n\nKategori: ${catSummary}` : ''}`);
         break;
       }
 
@@ -700,14 +828,12 @@ export async function onAutoAiCheck(): Promise<void> {
 
       btn.textContent = `Cek Batch (${batchLines.length} baris)... (Klik Stop)`;
 
-      const out = batchLines.map(l => {
-        let namePart = '';
-        if (l.name) namePart = l.trans_name ? `${l.trans_name}: ` : `${l.name}: `;
-        return `#${l.line_num}\n[Original] ${namePart}${l.message}\n[Translated] ${namePart}${l.trans_message || ''}`;
-      });
-
+      // Build prompt with glossary and context (fix: previously missing glossary)
       const { applyPromptVariables } = await import('./ai-format');
+      const { getGlossaryPrompt } = await import('./glossary');
+      const { getLineForAiCheck } = await import('./ai-check');
       const basePrompt = applyPromptVariables((state.aiCheckPrompt || DEFAULT_AI_CHECK_PROMPT).trim());
+      const out = batchLines.map(l => getLineForAiCheck(l));
       const prompt = `${basePrompt}\n\n${out.join('\n\n')}\n`;
 
       let rawResult = await fetchWithRetry(() => fetchApiResult(prompt), (retry) => {
@@ -720,11 +846,43 @@ export async function onAutoAiCheck(): Promise<void> {
 
       (ui.pasteAiCheckArea as HTMLTextAreaElement).value = rawResult;
 
-      const { onParseAiCheck } = await import('./ai-check');
+      const { onParseAiCheck, onApplyAiCheckCorrections, renderAiCheckCorrections } = await import('./ai-check');
       onParseAiCheck();
-      onApplyAiCheckCorrections();
+      autoAiCheckStats.totalCorrections += state.aiCheckCorrections.length;
+
+      if (reviewMode && state.aiCheckCorrections.length > 0) {
+        // Pause for review — show corrections, wait for user to apply or skip
+        renderAiCheckCorrections();
+        btn.textContent = `Review ${state.aiCheckCorrections.length} koreksi... (Klik Stop untuk batalkan)`;
+        btn.classList.remove('btn-danger');
+        btn.classList.add('btn-success');
+
+        // Wait for user action (apply or skip)
+        const reviewResult = await waitForReviewAction();
+        if (reviewResult === 'stop') {
+          isAutoAiCheck = false;
+          break;
+        }
+        if (reviewResult === 'apply') {
+          const { applied, categories } = onApplyAiCheckCorrections();
+          autoAiCheckStats.totalApplied += applied;
+          for (const [cat, count] of categories) {
+            autoAiCheckStats.byCategory.set(cat, (autoAiCheckStats.byCategory.get(cat) || 0) + count);
+          }
+        }
+        btn.classList.remove('btn-success');
+        btn.classList.add('btn-danger');
+      } else {
+        // Auto-apply (original behavior)
+        const { applied, categories } = onApplyAiCheckCorrections();
+        autoAiCheckStats.totalApplied += applied;
+        for (const [cat, count] of categories) {
+          autoAiCheckStats.byCategory.set(cat, (autoAiCheckStats.byCategory.get(cat) || 0) + count);
+        }
+      }
 
       for (const l of batchLines) l._ai_checked = true;
+      autoAiCheckStats.totalChecked += batchLines.length;
 
       if (isAutoAiCheck && state.aiRpm > 0) {
         const waitMs = Math.round(60000 / state.aiRpm);
@@ -732,6 +890,14 @@ export async function onAutoAiCheck(): Promise<void> {
         await delay(waitMs, () => !isAutoAiCheck);
       }
     }
+    if (isAutoAiCheck) {
+      const catSummary = Array.from(autoAiCheckStats.byCategory.entries()).map(([k, v]) => `${k}: ${v}`).join(', ');
+      alert(`AI Check selesai.\n\nTotal dicek: ${autoAiCheckStats.totalChecked}\nKoreksi ditemukan: ${autoAiCheckStats.totalCorrections}\nKoreksi diterapkan: ${autoAiCheckStats.totalApplied}${catSummary ? `\n\nKategori: ${catSummary}` : ''}`);
+    }
+    isAutoAiCheck = false;
+    btn.classList.remove('btn-danger');
+    btn.classList.add('btn-success');
+    btn.textContent = 'Jalankan Auto Cek';
   } catch (err: any) {
     if (isAutoAiCheck) {
       alert('Auto Cek berhenti karena error:\n\n' + err.message);
@@ -741,6 +907,31 @@ export async function onAutoAiCheck(): Promise<void> {
     btn.classList.remove('btn-danger');
     btn.classList.add('btn-success');
     btn.textContent = 'Jalankan Auto Cek';
+  }
+}
+
+// ─── Review mode helpers ───────────────────────────────────────────────────────
+
+let reviewResolve: ((value: string) => void) | null = null;
+
+function waitForReviewAction(): Promise<string> {
+  return new Promise((resolve) => {
+    reviewResolve = resolve;
+    // Auto-resolve after 5 minutes (timeout safety)
+    setTimeout(() => {
+      if (reviewResolve === resolve) {
+        reviewResolve = null;
+        resolve('skip');
+      }
+    }, 300000);
+  });
+}
+
+export function resolveReviewAction(action: 'apply' | 'skip' | 'stop'): void {
+  if (reviewResolve) {
+    const r = reviewResolve;
+    reviewResolve = null;
+    r(action);
   }
 }
 async function fetchWithRetry(runAttempt: () => Promise<string>, onRetry: (retry: RetryState) => void, shouldCancel?: () => boolean): Promise<string> {

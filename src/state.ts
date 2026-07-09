@@ -78,6 +78,7 @@ export const state: AppState = {
   selectionBatchSize: DEFAULT_SELECTION_BATCH_SIZE,
   glossaryBatchSize: DEFAULT_GLOSSARY_BATCH_SIZE,
   aiCheckBatchSize: DEFAULT_AI_CHECK_BATCH_SIZE,
+  parallelBatchSize: 1,
   selectionBatchPrevShortcut: DEFAULT_SELECTION_BATCH_PREV_SHORTCUT,
   selectionBatchNextShortcut: DEFAULT_SELECTION_BATCH_NEXT_SHORTCUT,
   undoStack: [],

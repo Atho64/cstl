@@ -13,6 +13,7 @@ export interface Line {
   _hidden?: boolean;
   _glossary_extracted?: boolean;
   _ai_checked?: boolean;
+  _ai_confirmed?: boolean;
 
   // LucaSystem fields
   luca_command?: string;
@@ -110,6 +111,7 @@ export interface AppState {
   selectionBatchSize: number;
   glossaryBatchSize: number;
   aiCheckBatchSize: number;
+  parallelBatchSize: number;
   selectionBatchPrevShortcut: string;
   selectionBatchNextShortcut: string;
   undoStack: UndoSnapshot[];
@@ -139,6 +141,7 @@ export interface PartialLineSnapshot {
   _hidden?: boolean;
   _glossary_extracted?: boolean;
   _ai_checked?: boolean;
+  _ai_confirmed?: boolean;
 }
 
 export interface UndoSnapshot {
@@ -181,6 +184,7 @@ export interface QaMatch {
 
 export interface AiCheckCorrection {
   num: number;
+  category: string;
   reason: string;
   name: string;
   text: string;

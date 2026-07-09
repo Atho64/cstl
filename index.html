@@ -37,7 +37,7 @@
           <button id="btnNewProject" class="btn btn-primary">Buat Proyek Baru</button>
           <button id="btnRestoreProject" class="btn btn-outline">Pulihkan Proyek</button>
           <div class="dropdown">
-            <button id="btnDropdownDashboardSettings" class="btn btn-outline dropdown-toggle" title="Pengaturan Default Proyek">⚙️ Default ▼</button>
+            <button id="btnDropdownDashboardSettings" class="btn btn-outline dropdown-toggle" title="Pengaturan Default Proyek"><svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915" /><circle cx="12" cy="12" r="3" /></svg> Default ▼</button>
             <div id="dropdownDashboardSettingsMenu" class="dropdown-content">
               <button id="btnDashboardSettings" class="dropdown-item">Project Defaults</button>
               <button id="btnDashboardPrompts" class="dropdown-item">Prompt Defaults</button>
@@ -73,8 +73,8 @@
             <button id="btnImportTranslatedFolder" class="dropdown-item">Impor TL Folder</button>
           </div>
         </div>
-        <button id="btnUndo" class="btn" disabled title="Undo (Batalkan aksi terakhir)">↶</button>
-        <button id="btnRedo" class="btn" disabled title="Redo (Ulangi aksi terakhir)">↷</button>
+        <button id="btnUndo" class="btn" disabled title="Undo (Batalkan aksi terakhir)"><svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5" /><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11" /></svg></button>
+                <button id="btnRedo" class="btn" disabled title="Redo (Ulangi aksi terakhir)"><svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 14 5-5-5-5" /><path d="M20 9H9.5A5.5 5.5 0 0 0 4 14.5A5.5 5.5 0 0 0 9.5 20H13" /></svg></button>
         <span class="toolbar-sep"></span>
         <button id="btnExport" class="btn" disabled>Ekspor</button>
         <span class="toolbar-sep"></span>
@@ -252,14 +252,19 @@
             <p class="hint">Pilih baris yang sudah diterjemahkan, lalu salin ke AI untuk dicek. AI hanya perlu mengembalikan koreksi.</p>
             <button id="btnCopyForAiCheck" class="btn btn-primary w-full mb-1" disabled>Copy <span id="copyAiCheckCount">0</span> Baris untuk AI Check</button>
             <button id="btnAutoAiCheck" class="btn btn-success w-full" disabled>Jalankan Auto Cek</button>
+            <label class="checkbox-line mt-1"><input id="settingsAiCheckReviewMode" type="checkbox" /> Review mode: pause tiap batch untuk review koreksi</label>
           </div>
           <div id="aiCheckStatus" class="status-toast empty"></div>
           <label class="section-label" for="pasteAiCheckArea">Paste hasil koreksi AI di sini</label>
-          <textarea id="pasteAiCheckArea" class="mono input-area" placeholder="[line 12]&#10;reason: alasan koreksi&#10;name: Nama jika perlu diubah&#10;text: Teks terjemahan yang sudah dikoreksi" disabled></textarea>
+          <textarea id="pasteAiCheckArea" class="mono input-area" placeholder="[line 12]&#10;category: Grammar&#10;reason: alasan koreksi&#10;name: Nama jika perlu diubah&#10;text: Teks terjemahan yang sudah dikoreksi" disabled></textarea>
           <div class="inline-actions">
             <button id="btnParseAiCheck" class="btn btn-outline grow" disabled>Parse AI Check Result</button>
             <button id="btnApplyAiCheck" class="btn btn-success grow" disabled>Apply Checked Corrections</button>
             <button id="btnClearAiCheck" class="btn btn-danger" disabled>Clear AI Check</button>
+          </div>
+          <div class="inline-actions mt-1" id="aiCheckReviewActions" style="display:none;">
+            <button id="btnReviewApply" class="btn btn-success grow">Apply & Lanjut</button>
+            <button id="btnReviewSkip" class="btn btn-outline grow">Skip Batch Ini</button>
           </div>
           <div id="aiCheckResults" class="ai-check-results mt-2"></div>
         </div>
@@ -288,7 +293,7 @@
   <div id="dashboardSettingsModal" class="modal-backdrop">
     <div class="modal modal-wide">
       <div class="modal-head">
-        <h3>⚙ Pengaturan Default Proyek Baru</h3>
+        <h3><svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915" /><circle cx="12" cy="12" r="3" /></svg> Pengaturan Default Proyek Baru</h3>
         <p class="hint mt-1 mb-0">Pengaturan ini akan otomatis diterapkan ke setiap proyek baru yang dibuat. Disimpan di browser.</p>
       </div>
       <div class="modal-body">
@@ -388,7 +393,7 @@
   <div id="dashboardPromptsModal" class="modal-backdrop">
     <div class="modal modal-wide">
       <div class="modal-head">
-        <h3>⚙️ Default Prompts Proyek Baru</h3>
+        <h3><svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915" /><circle cx="12" cy="12" r="3" /></svg> Default Prompts Proyek Baru</h3>
         <p class="hint mt-0">Prompt ini akan otomatis diterapkan ke setiap proyek baru yang dibuat.</p>
       </div>
       <div class="modal-body">
@@ -666,6 +671,16 @@
           </div>
         </div>
       </div>
+      <div class="mt-2">
+        <label class="section-label text-white m-0">Request Paralel</label>
+        <p class="hint mt-1">Jumlah request API yang dikirim bersamaan saat Auto Translate (1 = berurutan, 3-5 = paralel).</p>
+        <div class="flex-center gap-4 wrap mt-1">
+          <div class="flex-col grow">
+            <label class="hint m-0" for="settingsParallelBatchSizeInput">Paralel Batch</label>
+            <input id="settingsParallelBatchSizeInput" class="text-input w-full" type="number" min="1" max="10" value="1" />
+          </div>
+        </div>
+      </div>
       <div class="mt-3">
         <label class="section-label text-white m-0">Shortcut Batch Selection</label>
         <p class="hint mt-1">Klik kolom lalu tekan kombinasi tombol. Default: Alt+ArrowUp sebelumnya, Alt+ArrowDown berikutnya.</p>
@@ -779,7 +794,7 @@
   <div id="agentMemoryModal" class="modal-backdrop">
     <div class="modal modal-wide">
       <div class="modal-head">
-        <h3>🧠 Memori AI Agent</h3>
+        <h3><svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 18V5" /><path d="M15 13a4.17 4.17 0 0 1-3-4 4.17 4.17 0 0 1-3 4" /><path d="M17.598 6.5A3 3 0 1 0 12 5a3 3 0 1 0-5.598 1.5" /><path d="M17.997 5.125a4 4 0 0 1 2.526 5.77" /><path d="M18 18a4 4 0 0 0 2-7.464" /><path d="M19.967 17.483A4 4 0 1 1 12 18a4 4 0 1 1-7.967-.517" /><path d="M6 18a4 4 0 0 1-2-7.464" /><path d="M6.003 5.125a4 4 0 0 0-2.526 5.77" /></svg> Memori AI Agent</h3>
       </div>
       <div class="modal-body">
         <p class="hint">Memori yang disimpan akan di-inject ke system prompt AI Agent setiap chat. Global berlaku untuk semua proyek, Project hanya untuk proyek ini.</p>
@@ -826,11 +841,11 @@
         <textarea id="lineRefZhView" class="mono input-area small luca-ref" readonly></textarea>
       </div>
       <div id="jsonRefLang1Wrap" style="display:none;">
-        <label class="section-label mt-2 luca-ref-label" id="lineRefLang1Label">📚 Referensi 1</label>
+        <label class="section-label mt-2 luca-ref-label" id="lineRefLang1Label"><svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 7v14" /><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z" /></svg> Referensi 1</label>
         <textarea id="lineRefLang1View" class="mono input-area small luca-ref" readonly></textarea>
       </div>
       <div id="jsonRefLang2Wrap" style="display:none;">
-        <label class="section-label mt-2 luca-ref-label" id="lineRefLang2Label">📚 Referensi 2</label>
+        <label class="section-label mt-2 luca-ref-label" id="lineRefLang2Label"><svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 7v14" /><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z" /></svg> Referensi 2</label>
         <textarea id="lineRefLang2View" class="mono input-area small luca-ref" readonly></textarea>
       </div>
       <div id="lineNameWrap">
@@ -921,8 +936,9 @@
             <label class="checkbox-line"><input id="qaCheckLanguage" type="checkbox" checked />Wrong Language</label>
             <label class="checkbox-line"><input id="qaCheckPunctuation" type="checkbox" checked />JP Punctuation Leak</label>
             <label class="checkbox-line"><input id="qaCheckUncertain" type="checkbox" checked />Uncertain [?]</label>
+            <label class="checkbox-line"><input id="qaCheckUntransName" type="checkbox" checked />Untranslated Name</label>
           </div>
-          <div class="flex gap-12 mt-1">
+          <div class="flex gap-12 wrap mt-1">
             <button id="btnRunQa" class="btn btn-primary">Jalankan Validasi</button>
             <button id="btnQaReset" class="btn">Reset</button>
             <button id="btnRetranslateFlagged" class="btn btn-danger" style="display:none;">Retranslate Flagged</button>
@@ -943,23 +959,23 @@
     </div>
   </div>
   <button id="btnFloatingApiSettings" class="floating-btn" title="Pengaturan API Global">
-    🤖
+    <svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8" /><rect width="16" height="12" x="4" y="8" rx="2" /><path d="M2 14h2" /><path d="M20 14h2" /><path d="M15 13v2" /><path d="M9 13v2" /></svg>
   </button>
   
   <button id="btnFloatingAiAgent" class="floating-btn" title="CSTL AI Agent" style="bottom: 80px; background-color: var(--primary);">
-    💬
+    <svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z" /></svg>
   </button>
 
   <div id="aiAgentChatPanel" class="agent-panel" style="display: none;">
     <div class="agent-header">
       <span style="font-weight: bold; color: var(--text-base);">CSTL AI Agent</span>
-      <button id="btnAgentMemory" class="icon-btn" title="Memori Agent">🧠</button>
-      <button id="btnAgentClear" class="icon-btn" title="Hapus riwayat chat">🗑</button>
-      <button id="btnAgentClose" class="icon-btn" title="Tutup">✖</button>
+      <button id="btnAgentMemory" class="icon-btn" title="Memori Agent"><svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 18V5" /><path d="M15 13a4.17 4.17 0 0 1-3-4 4.17 4.17 0 0 1-3 4" /><path d="M17.598 6.5A3 3 0 1 0 12 5a3 3 0 1 0-5.598 1.5" /><path d="M17.997 5.125a4 4 0 0 1 2.526 5.77" /><path d="M18 18a4 4 0 0 0 2-7.464" /><path d="M19.967 17.483A4 4 0 1 1 12 18a4 4 0 1 1-7.967-.517" /><path d="M6 18a4 4 0 0 1-2-7.464" /><path d="M6.003 5.125a4 4 0 0 0-2.526 5.77" /></svg></button>
+      <button id="btnAgentClear" class="icon-btn" title="Hapus riwayat chat"><svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 11v6" /><path d="M14 11v6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /><path d="M3 6h18" /><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg></button>
+      <button id="btnAgentClose" class="icon-btn" title="Tutup"><svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg></button>
     </div>
     <div id="agentChatHistory" class="agent-history">
       <div class="agent-msg system">
-        👋 Halo! Saya CSTL Agent. Saya bisa menjawab pertanyaan seputar proyek ini atau membantu mengeksekusi terjemahan layaknya Vibecoding Agent.
+        Halo! Saya CSTL Agent. Saya bisa menjawab pertanyaan seputar proyek ini atau membantu mengeksekusi terjemahan layaknya Vibecoding Agent.
       </div>
     </div>
     <div class="agent-input-area">
@@ -1114,7 +1130,7 @@
   <div id="dictionaryPopup" class="dict-popup" style="display: none;">
     <div id="dictPopupHeader" class="dict-popup-header">
       <span id="dictPopupWord" class="dict-popup-word"></span>
-      <button id="dictPopupClose" class="icon-btn dict-popup-close" title="Tutup">✖</button>
+      <button id="dictPopupClose" class="icon-btn dict-popup-close" title="Tutup"><svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg></button>
     </div>
     <div id="dictPopupContent" class="dict-popup-content"></div>
   </div>

@@ -24,7 +24,7 @@ interface ApiConfig {
 }
 
 const COMPACTION_THRESHOLD = 50000;
-const WELCOME_MSG = '👋 Halo! Saya CSTL Agent. Saya bisa menjawab pertanyaan seputar proyek ini atau membantu mengeksekusi terjemahan layaknya Vibecoding Agent.';
+const WELCOME_MSG = 'Halo! Saya CSTL Agent. Saya bisa menjawab pertanyaan seputar proyek ini atau membantu mengeksekusi terjemahan layaknya Vibecoding Agent.';
 
 // ------------------------------------------------------------------
 // Chat History Persistence
@@ -413,6 +413,7 @@ const SETTING_REGISTRY: Record<string, SettingMeta> = {
   selectionBatchSize: { field: 'selectionBatchSize', type: 'number', desc: 'Ukuran batch seleksi (1-500)' },
   glossaryBatchSize: { field: 'glossaryBatchSize', type: 'number', desc: 'Ukuran batch glosarium (1-500)' },
   aiCheckBatchSize: { field: 'aiCheckBatchSize', type: 'number', desc: 'Ukuran batch AI check (1-500)' },
+  parallelBatchSize: { field: 'parallelBatchSize', type: 'number', desc: 'Jumlah request paralel ke API (1-10)' },
   agentMaxTurns: { field: 'agentMaxTurns', type: 'number', desc: 'Maksimum turn AI agent (3-30)' },
   similarityThreshold: { field: 'similarityThreshold', type: 'number', desc: 'Threshold kemiripan (0.01-0.99)' },
   lengthRatioThreshold: { field: 'lengthRatioThreshold', type: 'number', desc: 'Threshold rasio panjang (1-10)' },
@@ -464,6 +465,7 @@ function toggleSetting(settingName: string, value: any): string {
     if (field === 'fontSize' && (num < 8 || num > 32)) return 'Error: fontSize harus 8-32.';
     if (field === 'contextLines' && (num < 0 || num > 100)) return 'Error: contextLines harus 0-100.';
     if ((field === 'selectionBatchSize' || field === 'glossaryBatchSize' || field === 'aiCheckBatchSize') && (num < 1 || num > 500)) return `Error: ${field} harus 1-500.`;
+    if (field === 'parallelBatchSize' && (num < 1 || num > 10)) return 'Error: parallelBatchSize harus 1-10.';
     if (field === 'agentMaxTurns' && (num < 3 || num > 30)) return 'Error: agentMaxTurns harus 3-30.';
     if (field === 'similarityThreshold' && (num < 0.01 || num > 0.99)) return 'Error: similarityThreshold harus 0.01-0.99.';
     if (field === 'lengthRatioThreshold' && (num < 1 || num > 10)) return 'Error: lengthRatioThreshold harus 1-10.';
@@ -791,6 +793,79 @@ async function webSearch(query: string, source: string): Promise<string> {
   }
 }
 
+// ── Subagent Tools: delegate tasks to parallel AI calls ──────────────────────
+
+async function delegateTranslate(lineNums: number[], instruction?: string): Promise<string> {
+  const nums = Array.isArray(lineNums) ? lineNums.filter(n => n > 0) : [];
+  if (!nums.length) return 'Error: lineNums tidak boleh kosong.';
+  const lines = nums.map(n => state.lineByNum.get(n)).filter(l => l);
+  if (!lines.length) return 'Error: tidak ada baris yang ditemukan.';
+
+  const { buildSelectedTranslationExport, applyPromptVariables } = await import('./ai-format');
+  const { getGlossaryPrompt } = await import('./glossary');
+  const { DEFAULT_PROMPT_HEADER } = await import('./constants');
+  const { fetchApiResult } = await import('./auto-translate');
+  const Translate = await import('./translate');
+
+  // Set selection to just these lines
+  const prevSelection = new Set(state.selectedLines);
+  state.selectedLines.clear();
+  for (const l of lines) state.selectedLines.add(l.line_num);
+
+  try {
+    const joinedText = buildSelectedTranslationExport(false);
+    const glossaryBlock = getGlossaryPrompt(joinedText);
+    const baseHeader = applyPromptVariables((state.aiInstructionHeader || DEFAULT_PROMPT_HEADER).trim());
+    const extra = instruction ? `\n\nInstruction: ${instruction}` : '';
+    const sections: string[] = [baseHeader];
+    if (glossaryBlock) sections.push(glossaryBlock.trim());
+    if (state.enableUncertainMarking) sections.push('If you are uncertain about a translation, prefix it with [?].');
+    sections.push(joinedText.trim());
+    const prompt = sections.join('\n\n') + extra;
+
+    const result = await fetchApiResult(prompt);
+    // Apply result
+    (await import('./state')).ui.pasteArea.value = result;
+    try {
+      Translate.onApplyTranslation({ suppressAlerts: true });
+    } catch (err: any) {
+      return `Error saat apply: ${err.message}\nRaw result:\n${result.slice(0, 500)}`;
+    }
+    return `Berhasil menerjemahkan ${lines.length} baris (line_nums: ${nums.join(', ')}).`;
+  } catch (err: any) {
+    return `Error saat delegate translate: ${err.message}`;
+  } finally {
+    // Restore selection
+    state.selectedLines.clear();
+    prevSelection.forEach(n => state.selectedLines.add(n));
+  }
+}
+
+async function delegateAnalyze(lineNums: number[], focus?: string): Promise<string> {
+  const nums = Array.isArray(lineNums) ? lineNums.filter(n => n > 0) : [];
+  if (!nums.length) return 'Error: lineNums tidak boleh kosong.';
+  const lines = nums.map(n => state.lineByNum.get(n)).filter(l => l);
+  if (!lines.length) return 'Error: tidak ada baris yang ditemukan.';
+
+  const { fetchApiResult } = await import('./auto-translate');
+
+  const out = lines.map(l => {
+    let namePart = '';
+    if (l.name) namePart = l.trans_name ? `${l.trans_name}: ` : `${l.name}: `;
+    return `#${l.line_num}\n[Original] ${namePart}${l.message}\n[Translated] ${namePart}${l.trans_message || ''}`;
+  });
+
+  const focusStr = focus ? `\n\nFocus: ${focus}` : '';
+  const prompt = `You are a translation quality analyst. Analyze the following translations and report issues (accuracy, naturalness, consistency, missing nuance). Be concise.\n\n${out.join('\n\n')}${focusStr}`;
+
+  try {
+    const result = await fetchApiResult(prompt);
+    return `=== ANALISIS SUBAGENT (${lines.length} baris) ===\n${result}`;
+  } catch (err: any) {
+    return `Error saat delegate analyze: ${err.message}`;
+  }
+}
+
 async function executeTool(name: string, args: any): Promise<string> {
   switch (name) {
     case 'getProjectStats': return getProjectStats();
@@ -833,6 +908,10 @@ async function executeTool(name: string, args: any): Promise<string> {
       return deleteMemory(args.key);
     case 'webSearch':
       return await webSearch(args.query, args.source);
+    case 'delegateTranslate':
+      return await delegateTranslate(args.lineNums || args.line_nums, args.instruction);
+    case 'delegateAnalyze':
+      return await delegateAnalyze(args.lineNums || args.line_nums, args.focus);
     default:
       return `Error: Tool tidak dikenal — "${name}"`;
   }
@@ -958,6 +1037,8 @@ DAFTAR TOOL YANG TERSEDIA:
 21. saveMemory(key, value, category, scope?) — Simpan/update memori. key: identifikasi unik. value: isi memori. category: "style" | "terminology" | "character" | "preference" | "note". scope: "global" (berlaku semua proyek) atau "project" (hanya proyek ini, default).
 22. deleteMemory(key) — Hapus memori by key.
 23. webSearch(query, source?) — Cari informasi dari web. query: kata kunci pencarian. source (opsional): "wikipedia" | "jisho" | "vndb" | "auto" (default). "jisho" untuk kamus Jepang, "wikipedia" untuk ensiklopedia, "vndb" untuk info visual novel. "auto" akan memilih sumber yang relevan (deteksi karakter Jepang → Jisho, selain itu Wikipedia+VNDB).
+24. delegateTranslate(lineNums, instruction?) — Delegasikan terjemahan sekumpulan baris ke subagent AI. lineNums: array nomor baris. instruction (opsional): instruksi khusus untuk subagent. Hasil terjemahan langsung di-apply ke proyek.
+25. delegateAnalyze(lineNums, focus?) — Delegasikan analisis kualitas terjemahan ke subagent AI. lineNums: array nomor baris. focus (opsional): fokus analisis (misal "cek konsistensi nama"). Mengembalikan laporan analisis.
 
 CARA MEMANGGIL TOOL:
 Kirim respons JSON. Kamu bisa memanggil beberapa tool sekaligus dalam satu respons:

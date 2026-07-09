@@ -85,6 +85,7 @@ export function onOpenSettings(): void {
   (ui.settingsSelectionBatchSizeInput as HTMLInputElement).value = String(state.selectionBatchSize);
   (ui.settingsGlossaryBatchSizeInput as HTMLInputElement).value = String(state.glossaryBatchSize);
   (ui.settingsAiCheckBatchSizeInput as HTMLInputElement).value = String(state.aiCheckBatchSize);
+  if (ui.settingsParallelBatchSizeInput) (ui.settingsParallelBatchSizeInput as HTMLInputElement).value = String(state.parallelBatchSize ?? 1);
   (ui.settingsSelectionPrevShortcutInput as HTMLInputElement).value = state.selectionBatchPrevShortcut;
   (ui.settingsSelectionNextShortcutInput as HTMLInputElement).value = state.selectionBatchNextShortcut;
 
@@ -172,6 +173,7 @@ export function onSavePromptSettings(): void {
   const selectionBatchSize = normalizeSelectionBatchSize((ui.settingsSelectionBatchSizeInput as HTMLInputElement).value);
   const glossaryBatchSize = normalizeSelectionBatchSize((ui.settingsGlossaryBatchSizeInput as HTMLInputElement).value, DEFAULT_GLOSSARY_BATCH_SIZE);
   const aiCheckBatchSize = normalizeSelectionBatchSize((ui.settingsAiCheckBatchSizeInput as HTMLInputElement).value, DEFAULT_AI_CHECK_BATCH_SIZE);
+  const parallelBatchSize = Math.max(1, Math.min(10, parseInt((ui.settingsParallelBatchSizeInput as HTMLInputElement)?.value) || 1));
   const prevShortcut = normalizeShortcutString((ui.settingsSelectionPrevShortcutInput as HTMLInputElement).value, DEFAULT_SELECTION_BATCH_PREV_SHORTCUT);
   const nextShortcut = normalizeShortcutString((ui.settingsSelectionNextShortcutInput as HTMLInputElement).value, DEFAULT_SELECTION_BATCH_NEXT_SHORTCUT);
   if (prevShortcut === nextShortcut) return alert('Shortcut batch sebelumnya dan berikutnya tidak boleh sama.');
@@ -210,6 +212,7 @@ export function onSavePromptSettings(): void {
   state.selectionBatchSize = selectionBatchSize;
   state.glossaryBatchSize = glossaryBatchSize;
   state.aiCheckBatchSize = aiCheckBatchSize;
+  state.parallelBatchSize = parallelBatchSize;
   state.selectionBatchPrevShortcut = prevShortcut;
   state.selectionBatchNextShortcut = nextShortcut;
   state.lucaExportLang = (ui.settingsLucaExportLangSelect as HTMLSelectElement)?.value || state.lucaExportLang || 'en';
