@@ -21,7 +21,7 @@ function buildNameToLinesMap(): Map<string, { lines: any[]; currentTransName: st
   return m;
 }
 
-function applyVndbNameTranslations(characters: any[]): { appliedNames: number; appliedLines: number } {
+export function applyVndbNameTranslations(characters: any[]): { appliedNames: number; appliedLines: number } {
   const nameMap = buildNameToLinesMap();
   let appliedNames = 0;
   let appliedLines = 0;
@@ -184,6 +184,47 @@ export async function fetchVndbCharacters(vnId: string): Promise<any[]> {
     if (page > 20) throw new Error('VNDB mengembalikan terlalu banyak halaman.');
   }
   return all;
+}
+
+// ── Search VN by name (returns VN list with IDs) ────────────────────────────
+export async function fetchVndbVnByName(query: string): Promise<any[]> {
+  const res = await fetch('https://api.vndb.org/kana/vn', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      filters: ['search', '=', query],
+      fields: 'id,title,alttitle,released,rating,length,tags.name',
+      sort: 'searchrank',
+      results: 5,
+    }),
+  });
+  if (!res.ok) throw new Error(`VNDB search error ${res.status}`);
+  const data = await res.json();
+  return Array.isArray(data?.results) ? data.results : [];
+}
+
+// ── Search AniList media by name (returns media list with IDs) ───────────────
+export async function fetchAnilistMediaByName(query: string): Promise<any[]> {
+  const gqlQuery = `
+    query ($search: String) {
+      Page(perPage: 5) {
+        media(search: $search) {
+          id
+          title { romaji english native }
+          format type
+        }
+      }
+    }
+  `;
+  const res = await fetch('https://graphql.anilist.co', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({ query: gqlQuery, variables: { search: query } }),
+  });
+  if (!res.ok) throw new Error(`AniList search error ${res.status}`);
+  const json = await res.json();
+  if (json.errors?.length) throw new Error(json.errors[0].message || 'AniList query gagal.');
+  return json.data?.Page?.media || [];
 }
 
 export async function onImportVndbNames(): Promise<void> {

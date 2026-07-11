@@ -43,6 +43,7 @@ export const state: AppState = {
   aiBackupKeys: '',
   aiKeyStrategy: 'fallback',
   aiTranslateMode: 'auto',
+  tavilyApiKey: '',
   agentMaxTurns: 10,
   currentProjectId: null,
   projectName: '',

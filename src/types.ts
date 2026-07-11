@@ -76,6 +76,7 @@ export interface AppState {
   aiBackupKeys: string;
   aiKeyStrategy: 'fallback' | 'random';
   aiTranslateMode: 'auto' | 'agent';
+  tavilyApiKey: string;
   agentMaxTurns: number;
   currentProjectId: string | null;
   projectName: string;

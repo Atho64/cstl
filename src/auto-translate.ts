@@ -30,6 +30,7 @@ export function loadApiSettings(): void {
       if (p.aiBackupKeys !== undefined) state.aiBackupKeys = p.aiBackupKeys;
       if (p.aiKeyStrategy) state.aiKeyStrategy = p.aiKeyStrategy;
       if (p.aiTranslateMode) state.aiTranslateMode = p.aiTranslateMode;
+      if (p.tavilyApiKey !== undefined) state.tavilyApiKey = p.tavilyApiKey;
     }
   } catch (e) {
     console.error('Failed to load API settings', e);
@@ -51,6 +52,7 @@ export function saveApiSettings(): void {
     aiFilterThinkingOutput: state.aiFilterThinkingOutput,
     aiBackupKeys: state.aiBackupKeys,
     aiKeyStrategy: state.aiKeyStrategy, aiTranslateMode: state.aiTranslateMode,
+    tavilyApiKey: state.tavilyApiKey,
   };
   localStorage.setItem(API_STORAGE_KEY, JSON.stringify(d));
 }
@@ -71,6 +73,7 @@ export function onOpenApiSettings(): void {
   if (ui.apiBackupKeysInput) (ui.apiBackupKeysInput as HTMLTextAreaElement).value = state.aiBackupKeys || '';
   if (ui.apiKeyStrategySelect) (ui.apiKeyStrategySelect as HTMLSelectElement).value = state.aiKeyStrategy || 'fallback';
   if (ui.aiTranslateModeSelect) (ui.aiTranslateModeSelect as HTMLSelectElement).value = state.aiTranslateMode || 'auto';
+  if (ui.tavilyKeyInput) (ui.tavilyKeyInput as HTMLInputElement).value = state.tavilyApiKey || '';
   updateDelayPreview();
   if (ui.apiSettingsModal) openModal(ui.apiSettingsModal as HTMLElement);
 }
@@ -204,6 +207,7 @@ export function onSaveApiSettings(): void {
   if (ui.apiBackupKeysInput) state.aiBackupKeys = (ui.apiBackupKeysInput as HTMLTextAreaElement).value;
   if (ui.apiKeyStrategySelect) state.aiKeyStrategy = (ui.apiKeyStrategySelect as HTMLSelectElement).value as any;
   if (ui.aiTranslateModeSelect) state.aiTranslateMode = (ui.aiTranslateModeSelect as HTMLSelectElement).value as any;
+  if (ui.tavilyKeyInput) state.tavilyApiKey = (ui.tavilyKeyInput as HTMLInputElement).value.trim();
   saveApiSettings();
   if (ui.apiSettingsModal) closeModal(ui.apiSettingsModal as HTMLElement);
   flashHint('Pengaturan API disimpan.');

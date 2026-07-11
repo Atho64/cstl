@@ -3,9 +3,10 @@ import { applyAgentTranslations, clearAgentTranslations, onUndoLastApply, onRedo
 import { stripThinkingTags, parseBackupKeys, shouldTryNextKey, shuffleArray } from './auto-translate';
 import { queueAutoSave } from './project';
 import { refreshAll, pushUndoSnapshot } from './render';
-import { renderGlossaryPreview } from './glossary';
+import { renderGlossaryPreview, mergeGlossaryEntries } from './glossary';
 import { applyHtlMode } from './htl-mode';
 import { escapeStoredNewlines } from './string-utils';
+import { fetchVndbVnByName, fetchVndbCharacters, fetchAnilistMediaByName, fetchAnilistMediaCharacters, collectVndbGlossaryEntries, collectAnilistGlossaryEntries, applyVndbNameTranslations } from './vndb-anilist';
 import type { Line } from './types';
 import type { AgentMemory, MemoryCategory, MemoryScope } from './types';
 
@@ -423,6 +424,7 @@ const SETTING_REGISTRY: Record<string, SettingMeta> = {
   regexFilter: { field: 'regexFilter', type: 'string', desc: 'Regex filter baris' },
   epubTags: { field: 'epubTags', type: 'string', desc: 'Tag HTML untuk parsing EPUB' },
   aiThinkingMode: { field: 'aiThinkingMode', type: 'string', desc: 'Mode thinking AI (default|off|on)' },
+  tavilyApiKey: { field: 'tavilyApiKey', type: 'string', desc: 'Tavily API Key untuk web search (kosong = tidak aktif)' },
 };
 
 function listSettings(): string {
@@ -764,6 +766,42 @@ async function searchVndb(query: string): Promise<string> {
   return lines.join('\n');
 }
 
+async function searchTavily(query: string): Promise<string> {
+  const apiKey = (state as any).tavilyApiKey || '';
+  if (!apiKey) return 'Error: Tavily API Key belum diset. Buka Pengaturan API → isi Tavily API Key. Daftar gratis di tavily.com';
+  const res = await fetch('https://api.tavily.com/search', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      api_key: apiKey,
+      query: query,
+      max_results: 5,
+      include_answer: true,
+    }),
+  });
+  if (!res.ok) {
+    const errText = await res.text().catch(() => '');
+    throw new Error(`Tavily HTTP ${res.status}: ${errText.slice(0, 200)}`);
+  }
+  const data = await res.json();
+  const lines: string[] = [`=== TAVILY — "${query}" ===`];
+  if (data?.answer) {
+    lines.push(`Answer: ${data.answer}`);
+  }
+  const results = data?.results;
+  if (results && results.length) {
+    for (const r of results) {
+      const title = r.title || '';
+      const url = r.url || '';
+      const content = String(r.content || '').replace(/<[^>]+>/g, '').trim().slice(0, 300);
+      lines.push(`[${title}] ${url}\n  ${content}`);
+    }
+  } else if (!data?.answer) {
+    return `Tidak ditemukan hasil Tavily untuk: "${query}"`;
+  }
+  return lines.join('\n');
+}
+
 async function webSearch(query: string, source: string): Promise<string> {
   const q = String(query || '').trim();
   if (!q) return 'Error: query tidak boleh kosong.';
@@ -775,6 +813,8 @@ async function webSearch(query: string, source: string): Promise<string> {
       return await searchJisho(q);
     } else if (s === 'vndb') {
       return await searchVndb(q);
+    } else if (s === 'tavily') {
+      return await searchTavily(q);
     } else {
       // auto: coba semua sumber yang relevan
       const results: string[] = [];
@@ -785,6 +825,10 @@ async function webSearch(query: string, source: string): Promise<string> {
       try { results.push(await searchWikipedia(q, 'en')); } catch (e: any) { results.push(`Wikipedia error: ${e.message}`); }
       if (!containsJp) {
         try { results.push(await searchVndb(q)); } catch (e: any) { results.push(`VNDB error: ${e.message}`); }
+        // Tavily sebagai fallback general search (jika API key tersedia)
+        if ((state as any).tavilyApiKey) {
+          try { results.push(await searchTavily(q)); } catch (e: any) { results.push(`Tavily error: ${e.message}`); }
+        }
       }
       return results.length ? results.join('\n\n') : 'Tidak ada hasil.';
     }
@@ -866,6 +910,97 @@ async function delegateAnalyze(lineNums: number[], focus?: string): Promise<stri
   }
 }
 
+// ── Tool 26: searchVn — search VN/anime by name ──────────────────────────────
+async function searchVn(query: string, source: string = 'vndb'): Promise<string> {
+  if (!query?.trim()) return 'Error: query tidak boleh kosong.';
+  const q = query.trim();
+
+  if (source === 'anilist') {
+    const results = await fetchAnilistMediaByName(q);
+    if (!results.length) return `Tidak ditemukan media AniList untuk "${q}".`;
+    const lines = results.map((m: any) => {
+      const t = m.title || {};
+      const romaji = t.romaji || '?';
+      const english = t.english ? ` / ${t.english}` : '';
+      const native = t.native ? ` / ${t.native}` : '';
+      return `AniList ID ${m.id}: ${romaji}${english}${native} [${m.format || m.type || '?'}]`;
+    });
+    return `Ditemukan ${results.length} media AniList:\n${lines.join('\n')}`;
+  }
+
+  // default: vndb
+  const results = await fetchVndbVnByName(q);
+  if (!results.length) return `Tidak ditemukan VN di VNDB untuk "${q}".`;
+  const lines = results.map((vn: any) => {
+    const alt = vn.alttitle ? ` / ${vn.alttitle}` : '';
+    const tags = Array.isArray(vn.tags) && vn.tags.length ? ` [${vn.tags.slice(0, 3).map((t: any) => t.name || t).join(', ')}]` : '';
+    return `VNDB ${vn.id}: ${vn.title}${alt} [${vn.released || '?'}]${tags}`;
+  });
+  return `Ditemukan ${results.length} VN:\n${lines.join('\n')}`;
+}
+
+// ── Tool 27: extractGlossary — auto-extract glossary from VNDB/AniList ───────
+async function extractGlossary(query: string, source: string = 'vndb'): Promise<string> {
+  if (!query?.trim()) return 'Error: query tidak boleh kosong.';
+  const q = query.trim();
+
+  try {
+    let entries: Map<string, any>;
+    let charCount = 0;
+    let appliedResult: { appliedNames: number; appliedLines: number } | null = null;
+
+    if (source === 'anilist') {
+      const mediaResults = await fetchAnilistMediaByName(q);
+      if (!mediaResults.length) return `Tidak ditemukan media AniList untuk "${q}".`;
+      const first = mediaResults[0];
+      const title = first.title?.romaji || first.title?.english || `ID ${first.id}`;
+      const media = await fetchAnilistMediaCharacters(String(first.id));
+      const chars = Array.isArray(media?.characters?.edges) ? media.characters.edges.map((e: any) => e.node) : [];
+      charCount = chars.length;
+      if (!charCount) return `Tidak ada karakter di AniList untuk "${title}".`;
+      entries = collectAnilistGlossaryEntries(media);
+    } else {
+      // vndb: search by name → get ID → fetch characters
+      const vnResults = await fetchVndbVnByName(q);
+      if (!vnResults.length) return `Tidak ditemukan VN di VNDB untuk "${q}".`;
+      const vn = vnResults[0];
+      const chars = await fetchVndbCharacters(vn.id);
+      charCount = chars.length;
+      if (!charCount) return `Tidak ada karakter di VNDB untuk ${vn.id}: ${vn.title}.`;
+      entries = collectVndbGlossaryEntries(chars);
+      // Also apply name translations directly to name table
+      appliedResult = applyVndbNameTranslations(chars);
+    }
+
+    const before = state.glossaryText || '';
+    mergeGlossaryEntries(entries);
+    const after = state.glossaryText || '';
+
+    // Count new entries added
+    let added = 0;
+    if (after && after !== before) {
+      const beforeLines = before ? before.split('\n').filter((l: string) => l.trim()) : [];
+      const afterLines = after.split('\n').filter((l: string) => l.trim());
+      added = afterLines.length - beforeLines.length;
+    }
+
+    // Refresh UI
+    renderGlossaryPreview();
+    queueAutoSave();
+
+    let msg = `Berhasil extract glossary dari ${source === 'anilist' ? 'AniList' : 'VNDB'}.\n`;
+    msg += `Karakter ditemukan: ${charCount}\n`;
+    msg += `Entri glossary baru: ${added > 0 ? added : '0 (mungkin sudah ada sebelumnya)'}\n`;
+    if (appliedResult && (appliedResult.appliedNames > 0 || appliedResult.appliedLines > 0)) {
+      msg += `Nama langsung di-apply ke name table: ${appliedResult.appliedNames} nama (${appliedResult.appliedLines} baris)\n`;
+    }
+    msg += `\nGlossary saat ini:\n${state.glossaryText || '(kosong)'}`;
+    return msg;
+  } catch (err: any) {
+    return `Error saat extract glossary: ${err.message}`;
+  }
+}
+
 async function executeTool(name: string, args: any): Promise<string> {
   switch (name) {
     case 'getProjectStats': return getProjectStats();
@@ -912,6 +1047,10 @@ async function executeTool(name: string, args: any): Promise<string> {
       return await delegateTranslate(args.lineNums || args.line_nums, args.instruction);
     case 'delegateAnalyze':
       return await delegateAnalyze(args.lineNums || args.line_nums, args.focus);
+    case 'searchVn':
+      return await searchVn(args.query, args.source);
+    case 'extractGlossary':
+      return await extractGlossary(args.query, args.source);
     default:
       return `Error: Tool tidak dikenal — "${name}"`;
   }
@@ -1036,9 +1175,11 @@ DAFTAR TOOL YANG TERSEDIA:
 20. listMemory() — Tampilkan semua memori (sama dengan getMemory tanpa filter).
 21. saveMemory(key, value, category, scope?) — Simpan/update memori. key: identifikasi unik. value: isi memori. category: "style" | "terminology" | "character" | "preference" | "note". scope: "global" (berlaku semua proyek) atau "project" (hanya proyek ini, default).
 22. deleteMemory(key) — Hapus memori by key.
-23. webSearch(query, source?) — Cari informasi dari web. query: kata kunci pencarian. source (opsional): "wikipedia" | "jisho" | "vndb" | "auto" (default). "jisho" untuk kamus Jepang, "wikipedia" untuk ensiklopedia, "vndb" untuk info visual novel. "auto" akan memilih sumber yang relevan (deteksi karakter Jepang → Jisho, selain itu Wikipedia+VNDB).
+23. webSearch(query, source?) — Cari informasi dari web. query: kata kunci pencarian. source (opsional): "wikipedia" | "jisho" | "vndb" | "tavily" | "auto" (default). "jisho" untuk kamus Jepang, "wikipedia" untuk ensiklopedia, "vndb" untuk info visual novel, "tavily" untuk pencarian umum (butuh Tavily API Key di Pengaturan API). "auto" akan memilih sumber yang relevan (deteksi karakter Jepang → Jisho, selain itu Wikipedia+VNDB+Tavily jika tersedia).
 24. delegateTranslate(lineNums, instruction?) — Delegasikan terjemahan sekumpulan baris ke subagent AI. lineNums: array nomor baris. instruction (opsional): instruksi khusus untuk subagent. Hasil terjemahan langsung di-apply ke proyek.
 25. delegateAnalyze(lineNums, focus?) — Delegasikan analisis kualitas terjemahan ke subagent AI. lineNums: array nomor baris. focus (opsional): fokus analisis (misal "cek konsistensi nama"). Mengembalikan laporan analisis.
+26. searchVn(query, source?) — Cari visual novel/anime berdasarkan nama tanpa perlu ID. query: nama VN/anime. source (opsional): "vndb" (default, cari di VNDB) | "anilist" (cari di AniList). Mengembalikan daftar hasil dengan ID, judul, dan info singkat.
+27. extractGlossary(query, source?) — Extract glossary otomatis dari karakter VN/anime. query: nama VN/anime. source (opsional): "vndb" (default) | "anilist". Mencari VN by nama → ambil karakter → extract nama JP/EN → merge ke glossary. Untuk VNDB, juga langsung apply nama ke name table. Mengembalikan ringkasan entri yang ditambahkan.
 
 CARA MEMANGGIL TOOL:
 Kirim respons JSON. Kamu bisa memanggil beberapa tool sekaligus dalam satu respons:
@@ -1058,7 +1199,7 @@ ATURAN PENTING:
 - Saat menerjemahkan dengan applyTranslations, ALWAYS sertakan trans_name untuk baris yang punya nama karakter.
 - Untuk analisis kualitas, gunakan analyzeQuality terlebih dahulu sebelum memberikan rekomendasi.
 - Jika ada nama karakter yang inkonsisten, sarankan perbaikan dan minta konfirmasi sebelum menerapkan.
-- Jika butuh mencari arti kata Jepang, info istilah, atau referensi visual novel dari web, gunakan webSearch(query, source). Gunakan source "jisho" untuk kosakata Jepang, "wikipedia" untuk info umum, "vndb" untuk visual novel, atau "auto" jika belum yakin.
+- Jika butuh mencari arti kata Jepang, info istilah, atau referensi visual novel dari web, gunakan webSearch(query, source). Gunakan source "jisho" untuk kosakata Jepang, "wikipedia" untuk info umum, "vndb" untuk visual novel, "tavily" untuk pencarian umum (butuh Tavily API Key), atau "auto" jika belum yakin.
 - Sebelum mengubah setting dengan toggleSetting, gunakan listSettings() dulu untuk melihat nilai saat ini dan pastikan setting tersedia.
 - Sebelum mengedit prompt, tampilkan prompt saat ini (atau tanyakan) lalu konfirmasi perubahan dengan pengguna.
 - Sebelum mengedit glosarium, tampilkan glosarium saat ini (getGlossary) lalu konfirmasi perubahan dengan pengguna.
