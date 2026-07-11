@@ -457,6 +457,54 @@ input, textarea, button, select { font-family: inherit; font-size: inherit; }
 .dropdown-item:last-child { border-bottom: none; }
 .dropdown-item:hover { background: var(--primary-soft); color: #c7d2fe; }
 
+/* Nested import submenu — real flyout under "Format File Lainnya" */
+#dropdownImportMenu {
+  overflow: visible;
+}
+#dropdownImportMenu .dropdown-nested {
+  position: relative;
+  display: block;
+  width: 100%;
+}
+#dropdownImportMenu .dropdown-nested > .dropdown-item {
+  border-bottom: none;
+}
+/* Reset base .dropdown-content fixed/opacity/transform so submenu drops below its toggle */
+#dropdownImportMenu #dropdownImportOtherMenu.dropdown-content,
+#dropdownImportMenu #dropdownImportOtherMenu.dropdown-content.show {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: auto;
+  bottom: auto;
+  min-width: 100%;
+  width: max-content;
+  margin-top: 4px;
+  z-index: 110;
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+  transition: none;
+  background: var(--panel-2);
+  border: 1px solid var(--line-2);
+  box-shadow: var(--shadow-lg);
+  border-radius: var(--radius);
+  padding: 4px;
+  overflow: hidden;
+}
+#dropdownImportMenu #dropdownImportOtherMenu.dropdown-content {
+  display: none;
+}
+#dropdownImportMenu #dropdownImportOtherMenu.dropdown-content.show {
+  display: flex;
+  flex-direction: column;
+}
+#dropdownImportMenu #dropdownImportOtherMenu .dropdown-item {
+  text-align: center;
+  font-size: 12px;
+  padding: 8px 12px;
+}
+
 #moreGroup { flex-shrink: 0; }
 #moreDropdown {
   padding: 4px;

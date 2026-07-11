@@ -60,7 +60,7 @@ function debounce(func: Function, wait: number) {
 export function cacheElements(): void {
   const ids = [
     'dashboardView', 'workspaceView', 'projectList', 'projectFilterInput', 'btnNewProject', 'btnRestoreProject',
-    'btnBackToDashboard', 'projectNameDisplay', 'restoreProjectInput', 'btnDropdownImport', 'dropdownImportMenu', 'btnImportFile',
+    'btnBackToDashboard', 'projectNameDisplay', 'restoreProjectInput', 'btnDropdownImport', 'dropdownImportMenu', 'btnDropdownImportOther', 'dropdownImportOtherMenu', 'btnImportFile',
     'btnDropdownDashboardSettings', 'dropdownDashboardSettingsMenu', 'btnDashboardSettings', 'dashboardSettingsModal', 'btnDashboardSettingsSave', 'btnDashboardSettingsReset', 'paletteSelect', 'btnDashboardSettingsCancel',     'btnDashboardPrompts', 'dashboardPromptsModal', 'dpPromptInput', 'dpGlossaryPromptInput', 'dpAiCheckPromptInput', 'dpAgentPromptInput', 'btnDashboardPromptsSave', 'btnDashboardPromptsReset', 'btnDashboardPromptsCancel',
     'dsSourceLang', 'dsTargetLang', 'dsTranslationMode', 'dsAiFormat', 'dsContextLines', 'dsSelectionBatch', 'dsGlossaryBatch', 'dsAiCheckBatch', 'dsRegexFilter',
     'btnImportFolder', 'btnImportZip', 'btnImportTranslatedFile', 'btnImportTranslatedFolder', 'btnExport', 'btnProofread', 'btnSettings',
@@ -118,16 +118,40 @@ export function bindEvents(): void {
   document.addEventListener('click', e => {
     const target = e.target as HTMLElement;
     const isImportBtn = target.closest('#btnDropdownImport');
+    const isImportOtherBtn = target.closest('#btnDropdownImportOther');
+    const isInsideImportMenu = target.closest('#dropdownImportMenu');
     if (isImportBtn) {
       e.preventDefault();
       const rect = isImportBtn.getBoundingClientRect();
       const menu = ui.dropdownImportMenu as HTMLElement;
       menu.style.top = (rect.bottom + 4) + 'px';
       menu.style.left = rect.left + 'px';
+      const willShow = !menu.classList.contains('show');
       menu.classList.toggle('show');
-    } else {
+      // Reset nested submenu whenever the main import menu is closed
+      if (!willShow && ui.dropdownImportOtherMenu) {
+        (ui.dropdownImportOtherMenu as HTMLElement).classList.remove('show');
+      }
+    } else if (isImportOtherBtn) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (ui.dropdownImportOtherMenu) {
+        (ui.dropdownImportOtherMenu as HTMLElement).classList.toggle('show');
+      }
+    } else if (!isInsideImportMenu) {
       if (ui.dropdownImportMenu) {
         (ui.dropdownImportMenu as HTMLElement).classList.remove('show');
+      }
+      if (ui.dropdownImportOtherMenu) {
+        (ui.dropdownImportOtherMenu as HTMLElement).classList.remove('show');
+      }
+    } else {
+      // Clicked an action item inside the import menu — close everything
+      if (ui.dropdownImportMenu) {
+        (ui.dropdownImportMenu as HTMLElement).classList.remove('show');
+      }
+      if (ui.dropdownImportOtherMenu) {
+        (ui.dropdownImportOtherMenu as HTMLElement).classList.remove('show');
       }
     }
     const isDashboardSettingsBtn = target.closest('#btnDropdownDashboardSettings');

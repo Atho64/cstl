@@ -18,7 +18,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="./styles.css?v=22" />
+  <link rel="stylesheet" href="./styles.css?v=23" />
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script type="module" src="./src/app.ts"></script>
 </head>
@@ -66,11 +66,16 @@
             <button id="btnImportFolder" class="dropdown-item">Impor Folder</button>
             <button id="btnImportZip" class="dropdown-item">Impor ZIP</button>
             <hr class="dropdown-divider">
-            <button id="btnImportLucaTxt" class="dropdown-item text-luca">Impor TXT (Luca)</button>
-            <button id="btnImportLucaTxtFolder" class="dropdown-item text-luca">Impor TXT Folder (Luca)</button>
-            <hr class="dropdown-divider">
             <button id="btnImportTranslatedFile" class="dropdown-item">Impor TL File</button>
             <button id="btnImportTranslatedFolder" class="dropdown-item">Impor TL Folder</button>
+            <hr class="dropdown-divider">
+            <div class="dropdown dropdown-nested">
+              <button id="btnDropdownImportOther" class="dropdown-item dropdown-toggle">Format File Lainnya ▾</button>
+              <div id="dropdownImportOtherMenu" class="dropdown-content">
+                <button id="btnImportLucaTxt" class="dropdown-item text-luca">Impor TXT (Luca)</button>
+                <button id="btnImportLucaTxtFolder" class="dropdown-item text-luca">Impor TXT Folder (Luca)</button>
+              </div>
+            </div>
           </div>
         </div>
         <button id="btnUndo" class="btn" disabled title="Undo (Batalkan aksi terakhir)"><svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5" /><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11" /></svg></button>
