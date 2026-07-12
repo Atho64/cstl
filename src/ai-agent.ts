@@ -148,7 +148,7 @@ async function chatCompletionOpenAI(messages: ChatMessage[], config: ApiConfig):
   }
   const body: any = {
     model: config.model || 'gpt-4o-mini',
-    messages: messages,
+    messages: messages.map(({ role, content }) => ({ role, content })),
     temperature: state.aiTemperature ?? 1.0,
     top_p: state.aiTopP ?? 1.0,
   };
