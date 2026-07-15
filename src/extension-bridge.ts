@@ -312,6 +312,24 @@ async function restoreExtensionNewTabSetting(): Promise<void> {
   }
 }
 
+function isTabClosedOrFatalError(errorStr?: string): boolean {
+  if (!errorStr) return false;
+  const lower = errorStr.toLowerCase();
+  return (
+    lower.includes('closed') ||
+    lower.includes('does not exist') ||
+    lower.includes('no tab') ||
+    lower.includes('tab_not_found') ||
+    lower.includes('tab_create_failed') ||
+    lower.includes('disconnected') ||
+    lower.includes('disconnect') ||
+    lower.includes('invalidated') ||
+    lower.includes('unknown_target') ||
+    lower.includes('receiving end') ||
+    lower.includes('tab ditutup')
+  );
+}
+
 async function runFullAutoBatches(): Promise<void> {
   const manuallySelected = state.lines
     .filter((line) => state.selectedLines.has(line.line_num) && !isTranslated(line) && !line._hidden)
@@ -356,15 +374,19 @@ async function runFullAutoBatches(): Promise<void> {
       await restoreExtensionNewTabSetting();
       if (!isFullAutoRunning) break;
       if (res.type !== 'COPAS_RESULT' || !res.ok || !res.text) {
+        const detail = res.error || res.detail || (res.type === 'TIMEOUT' ? 'timeout' : 'respons tidak lengkap');
+        if (isTabClosedOrFatalError(detail)) {
+          flashHint(`Full auto berhenti (tab/koneksi ditutup): ${detail}`);
+          setStatus(`Full auto berhenti: ${detail}`);
+          return;
+        }
         if (retryCount < 1) {
           retryCount++;
-          const detail = res.error || res.detail || 'timeout/error';
           flashHint(`Batch gagal (${detail}). Mencoba ulang 1x di obrolan baru (New Chat)…`);
           setStatus(`Mencoba ulang batch di obrolan baru (New Chat)…`);
           await triggerExtensionNewChat();
           continue;
         }
-        const detail = res.error || res.detail || (res.type === 'TIMEOUT' ? 'timeout' : 'respons tidak lengkap');
         flashHint(`Full auto berhenti (gagal setelah retry): ${detail}`);
         setStatus(`Full auto berhenti: ${detail}`);
         return;
@@ -480,14 +502,18 @@ async function runGlossaryFullAuto(): Promise<void> {
       await restoreExtensionNewTabSetting();
       if (!isGlossaryAutoRunning) break;
       if (res.type !== 'COPAS_RESULT' || !res.ok || !res.text) {
+        const detail = res.error || (res.type === 'TIMEOUT' ? 'timeout' : 'gagal');
+        if (isTabClosedOrFatalError(detail)) {
+          setGlossaryStatus(`Berhenti (tab ditutup): ${detail}`);
+          flashHint(`Auto Glossary berhenti: ${detail}`);
+          return;
+        }
         if (retryCount < 1) {
           retryCount++;
-          const detail = res.error || (res.type === 'TIMEOUT' ? 'timeout' : 'gagal');
           setGlossaryStatus(`Mengulang batch di obrolan baru (${detail})…`);
           await triggerExtensionNewChat();
           continue;
         }
-        const detail = res.error || (res.type === 'TIMEOUT' ? 'timeout' : 'gagal');
         setGlossaryStatus(`Berhenti: ${detail}`);
         flashHint(`Auto Glossary berhenti: ${detail}`);
         return;
@@ -626,15 +652,20 @@ async function runAiCheckFullAuto(): Promise<void> {
       await restoreExtensionNewTabSetting();
       if (!isAiCheckAutoRunning) break;
       if (res.type !== 'COPAS_RESULT' || !res.ok || !res.text) {
+        const detail = res.error || (res.type === 'TIMEOUT' ? 'timeout' : 'gagal');
+        if (isTabClosedOrFatalError(detail)) {
+          setAiCheckExtStatus(`Berhenti (tab ditutup): ${detail}`);
+          setAiCheckStatus(`Auto Cek berhenti: ${detail}`);
+          flashHint(`Auto AI Check berhenti: ${detail}`);
+          return;
+        }
         if (retryCount < 1) {
           retryCount++;
-          const detail = res.error || (res.type === 'TIMEOUT' ? 'timeout' : 'gagal');
           setAiCheckExtStatus(`Mengulang batch di obrolan baru (${detail})…`);
           setAiCheckStatus(`Mengulang di obrolan baru…`);
           await triggerExtensionNewChat();
           continue;
         }
-        const detail = res.error || (res.type === 'TIMEOUT' ? 'timeout' : 'gagal');
         setAiCheckExtStatus(`Berhenti: ${detail}`);
         setAiCheckStatus(`Auto Cek berhenti: ${detail}`);
         flashHint(`Auto AI Check berhenti: ${detail}`);
