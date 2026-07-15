@@ -75,7 +75,138 @@ export function onOpenApiSettings(): void {
   if (ui.aiTranslateModeSelect) (ui.aiTranslateModeSelect as HTMLSelectElement).value = state.aiTranslateMode || 'auto';
   if (ui.tavilyKeyInput) (ui.tavilyKeyInput as HTMLInputElement).value = state.tavilyApiKey || '';
   updateDelayPreview();
+  renderProfileSelect();
   if (ui.apiSettingsModal) openModal(ui.apiSettingsModal as HTMLElement);
+}
+
+// ─── API Profiles Management ──────────────────────────────────────────────────
+
+const PROFILES_STORAGE_KEY = 'cstl_api_profiles';
+
+export type ApiProfileData = {
+  aiApiType?: 'openai' | 'gemini';
+  aiApiUrl?: string;
+  aiApiKey?: string;
+  aiModel?: string;
+  aiTemperature?: number;
+  aiTopP?: number;
+  aiRpm?: number;
+  aiThinkingMode?: 'default' | 'off' | 'on';
+  aiFilterThinkingOutput?: boolean;
+  aiBackupKeys?: string;
+  aiKeyStrategy?: 'fallback' | 'random';
+  tavilyApiKey?: string;
+};
+
+export function loadProfiles(): Record<string, ApiProfileData> {
+  try {
+    const raw = localStorage.getItem(PROFILES_STORAGE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch (e) {
+    console.error('Failed to load API profiles', e);
+  }
+  return {};
+}
+
+export function saveProfiles(profiles: Record<string, ApiProfileData>): void {
+  localStorage.setItem(PROFILES_STORAGE_KEY, JSON.stringify(profiles));
+}
+
+export function renderProfileSelect(): void {
+  const select = ui.apiProfileSelect as HTMLSelectElement | undefined;
+  if (!select) return;
+  const profiles = loadProfiles();
+  const names = Object.keys(profiles).sort();
+  select.innerHTML = '<option value="">-- Pilih profil --</option>';
+  for (const name of names) {
+    const opt = document.createElement('option');
+    opt.value = name;
+    opt.textContent = name;
+    select.appendChild(opt);
+  }
+  updateProfileButtonsState();
+}
+
+export function updateProfileButtonsState(): void {
+  const select = ui.apiProfileSelect as HTMLSelectElement | undefined;
+  const btnLoad = ui.btnLoadProfile as HTMLButtonElement | undefined;
+  const btnDelete = ui.btnDeleteProfile as HTMLButtonElement | undefined;
+  if (!select) return;
+  const hasSelection = !!select.value;
+  if (btnLoad) btnLoad.disabled = !hasSelection;
+  if (btnDelete) btnDelete.disabled = !hasSelection;
+}
+
+export function onLoadProfile(): void {
+  const select = ui.apiProfileSelect as HTMLSelectElement | undefined;
+  if (!select || !select.value) return;
+  const name = select.value;
+  const profiles = loadProfiles();
+  const p = profiles[name];
+  if (!p) {
+    flashHint(`Profil "${name}" tidak ditemukan.`);
+    return;
+  }
+  if (p.aiApiType && ui.apiTypeSelect) (ui.apiTypeSelect as HTMLSelectElement).value = p.aiApiType;
+  if (p.aiApiUrl !== undefined && ui.apiUrlInput) (ui.apiUrlInput as HTMLInputElement).value = p.aiApiUrl;
+  if (p.aiApiKey !== undefined && ui.apiKeyInput) (ui.apiKeyInput as HTMLInputElement).value = p.aiApiKey;
+  if (p.aiModel !== undefined && ui.apiModelInput) (ui.apiModelInput as HTMLInputElement).value = p.aiModel;
+  if (p.aiTemperature !== undefined && ui.apiTemperatureInput) (ui.apiTemperatureInput as HTMLInputElement).value = String(p.aiTemperature);
+  if (p.aiTopP !== undefined && ui.apiTopPInput) (ui.apiTopPInput as HTMLInputElement).value = String(p.aiTopP);
+  if (p.aiRpm !== undefined && ui.apiRpmInput) (ui.apiRpmInput as HTMLInputElement).value = String(p.aiRpm);
+  if (p.aiThinkingMode && ui.apiThinkingSelect) (ui.apiThinkingSelect as HTMLSelectElement).value = p.aiThinkingMode;
+  if (p.aiFilterThinkingOutput !== undefined && ui.apiFilterThinkingCheck) (ui.apiFilterThinkingCheck as HTMLInputElement).checked = !!p.aiFilterThinkingOutput;
+  if (p.aiBackupKeys !== undefined && ui.apiBackupKeysInput) (ui.apiBackupKeysInput as HTMLTextAreaElement).value = p.aiBackupKeys;
+  if (p.aiKeyStrategy && ui.apiKeyStrategySelect) (ui.apiKeyStrategySelect as HTMLSelectElement).value = p.aiKeyStrategy;
+  if (p.tavilyApiKey !== undefined && ui.tavilyKeyInput) (ui.tavilyKeyInput as HTMLInputElement).value = p.tavilyApiKey;
+  updateDelayPreview();
+  flashHint(`Profil "${name}" dimuat ke formulir.`);
+}
+
+export function onSaveProfile(): void {
+  const nameInput = ui.apiProfileNameInput as HTMLInputElement | undefined;
+  const select = ui.apiProfileSelect as HTMLSelectElement | undefined;
+  let name = nameInput?.value?.trim() || '';
+  if (!name && select?.value) {
+    name = select.value;
+  }
+  if (!name) {
+    flashHint('Masukkan nama profil yang ingin disimpan.');
+    return;
+  }
+  const profiles = loadProfiles();
+  profiles[name] = {
+    aiApiType: (ui.apiTypeSelect as HTMLSelectElement | undefined)?.value as any || 'openai',
+    aiApiUrl: (ui.apiUrlInput as HTMLInputElement | undefined)?.value?.trim() || '',
+    aiApiKey: (ui.apiKeyInput as HTMLInputElement | undefined)?.value?.trim() || '',
+    aiModel: (ui.apiModelInput as HTMLInputElement | undefined)?.value?.trim() || 'gpt-4o-mini',
+    aiTemperature: parseFloat((ui.apiTemperatureInput as HTMLInputElement | undefined)?.value || '1.0') || 1.0,
+    aiTopP: parseFloat((ui.apiTopPInput as HTMLInputElement | undefined)?.value || '1.0') || 1.0,
+    aiRpm: parseInt((ui.apiRpmInput as HTMLInputElement | undefined)?.value || '10') || 10,
+    aiThinkingMode: (ui.apiThinkingSelect as HTMLSelectElement | undefined)?.value as any || 'default',
+    aiFilterThinkingOutput: (ui.apiFilterThinkingCheck as HTMLInputElement | undefined)?.checked ?? true,
+    aiBackupKeys: (ui.apiBackupKeysInput as HTMLTextAreaElement | undefined)?.value || '',
+    aiKeyStrategy: (ui.apiKeyStrategySelect as HTMLSelectElement | undefined)?.value as any || 'fallback',
+    tavilyApiKey: (ui.tavilyKeyInput as HTMLInputElement | undefined)?.value?.trim() || '',
+  };
+  saveProfiles(profiles);
+  if (nameInput) nameInput.value = '';
+  renderProfileSelect();
+  if (select) select.value = name;
+  updateProfileButtonsState();
+  flashHint(`Profil "${name}" berhasil disimpan.`);
+}
+
+export function onDeleteProfile(): void {
+  const select = ui.apiProfileSelect as HTMLSelectElement | undefined;
+  if (!select || !select.value) return;
+  const name = select.value;
+  const profiles = loadProfiles();
+  delete profiles[name];
+  saveProfiles(profiles);
+  renderProfileSelect();
+  updateProfileButtonsState();
+  flashHint(`Profil "${name}" telah dihapus.`);
 }
 
 // ─── Model Fetcher ────────────────────────────────────────────────────────────

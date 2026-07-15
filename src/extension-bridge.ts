@@ -8,6 +8,26 @@ import {
   onApplyTranslation,
   TranslationApplyError,
 } from './translate';
+import {
+  getSelectedTranslationPlainText,
+  applyPromptVariables,
+} from './ai-format';
+import { DEFAULT_GLOSSARY_PROMPT, DEFAULT_AI_CHECK_PROMPT } from './constants';
+import {
+  parseGlossaryToMap,
+  serializeGlossaryMap,
+  renderGlossaryPreview,
+  buildExistingGlossaryHint,
+} from './glossary';
+import {
+  getSelectedTranslatedLines,
+  getLineForAiCheck,
+  parseAiCheckBlocks,
+  renderAiCheckCorrections,
+  setAiCheckStatus,
+  onApplyAiCheckCorrections,
+} from './ai-check';
+import { queueAutoSave } from './project';
 
 const SOURCE_APP = 'cstl-app';
 const SOURCE_EXT = 'cstl-extension';
@@ -39,6 +59,8 @@ let lastSettings: { target: CopasTargetId; mode: CopasMode } = {
 let statusText = 'Extension: mengecek…';
 let activeRequestId: string | null = null;
 let isFullAutoRunning = false;
+let isGlossaryAutoRunning = false;
+let isAiCheckAutoRunning = false;
 const pending = new Map<string, { resolve: (m: ExtMsg) => void; timer: number }>();
 
 function rid(): string {
@@ -56,7 +78,35 @@ function setStatus(text: string): void {
 function setAutoCopasVisible(show: boolean): void {
   const controls = ui.autoCopasControls as HTMLElement | undefined;
   if (controls) controls.hidden = !show;
-  if (!show) showCancelButton(false);
+  const gControls = ui.autoCopasGlossaryControls as HTMLElement | undefined;
+  if (gControls) gControls.hidden = !show;
+  const cControls = ui.autoCopasAiCheckControls as HTMLElement | undefined;
+  if (cControls) cControls.hidden = !show;
+  if (!show) {
+    showCancelButton(false);
+    showGlossaryCancelButton(false);
+    showAiCheckCancelButton(false);
+  }
+}
+
+function setGlossaryStatus(text: string): void {
+  const el = ui.autoCopasGlossaryStatus as HTMLElement | undefined;
+  if (el) el.textContent = text;
+}
+
+function setAiCheckExtStatus(text: string): void {
+  const el = ui.autoCopasAiCheckStatus as HTMLElement | undefined;
+  if (el) el.textContent = text;
+}
+
+function showGlossaryCancelButton(show: boolean): void {
+  const btn = ui.btnAutoCopasGlossaryCancel as HTMLElement | undefined;
+  if (btn) btn.style.display = show ? '' : 'none';
+}
+
+function showAiCheckCancelButton(show: boolean): void {
+  const btn = ui.btnAutoCopasAiCheckCancel as HTMLElement | undefined;
+  if (btn) btn.style.display = show ? '' : 'none';
 }
 
 function postToExt(msg: Record<string, unknown>): void {
@@ -168,9 +218,7 @@ function onWindowMessage(event: MessageEvent): void {
 
 function showCancelButton(show: boolean): void {
   const btnCancel = ui.btnAutoCopasCancel as HTMLElement | undefined;
-  if (btnCancel) {
-    btnCancel.style.display = show ? '' : 'none';
-  }
+  if (btnCancel) btnCancel.style.display = show ? '' : 'none';
 }
 
 export function isExtensionAvailable(): boolean {
@@ -199,7 +247,10 @@ export async function pingExtension(): Promise<boolean> {
     }
     syncSettingsUi();
     setAutoCopasVisible(true);
-    setStatus(`Extension terhubung v${extensionVersion || '?'} · ${lastSettings.target}/${lastSettings.mode}`);
+    const connectedMsg = `Terhubung v${extensionVersion || '?'} · ${lastSettings.target}/${lastSettings.mode}`;
+    setStatus(`Extension ${connectedMsg}`);
+    setGlossaryStatus(connectedMsg);
+    setAiCheckExtStatus(connectedMsg);
     updateButtonStates();
     return true;
   }
@@ -208,33 +259,23 @@ export async function pingExtension(): Promise<boolean> {
   delete document.documentElement.dataset.cstlExt;
   setAutoCopasVisible(false);
   setStatus('Extension belum terpasang / bridge tidak aktif');
+  setGlossaryStatus('Extension belum terpasang');
+  setAiCheckExtStatus('Extension belum terpasang');
   updateButtonStates();
   return false;
 }
 
 function syncSettingsUi(): void {
-  const t = ui.autoCopasTarget as HTMLSelectElement | undefined;
-  const m = ui.autoCopasMode as HTMLSelectElement | undefined;
-  if (t && (lastSettings.target === 'gemini' || lastSettings.target === 'deepseek' || lastSettings.target === 'meta' || lastSettings.target === 'chatgpt')) {
-    t.value = lastSettings.target;
-  }
-  if (m && (lastSettings.mode === 'semi' || lastSettings.mode === 'full')) {
-    m.value = lastSettings.mode;
-  }
+  // Settings are now managed via the extension popup — nothing to sync on the page.
 }
 
 export async function applyLocalSettingsToExtension(): Promise<void> {
-  const t = (ui.autoCopasTarget as HTMLSelectElement | undefined)?.value as CopasTargetId | undefined;
-  const m = (ui.autoCopasMode as HTMLSelectElement | undefined)?.value as CopasMode | undefined;
-  if (t === 'gemini' || t === 'deepseek' || t === 'meta' || t === 'chatgpt') lastSettings.target = t;
-  if (m === 'semi' || m === 'full') lastSettings.mode = m;
   if (!available) return;
   await request({
     type: 'COPAS_SET_SETTINGS',
     requestId: rid(),
     settings: { target: lastSettings.target, mode: lastSettings.mode },
   }, 2000);
-  setStatus(`Extension: ${lastSettings.target} / ${lastSettings.mode}`);
 }
 
 async function runFullAutoBatches(): Promise<void> {
@@ -310,10 +351,344 @@ async function runFullAutoBatches(): Promise<void> {
   }
 }
 
+// ─── Glossary helpers ─────────────────────────────────────────────────────────
+
+function buildGlossaryPrompt(): string {
+  const sel = state.lines.filter(l => state.selectedLines.has(l.line_num));
+  if (!sel.length) return '';
+  const out = getSelectedTranslationPlainText().split('\n').filter(Boolean);
+  if (!out.length) return '';
+  const basePrompt = applyPromptVariables((state.glossaryPrompt || DEFAULT_GLOSSARY_PROMPT).trim());
+  const existingHint = buildExistingGlossaryHint(out.join('\n'));
+  return `${basePrompt}${existingHint}\n\n${out.join('\n')}\n`;
+}
+
+function applyGlossaryResult(text: string): void {
+  const area = ui.pasteGlossaryArea as HTMLTextAreaElement | undefined;
+  if (area) {
+    area.value = text;
+    area.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+}
+
+function autoSaveGlossaryResult(text: string): void {
+  // Parse dan merge langsung ke Smart Glossary tanpa melewati textarea
+  const currentMap = parseGlossaryToMap(state.glossaryText);
+  const newMap = parseGlossaryToMap(text);
+  for (const [k, v] of newMap.entries()) currentMap.set(k, v);
+  state.glossaryText = serializeGlossaryMap(currentMap);
+  renderGlossaryPreview();
+  queueAutoSave();
+  flashHint(`Auto Glossary: ${newMap.size} entri disimpan ke Smart Glossary.`);
+  setGlossaryStatus(`Selesai: ${newMap.size} entri disimpan.`);
+}
+
+async function runGlossaryFullAuto(): Promise<void> {
+  if (!available) {
+    const ok = await pingExtension();
+    if (!ok) { flashHint('Extension belum terpasang.'); return; }
+  }
+  await applyLocalSettingsToExtension();
+
+  const batchSize = Math.max(1, state.glossaryBatchSize || 50);
+  const allLines = state.lines.filter(l =>
+    state.selectedLines.size > 0
+      ? state.selectedLines.has(l.line_num)
+      : isTranslated(l) && !l._hidden
+  );
+  if (!allLines.length) { flashHint('Tidak ada baris untuk ekstrak glossary.'); return; }
+
+  isGlossaryAutoRunning = true;
+  let processed = 0;
+  try {
+    while (isGlossaryAutoRunning && processed < allLines.length) {
+      const batch = allLines.slice(processed, processed + batchSize);
+      // Atur selection ke batch ini
+      state.selectedLines.clear();
+      for (const l of batch) state.selectedLines.add(l.line_num);
+      syncCheckboxUI();
+
+      const payload = buildGlossaryPrompt();
+      if (!payload) break;
+
+      const reqId = rid();
+      activeRequestId = reqId;
+      setGlossaryStatus(`Mengirim batch ${Math.floor(processed / batchSize) + 1}…`);
+      showGlossaryCancelButton(true);
+
+      const res = await request({
+        type: 'COPAS_SEND', requestId: reqId, target: lastSettings.target,
+        mode: 'full', payload,
+      }, 240000);
+
+      if (!isGlossaryAutoRunning) break;
+      if (res.type !== 'COPAS_RESULT' || !res.ok || !res.text) {
+        const detail = res.error || (res.type === 'TIMEOUT' ? 'timeout' : 'gagal');
+        setGlossaryStatus(`Berhenti: ${detail}`);
+        flashHint(`Auto Glossary berhenti: ${detail}`);
+        return;
+      }
+
+      autoSaveGlossaryResult(res.text);
+      processed += batch.length;
+    }
+    if (isGlossaryAutoRunning) {
+      flashHint(`Auto Glossary selesai: ${processed} baris diproses.`);
+      setGlossaryStatus(`Selesai — ${processed} baris diproses.`);
+    }
+  } finally {
+    isGlossaryAutoRunning = false;
+    activeRequestId = null;
+    showGlossaryCancelButton(false);
+  }
+}
+
+export async function sendGlossaryAutoCopas(): Promise<void> {
+  const mode = lastSettings.mode;
+  if (mode === 'full') {
+    if (isGlossaryAutoRunning) return;
+    await runGlossaryFullAuto();
+    return;
+  }
+  const payload = buildGlossaryPrompt();
+  if (!payload) { flashHint('Pilih baris dengan terjemahan dulu.'); return; }
+  if (!available && !(await pingExtension())) {
+    flashHint('Extension belum terpasang.');
+    return;
+  }
+  await applyLocalSettingsToExtension();
+  const reqId = rid();
+  activeRequestId = reqId;
+  setGlossaryStatus(`Mengirim ke ${lastSettings.target}…`);
+  const res = await request({
+    type: 'COPAS_SEND', requestId: reqId, target: lastSettings.target,
+    mode: 'semi', payload,
+  }, 240000);
+  activeRequestId = null;
+  if (res.type === 'COPAS_STATUS') {
+    setGlossaryStatus(res.detail || `Status: ${res.stage}`);
+  } else if (res.error) {
+    setGlossaryStatus(`Error: ${res.error}`);
+  }
+}
+
+export async function fetchGlossaryResult(): Promise<void> {
+  if (!available && !(await pingExtension())) { flashHint('Extension belum terpasang.'); return; }
+  await applyLocalSettingsToExtension();
+  setGlossaryStatus('Mengambil hasil…');
+  const res = await request({ type: 'COPAS_FETCH_RESULT', requestId: rid(), target: lastSettings.target }, 30000);
+  if (res.type === 'COPAS_RESULT' && res.ok && res.text) {
+    applyGlossaryResult(res.text);
+    setGlossaryStatus(`Hasil diterima (${res.text.length} char). Klik Simpan ke Smart Glossary.`);
+    updateButtonStates();
+    return;
+  }
+  const err = res.error || 'gagal';
+  setGlossaryStatus(`Gagal: ${err}`);
+  flashHint(`Ambil glossary gagal: ${err}`);
+}
+
+export function cancelGlossaryAutoCopas(): void {
+  isGlossaryAutoRunning = false;
+  if (activeRequestId) {
+    void request({ type: 'COPAS_CANCEL', requestId: activeRequestId }, 3000);
+    activeRequestId = null;
+  }
+  showGlossaryCancelButton(false);
+  setGlossaryStatus('Dibatalkan.');
+  flashHint('Auto Glossary dibatalkan.');
+}
+
+// ─── AI Check helpers ─────────────────────────────────────────────────────────
+
+function buildAiCheckPrompt(): string {
+  const sel = getSelectedTranslatedLines();
+  if (!sel.length) return '';
+  const baseCheck = applyPromptVariables((state.aiCheckPrompt || DEFAULT_AI_CHECK_PROMPT).trim());
+  return `${baseCheck}\n\n${sel.map(getLineForAiCheck).join('\n\n')}\n`;
+}
+
+function applyAiCheckResult(text: string): void {
+  const area = ui.pasteAiCheckArea as HTMLTextAreaElement | undefined;
+  if (area) {
+    area.value = text;
+    area.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+  updateButtonStates();
+}
+
+async function runAiCheckFullAuto(): Promise<void> {
+  if (!available) {
+    const ok = await pingExtension();
+    if (!ok) { flashHint('Extension belum terpasang.'); return; }
+  }
+  await applyLocalSettingsToExtension();
+  const reviewMode = (ui.settingsAiCheckReviewMode as HTMLInputElement | undefined)?.checked ?? false;
+
+  const batchSize = Math.max(1, state.aiCheckBatchSize || 50);
+  const allLines = state.lines.filter(l =>
+    state.selectedLines.size > 0
+      ? state.selectedLines.has(l.line_num) && isTranslated(l)
+      : isTranslated(l) && !l._hidden && !l._ai_checked
+  );
+  if (!allLines.length) { flashHint('Tidak ada baris terjemahan untuk dicek.'); return; }
+
+  isAiCheckAutoRunning = true;
+  let processed = 0;
+  let totalApplied = 0;
+  try {
+    while (isAiCheckAutoRunning && processed < allLines.length) {
+      const batch = allLines.slice(processed, processed + batchSize);
+      state.selectedLines.clear();
+      for (const l of batch) state.selectedLines.add(l.line_num);
+      syncCheckboxUI();
+
+      const payload = buildAiCheckPrompt();
+      if (!payload) break;
+
+      const reqId = rid();
+      activeRequestId = reqId;
+      setAiCheckExtStatus(`Mengirim batch ${Math.floor(processed / batchSize) + 1}…`);
+      setAiCheckStatus(`Auto Cek batch ${Math.floor(processed / batchSize) + 1}…`);
+      showAiCheckCancelButton(true);
+
+      const res = await request({
+        type: 'COPAS_SEND', requestId: reqId, target: lastSettings.target,
+        mode: 'full', payload,
+      }, 240000);
+
+      if (!isAiCheckAutoRunning) break;
+      if (res.type !== 'COPAS_RESULT' || !res.ok || !res.text) {
+        const detail = res.error || (res.type === 'TIMEOUT' ? 'timeout' : 'gagal');
+        setAiCheckExtStatus(`Berhenti: ${detail}`);
+        setAiCheckStatus(`Auto Cek berhenti: ${detail}`);
+        flashHint(`Auto AI Check berhenti: ${detail}`);
+        return;
+      }
+
+      // Paste hasil ke textarea
+      applyAiCheckResult(res.text);
+
+      // Parse koreksi
+      try {
+        const parsed = parseAiCheckBlocks(res.text);
+        const selectedSet = new Set(batch.map(l => l.line_num));
+        state.aiCheckCorrections = parsed
+          .filter(p => selectedSet.has(p.num))
+          .map(p => ({ ...p, category: p.category || 'Naturalness', checked: true }));
+        renderAiCheckCorrections();
+      } catch {
+        setAiCheckExtStatus('Parse gagal — periksa kotak AI Check.');
+        break;
+      }
+
+      if (reviewMode) {
+        // Pause untuk review — tampilkan tombol Review Actions
+        const reviewActions = ui.aiCheckReviewActions as HTMLElement | undefined;
+        if (reviewActions) reviewActions.style.display = 'flex';
+        setAiCheckExtStatus('Paused — review koreksi lalu Apply & Lanjut atau Skip.');
+        // Tunggu resolusi dari tombol Apply/Skip
+        await new Promise<void>(resolve => {
+          const onResolve = () => {
+            const reviewActions = ui.aiCheckReviewActions as HTMLElement | undefined;
+            if (reviewActions) reviewActions.style.display = 'none';
+            resolve();
+          };
+          // Gunakan event one-shot
+          const applyBtn = ui.btnReviewApply as HTMLElement | undefined;
+          const skipBtn = ui.btnReviewSkip as HTMLElement | undefined;
+          const onApply = () => { onApplyAiCheckCorrections(); onResolve(); skipBtn?.removeEventListener('click', onSkip); };
+          const onSkip = () => { onResolve(); applyBtn?.removeEventListener('click', onApply); };
+          applyBtn?.addEventListener('click', onApply, { once: true });
+          skipBtn?.addEventListener('click', onSkip, { once: true });
+          // Fallback: jika auto dibatalkan
+          const check = setInterval(() => { if (!isAiCheckAutoRunning) { clearInterval(check); onResolve(); } }, 500);
+        });
+        if (!isAiCheckAutoRunning) break;
+      } else {
+        // Auto apply langsung
+        const result = onApplyAiCheckCorrections();
+        totalApplied += result.applied;
+      }
+
+      // Tandai batch sebagai sudah dicek
+      for (const l of batch) l._ai_checked = true;
+      processed += batch.length;
+    }
+    if (isAiCheckAutoRunning) {
+      const msg = reviewMode
+        ? `Auto AI Check selesai: ${processed} baris diproses.`
+        : `Auto AI Check selesai: ${processed} baris diproses, ${totalApplied} koreksi diterapkan.`;
+      flashHint(msg);
+      setAiCheckExtStatus(`Selesai.`);
+      setAiCheckStatus(msg);
+    }
+  } finally {
+    isAiCheckAutoRunning = false;
+    activeRequestId = null;
+    showAiCheckCancelButton(false);
+    updateButtonStates();
+  }
+}
+
+export async function sendAiCheckAutoCopas(): Promise<void> {
+  const mode = lastSettings.mode;
+  if (mode === 'full') {
+    if (isAiCheckAutoRunning) return;
+    await runAiCheckFullAuto();
+    return;
+  }
+  const payload = buildAiCheckPrompt();
+  if (!payload) { flashHint('Pilih baris terjemahan dulu.'); return; }
+  if (!available && !(await pingExtension())) {
+    flashHint('Extension belum terpasang.');
+    return;
+  }
+  await applyLocalSettingsToExtension();
+  const reqId = rid();
+  activeRequestId = reqId;
+  setAiCheckExtStatus(`Mengirim ke ${lastSettings.target}…`);
+  const res = await request({
+    type: 'COPAS_SEND', requestId: reqId, target: lastSettings.target,
+    mode: 'semi', payload,
+  }, 240000);
+  activeRequestId = null;
+  if (res.type === 'COPAS_STATUS') {
+    setAiCheckExtStatus(res.detail || `Status: ${res.stage}`);
+  } else if (res.error) {
+    setAiCheckExtStatus(`Error: ${res.error}`);
+  }
+}
+
+export async function fetchAiCheckResult(): Promise<void> {
+  if (!available && !(await pingExtension())) { flashHint('Extension belum terpasang.'); return; }
+  await applyLocalSettingsToExtension();
+  setAiCheckExtStatus('Mengambil hasil…');
+  const res = await request({ type: 'COPAS_FETCH_RESULT', requestId: rid(), target: lastSettings.target }, 30000);
+  if (res.type === 'COPAS_RESULT' && res.ok && res.text) {
+    applyAiCheckResult(res.text);
+    setAiCheckExtStatus(`Hasil diterima. Klik Parse lalu Apply.`);
+    updateButtonStates();
+    return;
+  }
+  const err = res.error || 'gagal';
+  setAiCheckExtStatus(`Gagal: ${err}`);
+  flashHint(`Ambil AI Check gagal: ${err}`);
+}
+
+export function cancelAiCheckAutoCopas(): void {
+  isAiCheckAutoRunning = false;
+  if (activeRequestId) {
+    void request({ type: 'COPAS_CANCEL', requestId: activeRequestId }, 3000);
+    activeRequestId = null;
+  }
+  showAiCheckCancelButton(false);
+  setAiCheckExtStatus('Dibatalkan.');
+  flashHint('Auto AI Check dibatalkan.');
+}
+
 export async function sendAutoCopas(): Promise<void> {
-  const requestedMode = (ui.autoCopasMode as HTMLSelectElement | undefined)?.value === 'full'
-    ? 'full'
-    : lastSettings.mode;
+  const requestedMode = lastSettings.mode;
   if (requestedMode === 'full') {
     if (isFullAutoRunning) return;
     await runFullAutoBatches();
@@ -399,27 +774,21 @@ export async function requestFetchResult(): Promise<void> {
 
 export function initExtensionBridge(): void {
   window.addEventListener('message', onWindowMessage);
-  // delayed ping in case content script already injected
-  window.setTimeout(() => {
-    void pingExtension();
-  }, 400);
-  window.setTimeout(() => {
-    if (!available) void pingExtension();
-  }, 1500);
+  window.setTimeout(() => { void pingExtension(); }, 400);
+  window.setTimeout(() => { if (!available) void pingExtension(); }, 1500);
 
-  ui.btnAutoCopas?.addEventListener('click', () => {
-    void sendAutoCopas();
-  });
-  ui.btnFetchCopasResult?.addEventListener('click', () => {
-    void requestFetchResult();
-  });
-  ui.autoCopasTarget?.addEventListener('change', () => {
-    void applyLocalSettingsToExtension();
-  });
-  ui.autoCopasMode?.addEventListener('change', () => {
-    void applyLocalSettingsToExtension();
-  });
-  ui.btnAutoCopasCancel?.addEventListener('click', () => {
-    void cancelAutoCopas();
-  });
+  // Translate Auto Copas
+  ui.btnAutoCopas?.addEventListener('click', () => { void sendAutoCopas(); });
+  ui.btnFetchCopasResult?.addEventListener('click', () => { void requestFetchResult(); });
+  ui.btnAutoCopasCancel?.addEventListener('click', () => { void cancelAutoCopas(); });
+
+  // Glossary Auto Copas
+  ui.btnAutoCopasGlossary?.addEventListener('click', () => { void sendGlossaryAutoCopas(); });
+  ui.btnFetchCopasGlossaryResult?.addEventListener('click', () => { void fetchGlossaryResult(); });
+  ui.btnAutoCopasGlossaryCancel?.addEventListener('click', () => { cancelGlossaryAutoCopas(); });
+
+  // AI Check Auto Copas
+  ui.btnAutoCopasAiCheck?.addEventListener('click', () => { void sendAiCheckAutoCopas(); });
+  ui.btnFetchCopasAiCheckResult?.addEventListener('click', () => { void fetchAiCheckResult(); });
+  ui.btnAutoCopasAiCheckCancel?.addEventListener('click', () => { cancelAiCheckAutoCopas(); });
 }

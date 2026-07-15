@@ -33,6 +33,25 @@ export function getGlossaryPrompt(copiedText: string): string {
   return '';
 }
 
+/**
+ * Cek term-term yang SUDAH ADA di Smart Glossary dan muncul di teks sumber.
+ * Digunakan untuk memberi tahu AI agar tidak mengekstrak ulang istilah yang sudah ada.
+ * Hanya dikembalikan jika ada term yang cocok (smart — tidak muncul jika tidak relevan).
+ */
+export function buildExistingGlossaryHint(sourceText: string): string {
+  const glossary = parseGlossaryToMap(state.glossaryText);
+  if (!glossary.size) return '';
+  const lowerText = sourceText.toLowerCase();
+  const existing: string[] = [];
+  for (const [source, entry] of glossary.entries()) {
+    if (source && entry.target && lowerText.includes(source.toLowerCase())) {
+      existing.push(formatGlossaryEntry(source, entry));
+    }
+  }
+  if (!existing.length) return '';
+  return `\n\n<AlreadyInGlossary>\nThe following terms are ALREADY in the glossary — do not re-extract them, skip these:\n${existing.join('\n')}\n</AlreadyInGlossary>`;
+}
+
 export function parseGlossaryToMap(text: string): Map<string, GlossaryEntry> {
   const m = new Map<string, GlossaryEntry>();
   if (!text) return m;
@@ -184,7 +203,8 @@ export async function onCopyForGlossaryAi(): Promise<void> {
   if (!sel.length) return;
   const out = getSelectedTranslationPlainText().split('\n').filter(Boolean);
   const basePrompt = applyPromptVariables((state.glossaryPrompt || DEFAULT_GLOSSARY_PROMPT).trim());
-  const promptText = `${basePrompt}\n\n${out.join('\n')}\n`;
+  const existingHint = buildExistingGlossaryHint(out.join('\n'));
+  const promptText = `${basePrompt}${existingHint}\n\n${out.join('\n')}\n`;
   try {
     await navigator.clipboard.writeText(promptText);
     flashHint(`Disalin ${sel.length} baris untuk ekstraksi glossary.`);

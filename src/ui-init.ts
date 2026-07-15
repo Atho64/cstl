@@ -28,7 +28,7 @@ import {
   onRefLang1FileChange, onRefLang2FileChange, onRefLang1FolderChange, onRefLang2FolderChange,
   onClearRefLang1, onClearRefLang2, applyHtlMode, refreshHtlPanels,
 } from './htl-mode';
-import { loadApiSettings, onOpenApiSettings, onSaveApiSettings, onAutoTranslate, updateDelayPreview, onFetchModels, resolveReviewAction } from './auto-translate';
+import { loadApiSettings, onOpenApiSettings, onSaveApiSettings, onAutoTranslate, updateDelayPreview, onFetchModels, resolveReviewAction, onLoadProfile, onSaveProfile, onDeleteProfile, updateProfileButtonsState } from './auto-translate';
 import {
   onImportFileChange, onImportFolderChange, onImportZipChange,
   onImportLucaTxtChange, onImportLucaTxtFolderChange,
@@ -67,7 +67,9 @@ export function cacheElements(): void {
     'btnImportFolder', 'btnImportZip', 'btnImportTranslatedFile', 'btnImportTranslatedFolder', 'btnExport', 'btnProofread', 'btnSettings',
     'previewViewport', 'previewContainer', 'currentFileBar', 'progressFill', 'progressText', 'btnSelectAll',
     'btnClearSelection', 'copyCount', 'btnCopyForAi', 'copyStatus', 'pasteArea', 'btnApply', 'checkIgnorePasteNames',
-    'autoCopasControls', 'btnAutoCopas', 'btnFetchCopasResult', 'autoCopasStatus', 'autoCopasTarget', 'autoCopasMode', 'btnAutoCopasCancel',
+    'autoCopasControls', 'btnAutoCopas', 'btnFetchCopasResult', 'autoCopasStatus', 'btnAutoCopasCancel',
+    'autoCopasGlossaryControls', 'btnAutoCopasGlossary', 'btnFetchCopasGlossaryResult', 'autoCopasGlossaryStatus', 'btnAutoCopasGlossaryCancel',
+    'autoCopasAiCheckControls', 'btnAutoCopasAiCheck', 'btnFetchCopasAiCheckResult', 'autoCopasAiCheckStatus', 'btnAutoCopasAiCheckCancel',
     'btnUndo', 'btnRedo', 'nameTableBody', 'statusBar', 'importFileInput', 'importFolderInput', 'importTranslatedFileInput', 'importTranslatedFolderInput',
     'btnCopyNamesForAi', 'copyNameCount', 'pasteNameArea', 'btnApplyNameTranslations', 'btnResetNameTranslations',
     'glossaryPreviewWrap', 'glossaryPreviewText',
@@ -91,7 +93,7 @@ export function cacheElements(): void {
     'settingsCheckKanaResidue', 'settingsCheckSimilarity', 'settingsSimilarityThreshold', 'settingsSimilarityThresholdWrap',
     'settingsContextTypeSelect',
     'btnQaCheck', 'qaModal', 'qaCheckGlossary', 'qaCheckKana', 'qaCheckSimilarity', 'qaCheckLinebreak', 'qaCheckLength', 'qaCheckLanguage', 'qaCheckPunctuation', 'btnRunQa', 'btnQaReset', 'qaStats', 'qaResults', 'btnQaClose', 'btnRetranslateFlagged', 'settingsCheckLengthRatio', 'settingsLengthRatioThreshold', 'settingsLengthRatioWrap', 'settingsCheckLinebreak', 'settingsCheckLanguage', 'settingsCheckPunctuation', 'settingsEnableUncertainMarking', 'qaCheckUncertain', 'qaCheckUntransName', 'aiTranslateModeSelect', 'settingsAgentMaxTurns',
-    'btnAutoTranslate', 'btnAutoGlossaryAi', 'btnAutoAiCheck', 'btnFloatingApiSettings', 'apiSettingsModal', 'apiTypeSelect', 'apiUrlInput', 'apiKeyInput', 'apiModelInput', 'apiModelSelect', 'btnFetchModels', 'apiModelFetchStatus', 'apiTemperatureInput', 'apiTopPInput', 'apiRpmInput', 'apiDelayPreview', 'apiThinkingSelect', 'apiFilterThinkingCheck', 'apiBackupKeysInput', 'apiKeyStrategySelect', 'btnApiSettingsCancel', 'btnApiSettingsSave', 'tavilyKeyInput',
+    'btnAutoTranslate', 'btnAutoGlossaryAi', 'btnAutoAiCheck', 'btnFloatingApiSettings', 'apiSettingsModal', 'apiTypeSelect', 'apiUrlInput', 'apiKeyInput', 'apiModelInput', 'apiModelSelect', 'btnFetchModels', 'apiModelFetchStatus', 'apiTemperatureInput', 'apiTopPInput', 'apiRpmInput', 'apiDelayPreview', 'apiThinkingSelect', 'apiFilterThinkingCheck', 'apiBackupKeysInput', 'apiKeyStrategySelect', 'btnApiSettingsCancel', 'btnApiSettingsSave', 'tavilyKeyInput', 'apiProfileSelect', 'btnLoadProfile', 'btnDeleteProfile', 'apiProfileNameInput', 'btnSaveProfile',
  'aiCheckReviewActions', 'btnReviewApply', 'btnReviewSkip',
     'btnFloatingAiAgent', 'aiAgentChatPanel', 'btnAgentClose', 'btnAgentClear', 'btnAgentMemory', 'agentChatHistory', 'agentInput', 'btnAgentSend',
     'agentMemoryModal', 'agentMemoryList', 'agentMemoryKey', 'agentMemoryCategory', 'agentMemoryScope', 'agentMemoryValue', 'btnAgentMemoryCancel', 'btnAgentMemorySave',
@@ -524,6 +526,10 @@ if (ui.settingsCheckSimilarity) {
   ui.btnApiSettingsSave?.addEventListener('click', onSaveApiSettings);
   ui.btnFetchModels?.addEventListener('click', onFetchModels);
   ui.apiRpmInput?.addEventListener('input', updateDelayPreview);
+  ui.btnLoadProfile?.addEventListener('click', onLoadProfile);
+  ui.btnDeleteProfile?.addEventListener('click', onDeleteProfile);
+  ui.btnSaveProfile?.addEventListener('click', onSaveProfile);
+  ui.apiProfileSelect?.addEventListener('change', updateProfileButtonsState);
 
   bindShortcutCaptureInput(ui.settingsSelectionPrevShortcutInput as HTMLInputElement);
   bindShortcutCaptureInput(ui.settingsSelectionNextShortcutInput as HTMLInputElement);

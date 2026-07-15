@@ -147,25 +147,15 @@
         <div id="viewTranslate">
           <div class="card-box mb-2" data-htl-hide="true">
                       <button id="btnCopyForAi" class="btn btn-primary w-full mb-1" disabled>Copy <span id="copyCount">0</span> Baris</button>
+                      <div class="flex gap-2"><select id="aiTranslateModeSelect" class="text-input" style="width: auto;"><option value="auto">Auto</option><option value="agent">Agent</option></select><button id="btnAutoTranslate" class="btn btn-success grow" disabled>Jalankan Auto Translate</button></div>
                       <div id="autoCopasControls" hidden>
-                        <div class="flex gap-2 wrap mb-1">
-                          <select id="autoCopasTarget" class="text-input" style="width: auto;" title="Target Auto Copas">
-                            <option value="gemini">Gemini</option>
-                            <option value="deepseek">DeepSeek</option>
-                            <option value="meta">Meta AI</option>
-                            <option value="chatgpt">ChatGPT</option>
-                          </select>
-                          <select id="autoCopasMode" class="text-input" style="width: auto;" title="Mode Auto Copas">
-                            <option value="semi">Semi</option>
-                            <option value="full">Full</option>
-                          </select>
+                        <div class="flex gap-2 wrap mb-1 mt-1">
                           <button id="btnAutoCopas" class="btn btn-outline grow" disabled title="Kirim baris terpilih ke extension CSTL Auto Copas">Auto Copas</button>
                           <button id="btnFetchCopasResult" class="btn btn-outline grow" disabled title="Ambil balasan terakhir dari tab LLM">Ambil Hasil</button>
                           <button id="btnAutoCopasCancel" class="btn btn-danger" style="display:none" title="Batalkan Auto Copas yang berjalan">Batal</button>
                         </div>
                         <div id="autoCopasStatus" class="hint m-0 mb-1">Extension: mengecek…</div>
                       </div>
-                      <div class="flex gap-2"><select id="aiTranslateModeSelect" class="text-input" style="width: auto;"><option value="auto">Auto</option><option value="agent">Agent</option></select><button id="btnAutoTranslate" class="btn btn-success grow" disabled>Jalankan Auto Translate</button></div>
                     </div>
           <div id="copyStatus" class="status-toast empty" data-htl-hide="true"></div>
           <div id="glossaryPreviewWrap" class="glossary-preview" hidden data-htl-hide="true">
@@ -234,7 +224,15 @@
             <label class="section-label mt-0">Pilih Teks untuk Ekstrak Glossary</label>
             <p class="hint">Teks yang dicentang akan dikirim ke AI untuk mengekstrak istilah penting.</p>
             <button id="btnCopyForGlossaryAi" class="btn btn-primary w-full mb-1" disabled>Copy <span id="copyGlossaryCount">0</span> Baris untuk Ekstrak Glossary</button>
-            <button id="btnAutoGlossaryAi" class="btn btn-success w-full" disabled>Jalankan Auto Ekstrak</button>
+            <button id="btnAutoGlossaryAi" class="btn btn-success w-full mb-1" disabled>Jalankan Auto Ekstrak</button>
+            <div id="autoCopasGlossaryControls" hidden>
+              <div class="flex gap-2 wrap mb-1">
+                <button id="btnAutoCopasGlossary" class="btn btn-outline grow" title="Kirim ke LLM via extension untuk ekstrak glossary">Auto Copas Glossary</button>
+                <button id="btnFetchCopasGlossaryResult" class="btn btn-outline grow" title="Ambil hasil glossary dari tab LLM">Ambil Hasil</button>
+                <button id="btnAutoCopasGlossaryCancel" class="btn btn-danger" style="display:none" title="Batalkan">Batal</button>
+              </div>
+              <div id="autoCopasGlossaryStatus" class="hint m-0 mb-1">Extension: mengecek…</div>
+            </div>
           </div>
           <label class="section-label" for="pasteGlossaryArea">Paste hasil glossary AI di sini</label>
           <textarea id="pasteGlossaryArea" class="mono input-area" placeholder="[character] 速川麦 = Hayakawa Mugi {male name}&#10;[place] 渋谷 = Shibuya {place name}" disabled></textarea>
@@ -274,7 +272,15 @@
             <label class="section-label mt-0">Double Check Terjemahan AI</label>
             <p class="hint">Pilih baris yang sudah diterjemahkan, lalu salin ke AI untuk dicek. AI hanya perlu mengembalikan koreksi.</p>
             <button id="btnCopyForAiCheck" class="btn btn-primary w-full mb-1" disabled>Copy <span id="copyAiCheckCount">0</span> Baris untuk AI Check</button>
-            <button id="btnAutoAiCheck" class="btn btn-success w-full" disabled>Jalankan Auto Cek</button>
+            <button id="btnAutoAiCheck" class="btn btn-success w-full mb-1" disabled>Jalankan Auto Cek</button>
+            <div id="autoCopasAiCheckControls" hidden>
+              <div class="flex gap-2 wrap mb-1">
+                <button id="btnAutoCopasAiCheck" class="btn btn-outline grow" title="Kirim ke LLM via extension untuk AI Check">Auto Copas AI Check</button>
+                <button id="btnFetchCopasAiCheckResult" class="btn btn-outline grow" title="Ambil hasil AI Check dari tab LLM">Ambil Hasil</button>
+                <button id="btnAutoCopasAiCheckCancel" class="btn btn-danger" style="display:none" title="Batalkan">Batal</button>
+              </div>
+              <div id="autoCopasAiCheckStatus" class="hint m-0 mb-1">Extension: mengecek…</div>
+            </div>
             <label class="checkbox-line mt-1"><input id="settingsAiCheckReviewMode" type="checkbox" /> Review mode: pause tiap batch untuk review koreksi</label>
           </div>
           <div id="aiCheckStatus" class="status-toast empty"></div>
@@ -1014,6 +1020,21 @@
       </div>
       <div class="modal-body">
       <p class="hint">Hubungkan aplikasi ke AI untuk fitur Auto Translate, AI Check, dan AI Agent.</p>
+      
+      <div class="card-box mt-3 mb-3" style="background: rgba(255,255,255,0.02); border: 1px solid var(--border); padding: 10px; border-radius: 8px;">
+        <label class="hint m-0 mb-1" for="apiProfileSelect" style="display: flex; align-items: center; gap: 6px;"><svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/></svg> Profil API Tersimpan</label>
+        <div class="flex gap-2 mb-2 wrap">
+          <select id="apiProfileSelect" class="text-input grow" style="min-width: 160px;">
+            <option value="">-- Pilih profil --</option>
+          </select>
+          <button id="btnLoadProfile" class="btn btn-outline" disabled title="Load profil ini ke formulir di bawah">Load</button>
+          <button id="btnDeleteProfile" class="btn btn-danger" disabled title="Hapus profil terpilih">Hapus</button>
+        </div>
+        <div class="flex gap-2 wrap">
+          <input id="apiProfileNameInput" class="text-input grow" type="text" placeholder="Nama profil baru (misal: DeepSeek V3, Gemini Flash)..." />
+          <button id="btnSaveProfile" class="btn btn-success" title="Simpan formulir saat ini sebagai profil baru/update">Simpan Profil</button>
+        </div>
+      </div>
       
       <div class="mt-3">
         <label class="hint m-0" for="apiTypeSelect">Tipe API</label>
