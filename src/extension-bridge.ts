@@ -46,7 +46,7 @@ type ExtMsg = {
   stage?: string;
   detail?: string;
   extensionVersion?: string;
-  settings?: { target?: CopasTargetId; mode?: CopasMode };
+  settings?: { target?: CopasTargetId; mode?: CopasMode; [key: string]: any };
   capabilities?: { targets?: string[]; modes?: string[] };
 };
 
@@ -278,6 +278,40 @@ export async function applyLocalSettingsToExtension(): Promise<void> {
   }, 2000);
 }
 
+let tempRestoreNewTabEvery: number | undefined;
+
+async function triggerExtensionNewChat(): Promise<void> {
+  if (!available) return;
+  try {
+    const cur = await request({ type: 'COPAS_GET_SETTINGS', requestId: rid() }, 2000);
+    if (cur.type === 'COPAS_SETTINGS' && cur.settings) {
+      tempRestoreNewTabEvery = cur.settings.newTabEvery;
+    }
+    await request({
+      type: 'COPAS_SET_SETTINGS',
+      requestId: rid(),
+      settings: {
+        newTabEvery: 1,
+        sendCounts: { [lastSettings.target]: 0 } as any
+      }
+    }, 2000);
+  } catch {}
+}
+
+async function restoreExtensionNewTabSetting(): Promise<void> {
+  if (tempRestoreNewTabEvery !== undefined && available) {
+    const val = tempRestoreNewTabEvery;
+    tempRestoreNewTabEvery = undefined;
+    try {
+      await request({
+        type: 'COPAS_SET_SETTINGS',
+        requestId: rid(),
+        settings: { newTabEvery: val }
+      }, 2000);
+    } catch {}
+  }
+}
+
 async function runFullAutoBatches(): Promise<void> {
   const manuallySelected = state.lines
     .filter((line) => state.selectedLines.has(line.line_num) && !isTranslated(line) && !line._hidden)
@@ -300,6 +334,7 @@ async function runFullAutoBatches(): Promise<void> {
   await applyLocalSettingsToExtension();
   isFullAutoRunning = true;
   let appliedCount = 0;
+  let retryCount = 0;
   try {
     while (isFullAutoRunning) {
       const n = selectNextFullAutoBatch(scope);
@@ -309,8 +344,8 @@ async function runFullAutoBatches(): Promise<void> {
       if (!payload) break;
       const reqId = rid();
       activeRequestId = reqId;
-      setStatus(`Full auto: mengirim ${n} baris ke ${lastSettings.target}…`);
-      flashHint(`Full auto → ${lastSettings.target}: batch ${appliedCount + 1}–${appliedCount + n}`);
+      setStatus(`Full auto: mengirim ${n} baris ke ${lastSettings.target}${retryCount ? ' (retry #1 new chat)' : ''}…`);
+      flashHint(`Full auto → ${lastSettings.target}: batch ${appliedCount + 1}–${appliedCount + n}${retryCount ? ' (retry new chat)' : ''}`);
       showCancelButton(true);
 
       const res = await request({
@@ -318,10 +353,19 @@ async function runFullAutoBatches(): Promise<void> {
         mode: 'full', payload, meta: { lineCount: n },
       }, 240000);
 
+      await restoreExtensionNewTabSetting();
       if (!isFullAutoRunning) break;
       if (res.type !== 'COPAS_RESULT' || !res.ok || !res.text) {
+        if (retryCount < 1) {
+          retryCount++;
+          const detail = res.error || res.detail || 'timeout/error';
+          flashHint(`Batch gagal (${detail}). Mencoba ulang 1x di obrolan baru (New Chat)…`);
+          setStatus(`Mencoba ulang batch di obrolan baru (New Chat)…`);
+          await triggerExtensionNewChat();
+          continue;
+        }
         const detail = res.error || res.detail || (res.type === 'TIMEOUT' ? 'timeout' : 'respons tidak lengkap');
-        flashHint(`Full auto berhenti: ${detail}`);
+        flashHint(`Full auto berhenti (gagal setelah retry): ${detail}`);
         setStatus(`Full auto berhenti: ${detail}`);
         return;
       }
@@ -330,11 +374,22 @@ async function runFullAutoBatches(): Promise<void> {
       try {
         onApplyTranslation({ suppressAlerts: true });
         appliedCount += n;
+        retryCount = 0;
       } catch (err) {
+        if (retryCount < 1) {
+          retryCount++;
+          const detail = err instanceof TranslationApplyError
+            ? `${err.message}${err.details[0] ? ` — ${err.details[0]}` : ''}`
+            : 'gagal menerapkan hasil';
+          flashHint(`Format AI keliru (${detail}). Mencoba ulang 1x di obrolan baru (New Chat)…`);
+          setStatus(`Format AI keliru — mengulang batch di obrolan baru…`);
+          await triggerExtensionNewChat();
+          continue;
+        }
         const detail = err instanceof TranslationApplyError
           ? `${err.message}${err.details[0] ? ` — ${err.details[0]}` : ''}`
           : 'gagal menerapkan hasil';
-        flashHint(`Hasil diterima, tapi tidak diterapkan: ${detail}. Periksa kotak hasil.`);
+        flashHint(`Hasil diterima, tapi format masih keliru setelah retry: ${detail}. Periksa kotak hasil.`);
         setStatus(`Full auto perlu ditinjau: ${detail}`);
         return;
       }
@@ -400,6 +455,7 @@ async function runGlossaryFullAuto(): Promise<void> {
 
   isGlossaryAutoRunning = true;
   let processed = 0;
+  let retryCount = 0;
   try {
     while (isGlossaryAutoRunning && processed < allLines.length) {
       const batch = allLines.slice(processed, processed + batchSize);
@@ -413,7 +469,7 @@ async function runGlossaryFullAuto(): Promise<void> {
 
       const reqId = rid();
       activeRequestId = reqId;
-      setGlossaryStatus(`Mengirim batch ${Math.floor(processed / batchSize) + 1}…`);
+      setGlossaryStatus(`Mengirim batch ${Math.floor(processed / batchSize) + 1}${retryCount ? ' (retry new chat)' : ''}…`);
       showGlossaryCancelButton(true);
 
       const res = await request({
@@ -421,8 +477,16 @@ async function runGlossaryFullAuto(): Promise<void> {
         mode: 'full', payload,
       }, 240000);
 
+      await restoreExtensionNewTabSetting();
       if (!isGlossaryAutoRunning) break;
       if (res.type !== 'COPAS_RESULT' || !res.ok || !res.text) {
+        if (retryCount < 1) {
+          retryCount++;
+          const detail = res.error || (res.type === 'TIMEOUT' ? 'timeout' : 'gagal');
+          setGlossaryStatus(`Mengulang batch di obrolan baru (${detail})…`);
+          await triggerExtensionNewChat();
+          continue;
+        }
         const detail = res.error || (res.type === 'TIMEOUT' ? 'timeout' : 'gagal');
         setGlossaryStatus(`Berhenti: ${detail}`);
         flashHint(`Auto Glossary berhenti: ${detail}`);
@@ -431,6 +495,7 @@ async function runGlossaryFullAuto(): Promise<void> {
 
       autoSaveGlossaryResult(res.text);
       processed += batch.length;
+      retryCount = 0;
     }
     if (isGlossaryAutoRunning) {
       flashHint(`Auto Glossary selesai: ${processed} baris diproses.`);
@@ -536,6 +601,7 @@ async function runAiCheckFullAuto(): Promise<void> {
   isAiCheckAutoRunning = true;
   let processed = 0;
   let totalApplied = 0;
+  let retryCount = 0;
   try {
     while (isAiCheckAutoRunning && processed < allLines.length) {
       const batch = allLines.slice(processed, processed + batchSize);
@@ -548,8 +614,8 @@ async function runAiCheckFullAuto(): Promise<void> {
 
       const reqId = rid();
       activeRequestId = reqId;
-      setAiCheckExtStatus(`Mengirim batch ${Math.floor(processed / batchSize) + 1}…`);
-      setAiCheckStatus(`Auto Cek batch ${Math.floor(processed / batchSize) + 1}…`);
+      setAiCheckExtStatus(`Mengirim batch ${Math.floor(processed / batchSize) + 1}${retryCount ? ' (retry new chat)' : ''}…`);
+      setAiCheckStatus(`Auto Cek batch ${Math.floor(processed / batchSize) + 1}${retryCount ? ' (retry new chat)' : ''}…`);
       showAiCheckCancelButton(true);
 
       const res = await request({
@@ -557,8 +623,17 @@ async function runAiCheckFullAuto(): Promise<void> {
         mode: 'full', payload,
       }, 240000);
 
+      await restoreExtensionNewTabSetting();
       if (!isAiCheckAutoRunning) break;
       if (res.type !== 'COPAS_RESULT' || !res.ok || !res.text) {
+        if (retryCount < 1) {
+          retryCount++;
+          const detail = res.error || (res.type === 'TIMEOUT' ? 'timeout' : 'gagal');
+          setAiCheckExtStatus(`Mengulang batch di obrolan baru (${detail})…`);
+          setAiCheckStatus(`Mengulang di obrolan baru…`);
+          await triggerExtensionNewChat();
+          continue;
+        }
         const detail = res.error || (res.type === 'TIMEOUT' ? 'timeout' : 'gagal');
         setAiCheckExtStatus(`Berhenti: ${detail}`);
         setAiCheckStatus(`Auto Cek berhenti: ${detail}`);
@@ -577,8 +652,16 @@ async function runAiCheckFullAuto(): Promise<void> {
           .filter(p => selectedSet.has(p.num))
           .map(p => ({ ...p, category: p.category || 'Naturalness', checked: true }));
         renderAiCheckCorrections();
+        retryCount = 0;
       } catch {
-        setAiCheckExtStatus('Parse gagal — periksa kotak AI Check.');
+        if (retryCount < 1) {
+          retryCount++;
+          setAiCheckExtStatus('Parse gagal — mengulang batch di obrolan baru (New Chat)…');
+          setAiCheckStatus('Parse gagal — mencoba ulang di obrolan baru…');
+          await triggerExtensionNewChat();
+          continue;
+        }
+        setAiCheckExtStatus('Parse gagal setelah retry — periksa kotak AI Check.');
         break;
       }
 
