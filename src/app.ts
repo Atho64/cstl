@@ -20,9 +20,14 @@ window.addEventListener('unhandledrejection', function(event) {
 });
 
 import { init } from './ui-init';
+import { initExtensionBridge } from './extension-bridge';
 
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', () => init());
+  document.addEventListener('DOMContentLoaded', () => {
+    init();
+    initExtensionBridge();
+  });
 } else {
   init();
+  initExtensionBridge();
 }

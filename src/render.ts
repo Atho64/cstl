@@ -374,7 +374,25 @@ export function updateButtonStates(): void {
   setDisabled('btnSelectAll', !hasData);
   setDisabled('btnClearSelection', !hasSelection);
   setDisabled('btnCopyForAi', untranslatedSelectionCount === 0);
-  const untranslatedCount = state.lines.filter(l => !isTranslated(l)).length;
+  const extOk = (() => {
+    try {
+      // lazy import avoid circular — function set on window by bridge? use dynamic check via button dataset
+      return !!(ui.btnAutoCopas as HTMLButtonElement | undefined)?.dataset?.extReady
+        || document.documentElement.dataset.cstlExt === '1';
+    } catch { return false; }
+  })();
+  // Prefer live bridge flag when module already loaded
+  let bridgeOk = false;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    bridgeOk = (window as any).__cstlExtAvailable === true;
+  } catch { /* */ }
+  const canCopas = untranslatedSelectionCount > 0 && (bridgeOk || document.documentElement.dataset.cstlExt === '1');
+  const untranslatedCount = state.lines.filter(l => !isTranslated(l) && !l._hidden).length;
+  // Full Auto can select the next batch itself, so it must remain available
+  // even when the user has not manually selected rows.
+  setDisabled('btnAutoCopas', untranslatedCount === 0);
+  setDisabled('btnFetchCopasResult', !hasData);
   setDisabled('btnAutoTranslate', untranslatedCount === 0);
   setDisabled('btnCopyNamesForAi', nameCount === 0);
   setDisabled('btnResetNameTranslations', translatedNameCount === 0);

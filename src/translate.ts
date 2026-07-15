@@ -17,9 +17,10 @@ import {
 } from './constants';
 
 
-export async function onCopyForAi(): Promise<void> {
+/** Build the same prompt as Copy for AI. Returns null if nothing selected. */
+export function buildCopyForAiPrompt(): string | null {
   const sel = state.lines.filter(l => state.selectedLines.has(l.line_num) && !isTranslated(l));
-  if (!sel.length) return;
+  if (!sel.length) return null;
 
   let contextBlock = '';
   if (state.contextLines > 0) {
@@ -59,10 +60,20 @@ export async function onCopyForAi(): Promise<void> {
     sections.push('If you are uncertain about a translation, prefix it with [?].');
   }
   sections.push(joinedText.trim());
-  const p = sections.join('\n\n');
+  return sections.join('\n\n');
+}
+
+export function countSelectedUntranslated(): number {
+  return state.lines.filter(l => state.selectedLines.has(l.line_num) && !isTranslated(l)).length;
+}
+
+export async function onCopyForAi(): Promise<void> {
+  const p = buildCopyForAiPrompt();
+  if (!p) return;
+  const n = countSelectedUntranslated();
   try {
     await navigator.clipboard.writeText(p);
-    flashHint(`Disalin ${sel.length} baris.`);
+    flashHint(`Disalin ${n} baris.`);
   } catch (_) {
     (ui.pasteArea as HTMLTextAreaElement).value = p;
   }

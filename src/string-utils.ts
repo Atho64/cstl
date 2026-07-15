@@ -87,13 +87,24 @@ export function truncateForPrompt(text: string, maxLen = 180): string {
   return `${clean.slice(0, maxLen - 3)}...`;
 }
 
+export function stripScrapedAiPreamble(text: string): string {
+  return String(text || '').replace(
+    /^\s*(?:gemini\s*(?:berkata|says|said)\s*)?plaintext\s*(?=(?:\d+\s*[.)]|\[line\s+\d+\]|<\?xml\b|<lines\b|<line\s+num=|\{\s*"num"|\[\s*\d+\s*,))/i,
+    ''
+  );
+}
+
 export function stripPlaintextFences(text: string): string {
-  return String(text || '')
+  const clean = String(text || '')
     .split(/\r?\n/)
     .filter(line => !/^\s*```(?:plaintext|text|xml|jsonl|json)?\s*$/i.test(line.trim()))
     .filter(line => !/^\s*<\/?lines>\s*$/i.test(line.trim()))
     .filter(line => !/^\s*<\?xml\b[^>]*>\s*$/i.test(line.trim()))
     .join('\n');
+
+  // Defensive cleanup for Gemini's scraped accessibility/code-block labels,
+  // which can be joined to the first output token without whitespace.
+  return stripScrapedAiPreamble(clean);
 }
 
 export function stripDecorativeWrapping(value: string): string {

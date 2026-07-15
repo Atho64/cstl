@@ -146,9 +146,27 @@
 
         <div id="viewTranslate">
           <div class="card-box mb-2" data-htl-hide="true">
-            <button id="btnCopyForAi" class="btn btn-primary w-full mb-1" disabled>Copy <span id="copyCount">0</span> Baris</button>
-            <div class="flex gap-2"><select id="aiTranslateModeSelect" class="text-input" style="width: auto;"><option value="auto">Auto</option><option value="agent">Agent</option></select><button id="btnAutoTranslate" class="btn btn-success grow" disabled>Jalankan Auto Translate</button></div>
-          </div>
+                      <button id="btnCopyForAi" class="btn btn-primary w-full mb-1" disabled>Copy <span id="copyCount">0</span> Baris</button>
+                      <div id="autoCopasControls" hidden>
+                        <div class="flex gap-2 wrap mb-1">
+                          <select id="autoCopasTarget" class="text-input" style="width: auto;" title="Target Auto Copas">
+                            <option value="gemini">Gemini</option>
+                            <option value="deepseek">DeepSeek</option>
+                            <option value="meta">Meta AI</option>
+                            <option value="chatgpt">ChatGPT</option>
+                          </select>
+                          <select id="autoCopasMode" class="text-input" style="width: auto;" title="Mode Auto Copas">
+                            <option value="semi">Semi</option>
+                            <option value="full">Full</option>
+                          </select>
+                          <button id="btnAutoCopas" class="btn btn-outline grow" disabled title="Kirim baris terpilih ke extension CSTL Auto Copas">Auto Copas</button>
+                          <button id="btnFetchCopasResult" class="btn btn-outline grow" disabled title="Ambil balasan terakhir dari tab LLM">Ambil Hasil</button>
+                          <button id="btnAutoCopasCancel" class="btn btn-danger" style="display:none" title="Batalkan Auto Copas yang berjalan">Batal</button>
+                        </div>
+                        <div id="autoCopasStatus" class="hint m-0 mb-1">Extension: mengecek…</div>
+                      </div>
+                      <div class="flex gap-2"><select id="aiTranslateModeSelect" class="text-input" style="width: auto;"><option value="auto">Auto</option><option value="agent">Agent</option></select><button id="btnAutoTranslate" class="btn btn-success grow" disabled>Jalankan Auto Translate</button></div>
+                    </div>
           <div id="copyStatus" class="status-toast empty" data-htl-hide="true"></div>
           <div id="glossaryPreviewWrap" class="glossary-preview" hidden data-htl-hide="true">
             <div class="section-label mt-0">Glossary yang ikut terkirim</div>

@@ -7,7 +7,7 @@ import {
   DEFAULT_PROMPT_HEADER_NUMBERED, DEFAULT_PROMPT_HEADER_BLOCK,
   DEFAULT_PROMPT_HEADER_XML, DEFAULT_PROMPT_HEADER_JSONL, DEFAULT_PROMPT_HEADER_JSON_ARRAY,
 } from './constants';
-import { unescapeStoredNewlines, escapeStoredNewlines, escapeXml, stripPlaintextFences, applyReplaceRules } from './string-utils';
+import { unescapeStoredNewlines, escapeStoredNewlines, escapeXml, stripPlaintextFences, stripScrapedAiPreamble, applyReplaceRules } from './string-utils';
 import { getLineDisplayName } from './luca-engine';
 import { isTranslated } from './state';
 import type { Line, ParsedTranslationItem } from './types';
@@ -155,11 +155,11 @@ export function detectTranslationPasteFormat(text: string): string {
 export function parseTranslationXml(text: string): ParsedTranslationItem[] {
   // Hanya strip baris code fence (```xml, ```), jangan hapus <lines> atau <?xml?>
   // karena DOMParser butuh root element yang utuh.
-  const stripped = String(text || '')
+  const stripped = stripScrapedAiPreamble(String(text || '')
     .split(/\r?\n/)
     .filter(line => !/^\s*```(?:xml)?\s*$/i.test(line.trim()))
     .join('\n')
-    .trim();
+    .trim());
   const parser = new DOMParser();
   const doc = parser.parseFromString(stripped, 'application/xml');
   const parseErr = doc.querySelector('parsererror');

@@ -44,6 +44,7 @@ import { getLucaProfile, populateLucaExportSlotSelect, DEFAULT_LUCA_PROFILE } fr
 import { bindShortcutCaptureInput } from './shortcuts';
 import { getMainScroller } from './state';
 import { initDictionary } from './dictionary';
+import { initExtensionBridge, isExtensionAvailable } from './extension-bridge';
 
 // ─── Debounce Utility ─────────────────────────────────────────────────────────
 
@@ -66,6 +67,7 @@ export function cacheElements(): void {
     'btnImportFolder', 'btnImportZip', 'btnImportTranslatedFile', 'btnImportTranslatedFolder', 'btnExport', 'btnProofread', 'btnSettings',
     'previewViewport', 'previewContainer', 'currentFileBar', 'progressFill', 'progressText', 'btnSelectAll',
     'btnClearSelection', 'copyCount', 'btnCopyForAi', 'copyStatus', 'pasteArea', 'btnApply', 'checkIgnorePasteNames',
+    'autoCopasControls', 'btnAutoCopas', 'btnFetchCopasResult', 'autoCopasStatus', 'autoCopasTarget', 'autoCopasMode', 'btnAutoCopasCancel',
     'btnUndo', 'btnRedo', 'nameTableBody', 'statusBar', 'importFileInput', 'importFolderInput', 'importTranslatedFileInput', 'importTranslatedFolderInput',
     'btnCopyNamesForAi', 'copyNameCount', 'pasteNameArea', 'btnApplyNameTranslations', 'btnResetNameTranslations',
     'glossaryPreviewWrap', 'glossaryPreviewText',
