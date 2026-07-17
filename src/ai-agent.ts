@@ -404,6 +404,7 @@ const SETTING_REGISTRY: Record<string, SettingMeta> = {
   checkLengthRatio: { field: 'checkLengthRatio', type: 'boolean', desc: 'Cek rasio panjang terjemahan' },
   checkLanguage: { field: 'checkLanguage', type: 'boolean', desc: 'Cek bahasa terjemahan' },
   checkPunctuation: { field: 'checkPunctuation', type: 'boolean', desc: 'Cek tanda baca' },
+  checkUntransName: { field: 'checkUntransName', type: 'boolean', desc: 'Cek nama karakter JP belum diterjemahkan' },
   enableUncertainMarking: { field: 'enableUncertainMarking', type: 'boolean', desc: 'Tandai baris yang belum pasti' },
   enableBackgroundChaining: { field: 'enableBackgroundChaining', type: 'boolean', desc: 'Aktifkan background chaining' },
   disableEmptyLineValidation: { field: 'disableEmptyLineValidation', type: 'boolean', desc: 'Matikan validasi baris kosong' },

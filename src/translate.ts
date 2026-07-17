@@ -209,6 +209,20 @@ export function onApplyTranslation(options: ApplyTranslationOptions = {}): void 
           errors.push(`[#${it.num}] Similarity: terjemahan terlalu mirip dengan teks asli (${Math.round(sim * 100)}% ≥ ${Math.round(state.similarityThreshold * 100)}%).`);
         }
       }
+      if (state.checkUntransName && !ignoreNames) {
+        const origName = (l.name || '').trim();
+        const kanaRegex = /[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]/;
+        if (origName && kanaRegex.test(origName)) {
+          const transName = (it.name || '').trim();
+          if (!transName) {
+            errors.push(`[#${it.num}] Untranslated Name: nama karakter JP belum diterjemahkan.`);
+          } else if (transName === origName) {
+            errors.push(`[#${it.num}] Untranslated Name: nama masih salinan JP (${origName}).`);
+          } else if (kanaRegex.test(transName)) {
+            errors.push(`[#${it.num}] Untranslated Name: nama masih mengandung karakter JP (${transName}).`);
+          }
+        }
+      }
       updates.push({ l, it });
     }
   }

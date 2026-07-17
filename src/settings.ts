@@ -68,6 +68,7 @@ export function onOpenSettings(): void {
   if (ui.settingsCheckLinebreak) (ui.settingsCheckLinebreak as HTMLInputElement).checked = state.checkLinebreak !== false;
   if (ui.settingsCheckLanguage) (ui.settingsCheckLanguage as HTMLInputElement).checked = state.checkLanguage !== false;
   if (ui.settingsCheckPunctuation) (ui.settingsCheckPunctuation as HTMLInputElement).checked = state.checkPunctuation !== false;
+  if (ui.settingsCheckUntransName) (ui.settingsCheckUntransName as HTMLInputElement).checked = !!state.checkUntransName;
   if (ui.settingsEnableUncertainMarking) (ui.settingsEnableUncertainMarking as HTMLInputElement).checked = !!state.enableUncertainMarking;
   if (ui.settingsAgentMaxTurns) (ui.settingsAgentMaxTurns as HTMLInputElement).value = String(state.agentMaxTurns || 10);
   if (ui.settingsAiTranslationFormatSelect) {
@@ -203,6 +204,7 @@ export function onSavePromptSettings(): void {
   state.checkLinebreak = (ui.settingsCheckLinebreak as HTMLInputElement)?.checked !== false;
   state.checkLanguage = (ui.settingsCheckLanguage as HTMLInputElement)?.checked !== false;
   state.checkPunctuation = (ui.settingsCheckPunctuation as HTMLInputElement)?.checked !== false;
+  state.checkUntransName = !!((ui.settingsCheckUntransName as HTMLInputElement)?.checked);
   state.enableUncertainMarking = !!((ui.settingsEnableUncertainMarking as HTMLInputElement)?.checked);
   const amtRaw = parseInt((ui.settingsAgentMaxTurns as HTMLInputElement)?.value);
   state.agentMaxTurns = (!isNaN(amtRaw) && amtRaw >= 3 && amtRaw <= 30) ? amtRaw : 10;

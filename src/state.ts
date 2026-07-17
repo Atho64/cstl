@@ -39,6 +39,7 @@ export const state: AppState = {
   lengthRatioThreshold: 2.5,
   checkLanguage: false,
   checkPunctuation: false,
+  checkUntransName: false,
   enableUncertainMarking: false,
   aiBackupKeys: '',
   aiKeyStrategy: 'fallback',

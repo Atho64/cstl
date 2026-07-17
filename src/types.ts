@@ -72,6 +72,7 @@ export interface AppState {
   lengthRatioThreshold: number;
   checkLanguage: boolean;
   checkPunctuation: boolean;
+  checkUntransName: boolean;
   enableUncertainMarking: boolean;
   aiBackupKeys: string;
   aiKeyStrategy: 'fallback' | 'random';

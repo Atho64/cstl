@@ -513,7 +513,7 @@ export function queueAutoSave(): void {
       luca_profile: state.lucaProfile || DEFAULT_LUCA_PROFILE,
       luca_mc_display_name: state.lucaMcDisplayName || DEFAULT_LUCA_MC_DISPLAY_NAME,
       regex_filter: state.regexFilter, pre_replace_rules: state.preReplaceRules, post_replace_rules: state.postReplaceRules, disable_empty_line_validation: state.disableEmptyLineValidation,
-      check_kana_residue: state.checkKanaResidue, check_similarity: state.checkSimilarity, check_linebreak: state.checkLinebreak, check_length_ratio: state.checkLengthRatio, length_ratio_threshold: state.lengthRatioThreshold, check_language: state.checkLanguage, check_punctuation: state.checkPunctuation, enable_uncertain_marking: state.enableUncertainMarking, agent_max_turns: state.agentMaxTurns,
+      check_kana_residue: state.checkKanaResidue, check_similarity: state.checkSimilarity, check_linebreak: state.checkLinebreak, check_length_ratio: state.checkLengthRatio, length_ratio_threshold: state.lengthRatioThreshold, check_language: state.checkLanguage, check_punctuation: state.checkPunctuation, check_untrans_name: state.checkUntransName, enable_uncertain_marking: state.enableUncertainMarking, agent_max_turns: state.agentMaxTurns,
       show_furigana: state.showFurigana,
       furigana_type: state.furiganaType || 'hiragana',
       font_size: state.fontSize,
@@ -595,6 +595,7 @@ export function openProject(id: string, data: any): void {
   state.lengthRatioThreshold = (typeof data.length_ratio_threshold === 'number' && data.length_ratio_threshold > 0) ? data.length_ratio_threshold : 2.5;
   state.checkLanguage = data.check_language !== undefined ? !!data.check_language : false;
   state.checkPunctuation = data.check_punctuation !== undefined ? !!data.check_punctuation : false;
+  state.checkUntransName = !!data.check_untrans_name;
   state.enableUncertainMarking = !!data.enable_uncertain_marking;
   state.agentMaxTurns = (typeof data.agent_max_turns === 'number' && data.agent_max_turns >= 3) ? data.agent_max_turns : 10;
   state.showFurigana = !!data.show_furigana;
@@ -671,7 +672,7 @@ export function closeProject(): void {
       lucaExportLang: state.lucaExportLang, luca_profile: state.lucaProfile || DEFAULT_LUCA_PROFILE,
       luca_mc_display_name: state.lucaMcDisplayName || DEFAULT_LUCA_MC_DISPLAY_NAME,
       regex_filter: state.regexFilter, disable_empty_line_validation: state.disableEmptyLineValidation,
-      check_kana_residue: state.checkKanaResidue, check_similarity: state.checkSimilarity, check_linebreak: state.checkLinebreak, check_length_ratio: state.checkLengthRatio, length_ratio_threshold: state.lengthRatioThreshold, check_language: state.checkLanguage, check_punctuation: state.checkPunctuation, enable_uncertain_marking: state.enableUncertainMarking, agent_max_turns: state.agentMaxTurns,
+      check_kana_residue: state.checkKanaResidue, check_similarity: state.checkSimilarity, check_linebreak: state.checkLinebreak, check_length_ratio: state.checkLengthRatio, length_ratio_threshold: state.lengthRatioThreshold, check_language: state.checkLanguage, check_punctuation: state.checkPunctuation, check_untrans_name: state.checkUntransName, enable_uncertain_marking: state.enableUncertainMarking, agent_max_turns: state.agentMaxTurns,
       show_furigana: state.showFurigana,
       furigana_type: state.furiganaType || 'hiragana',
       font_size: state.fontSize,
