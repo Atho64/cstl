@@ -1044,17 +1044,25 @@
       
       <div class="mt-3">
         <label class="hint m-0" for="apiTypeSelect">Tipe API</label>
-        <select id="apiTypeSelect" class="text-input w-full mt-1">
-          <option value="openai">OpenAI Compatible (GPT, Claude via OpenRouter, DeepSeek, Local LLM)</option>
-          <option value="gemini">Gemini API (Google AI Studio)</option>
-        </select>
-      </div>
+                <select id="apiTypeSelect" class="text-input w-full mt-1">
+                  <option value="openai">OpenAI Compatible (GPT, Claude via OpenRouter, DeepSeek, Local LLM)</option>
+                  <option value="anthropic">Anthropic Compatible (/v1/messages — Claude, Forge gateway, dll.)</option>
+                  <option value="gemini">Gemini API (Google AI Studio)</option>
+                </select>
+                <p class="hint mb-0">Anthropic: kirim ke <code>/v1/messages</code> dengan field <code>system</code> (cocok Forge multi-model). OpenAI: <code>/v1/chat/completions</code>.</p>
+              </div>
 
-      <div class="mt-3">
-        <label class="hint m-0" for="apiUrlInput">API URL</label>
-        <input id="apiUrlInput" class="text-input w-full mt-1" type="text" placeholder="https://api.openai.com/v1/chat/completions" />
-        <p class="hint mb-0">Kosongkan untuk URL default OpenAI/Gemini.</p>
-      </div>
+              <div class="mt-3">
+                <label class="hint m-0" for="apiUrlInput">API URL</label>
+                <input id="apiUrlInput" class="text-input w-full mt-1" type="text" placeholder="https://api.openai.com/v1/chat/completions" />
+                <p class="hint mb-0">Kosongkan untuk URL default. OpenAI: …/v1 atau …/chat/completions. Anthropic: …/v1 atau …/v1/messages. Gemini: URL generateContent.</p>
+              </div>
+
+              <div class="flex-center gap-2 mt-2">
+                <input id="apiMergeSystemCheck" type="checkbox" />
+                <label for="apiMergeSystemCheck" class="hint m-0" style="cursor:pointer;">Merge system prompt ke user message</label>
+              </div>
+              <p class="hint mb-0">Aktifkan jika gateway membuang <code>role: system</code> (contoh: Forge OpenAI route). Untuk Anthropic native/Forge <code>/v1/messages</code> biasanya tidak perlu — system dikirim sebagai field terpisah.</p>
 
       <div class="mt-3">
         <label class="hint m-0" for="apiKeyInput">API Key</label>

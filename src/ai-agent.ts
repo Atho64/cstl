@@ -170,6 +170,9 @@ export async function chatCompletion(
       if (state.aiApiType === 'gemini') {
         return await chatCompletionGemini(messages, config, onDelta);
       }
+      if (state.aiApiType === 'anthropic') {
+        return await chatCompletionAnthropic(messages, config, onDelta);
+      }
       return await chatCompletionOpenAI(messages, config, onDelta);
     } catch (err: any) {
       lastError = err;
@@ -183,6 +186,32 @@ export async function chatCompletion(
   throw lastError || new Error('Semua API key gagal.');
 }
 
+/** Collect system messages and optionally merge them into the first user message. */
+function prepareMessagesForApi(messages: ChatMessage[]): { system: string; messages: ChatMessage[] } {
+  const systems: string[] = [];
+  const rest: ChatMessage[] = [];
+  for (const m of messages) {
+    if (m.role === 'system') systems.push(m.content);
+    else rest.push({ role: m.role, content: m.content });
+  }
+  const system = systems.join('\n\n').trim();
+  if (state.aiMergeSystemPrompt && system) {
+    const merged = rest.slice();
+    const firstUserIdx = merged.findIndex(m => m.role === 'user');
+    const prefix = `[System instructions]\n${system}\n\n`;
+    if (firstUserIdx >= 0) {
+      merged[firstUserIdx] = {
+        role: 'user',
+        content: prefix + merged[firstUserIdx].content,
+      };
+    } else {
+      merged.unshift({ role: 'user', content: prefix.trim() });
+    }
+    return { system: '', messages: merged };
+  }
+  return { system, messages: rest };
+}
+
 async function chatCompletionOpenAI(
   messages: ChatMessage[],
   config: ApiConfig,
@@ -193,9 +222,19 @@ async function chatCompletionOpenAI(
     if (!url.endsWith('/')) url += '/';
     url += 'chat/completions';
   }
+
+  const prepared = prepareMessagesForApi(messages);
+  const apiMessages: { role: string; content: string }[] = [];
+  if (prepared.system) {
+    apiMessages.push({ role: 'system', content: prepared.system });
+  }
+  for (const m of prepared.messages) {
+    apiMessages.push({ role: m.role, content: m.content });
+  }
+
   const body: any = {
     model: config.model || 'gpt-4o-mini',
-    messages: messages.map(({ role, content }) => ({ role, content })),
+    messages: apiMessages,
     temperature: state.aiTemperature ?? 1.0,
     top_p: state.aiTopP ?? 1.0,
     stream: true,
@@ -210,6 +249,8 @@ async function chatCompletionOpenAI(
       body.reasoning = thinkMode === 'on' ? { effort: 'high' } : { effort: 'none' };
     } else if (/o1|o3|o4/.test(config.model || '')) {
       body.reasoning_effort = thinkMode === 'on' ? 'high' : 'low';
+    } else if (/forge-gateway/.test(apiUrl)) {
+      body.thinking = thinkMode === 'on';
     }
   }
 
@@ -260,6 +301,134 @@ async function chatCompletionOpenAI(
     // Some proxies return one JSON object as a single data line without deltas
     return '';
   }
+  return state.aiFilterThinkingOutput ? stripThinkingTags(full) : full;
+}
+
+function anthropicMessagesUrl(baseUrl: string): string {
+  let url = (baseUrl || '').trim() || 'https://api.anthropic.com/v1/messages';
+  if (/\/messages\/?$/.test(url)) return url.replace(/\/$/, '');
+  url = url.replace(/\/chat\/completions\/?$/, '');
+  url = url.replace(/\/$/, '');
+  if (!url.endsWith('/messages')) url += '/messages';
+  return url;
+}
+
+function extractAnthropicText(data: any): string {
+  if (!data) return '';
+  if (Array.isArray(data.content)) {
+    return data.content
+      .filter((p: any) => p && (p.type === 'text' || typeof p.text === 'string'))
+      .map((p: any) => p.text || '')
+      .join('');
+  }
+  if (data.choices?.[0]?.message?.content) {
+    return String(data.choices[0].message.content || '');
+  }
+  if (typeof data.completion === 'string') return data.completion;
+  return '';
+}
+
+async function chatCompletionAnthropic(
+  messages: ChatMessage[],
+  config: ApiConfig,
+  onDelta?: StreamDeltaCallback
+): Promise<string> {
+  const url = anthropicMessagesUrl(config.url || '');
+  const prepared = prepareMessagesForApi(messages);
+
+  // Anthropic requires alternating user/assistant; fold consecutive same-role if needed
+  const anthMessages: { role: 'user' | 'assistant'; content: string }[] = [];
+  for (const m of prepared.messages) {
+    const role: 'user' | 'assistant' = m.role === 'assistant' ? 'assistant' : 'user';
+    const last = anthMessages[anthMessages.length - 1];
+    if (last && last.role === role) {
+      last.content += '\n\n' + m.content;
+    } else {
+      anthMessages.push({ role, content: m.content });
+    }
+  }
+  if (anthMessages.length === 0) {
+    anthMessages.push({ role: 'user', content: '(empty)' });
+  }
+  // Anthropic requires first message to be user
+  if (anthMessages[0].role !== 'user') {
+    anthMessages.unshift({ role: 'user', content: '(continue)' });
+  }
+
+  const body: any = {
+    model: config.model || 'claude-haiku-4-5-20251001',
+    max_tokens: 8192,
+    temperature: state.aiTemperature ?? 1.0,
+    messages: anthMessages,
+    stream: true,
+  };
+  if (prepared.system) {
+    body.system = prepared.system;
+  }
+  if (state.aiTopP !== undefined && state.aiTopP < 1) {
+    body.top_p = state.aiTopP;
+  }
+  if (state.aiThinkingMode === 'on') {
+    body.thinking = true;
+  }
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': config.key,
+      'Authorization': `Bearer ${config.key}`,
+      'anthropic-version': '2023-06-01',
+      'Accept': 'text/event-stream',
+    },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error(`HTTP ${res.status}: ${errorText}`);
+  }
+
+  const ct = (res.headers.get('content-type') || '').toLowerCase();
+  if (ct.includes('application/json') && !ct.includes('event-stream') && !ct.includes('text/event-stream')) {
+    const data = await res.json();
+    const rawText = extractAnthropicText(data);
+    const text = state.aiFilterThinkingOutput ? stripThinkingTags(rawText) : rawText;
+    if (onDelta && text) onDelta(text, text);
+    return text;
+  }
+
+  let full = '';
+  await readSseDataLines(res, (data) => {
+    try {
+      const chunk = JSON.parse(data);
+      // Anthropic SSE: content_block_delta / message_delta, or OpenAI-wrapped choices
+      let piece = '';
+      if (chunk.type === 'content_block_delta' && chunk.delta?.type === 'text_delta') {
+        piece = chunk.delta.text || '';
+      } else if (chunk.type === 'content_block_delta' && typeof chunk.delta?.text === 'string') {
+        piece = chunk.delta.text;
+      } else if (chunk.delta?.text) {
+        piece = chunk.delta.text;
+      } else if (chunk.choices?.[0]?.delta?.content) {
+        piece = chunk.choices[0].delta.content;
+      } else if (chunk.choices?.[0]?.message?.content) {
+        piece = chunk.choices[0].message.content;
+      } else if (chunk.type === 'message' || chunk.type === 'message_start') {
+        // ignore scaffolding
+      } else if (Array.isArray(chunk.content)) {
+        piece = extractAnthropicText(chunk);
+      }
+      if (piece) {
+        full += piece;
+        const display = state.aiFilterThinkingOutput ? stripThinkingTags(full) : full;
+        onDelta?.(piece, display);
+      }
+    } catch {
+      // ignore malformed SSE chunks
+    }
+  });
+
+  if (!full) return '';
   return state.aiFilterThinkingOutput ? stripThinkingTags(full) : full;
 }
 
@@ -552,6 +721,7 @@ const SETTING_REGISTRY: Record<string, SettingMeta> = {
   enableBackgroundChaining: { field: 'enableBackgroundChaining', type: 'boolean', desc: 'Aktifkan background chaining' },
   disableEmptyLineValidation: { field: 'disableEmptyLineValidation', type: 'boolean', desc: 'Matikan validasi baris kosong' },
   aiFilterThinkingOutput: { field: 'aiFilterThinkingOutput', type: 'boolean', desc: 'Filter <think> tag dari output AI' },
+  aiMergeSystemPrompt: { field: 'aiMergeSystemPrompt', type: 'boolean', desc: 'Merge system prompt ke user (workaround gateway yang drop system, mis. Forge OpenAI)' },
   // Number settings
   fontSize: { field: 'fontSize', type: 'number', desc: 'Ukuran font (8-32)' },
   contextLines: { field: 'contextLines', type: 'number', desc: 'Jumlah baris konteks (0-100)' },

@@ -27,6 +27,7 @@ export function loadApiSettings(): void {
       if (p.aiRpm !== undefined) state.aiRpm = Number(p.aiRpm);
       if (p.aiThinkingMode) state.aiThinkingMode = p.aiThinkingMode;
       if (p.aiFilterThinkingOutput !== undefined) state.aiFilterThinkingOutput = !!p.aiFilterThinkingOutput;
+      if (p.aiMergeSystemPrompt !== undefined) state.aiMergeSystemPrompt = !!p.aiMergeSystemPrompt;
       if (p.aiBackupKeys !== undefined) state.aiBackupKeys = p.aiBackupKeys;
       if (p.aiKeyStrategy) state.aiKeyStrategy = p.aiKeyStrategy;
       if (p.aiTranslateMode) state.aiTranslateMode = p.aiTranslateMode;
@@ -50,6 +51,7 @@ export function saveApiSettings(): void {
     aiRpm: state.aiRpm,
     aiThinkingMode: state.aiThinkingMode,
     aiFilterThinkingOutput: state.aiFilterThinkingOutput,
+    aiMergeSystemPrompt: state.aiMergeSystemPrompt,
     aiBackupKeys: state.aiBackupKeys,
     aiKeyStrategy: state.aiKeyStrategy, aiTranslateMode: state.aiTranslateMode,
     tavilyApiKey: state.tavilyApiKey,
@@ -70,6 +72,7 @@ export function onOpenApiSettings(): void {
   if (ui.apiRpmInput) (ui.apiRpmInput as HTMLInputElement).value = String(state.aiRpm ?? 10);
   if (ui.apiThinkingSelect) (ui.apiThinkingSelect as HTMLSelectElement).value = state.aiThinkingMode || 'default';
   if (ui.apiFilterThinkingCheck) (ui.apiFilterThinkingCheck as HTMLInputElement).checked = state.aiFilterThinkingOutput !== false;
+  if (ui.apiMergeSystemCheck) (ui.apiMergeSystemCheck as HTMLInputElement).checked = !!state.aiMergeSystemPrompt;
   if (ui.apiBackupKeysInput) (ui.apiBackupKeysInput as HTMLTextAreaElement).value = state.aiBackupKeys || '';
   if (ui.apiKeyStrategySelect) (ui.apiKeyStrategySelect as HTMLSelectElement).value = state.aiKeyStrategy || 'fallback';
   if (ui.aiTranslateModeSelect) (ui.aiTranslateModeSelect as HTMLSelectElement).value = state.aiTranslateMode || 'auto';
@@ -84,7 +87,7 @@ export function onOpenApiSettings(): void {
 const PROFILES_STORAGE_KEY = 'cstl_api_profiles';
 
 export type ApiProfileData = {
-  aiApiType?: 'openai' | 'gemini';
+  aiApiType?: 'openai' | 'gemini' | 'anthropic';
   aiApiUrl?: string;
   aiApiKey?: string;
   aiModel?: string;
@@ -93,6 +96,7 @@ export type ApiProfileData = {
   aiRpm?: number;
   aiThinkingMode?: 'default' | 'off' | 'on';
   aiFilterThinkingOutput?: boolean;
+  aiMergeSystemPrompt?: boolean;
   aiBackupKeys?: string;
   aiKeyStrategy?: 'fallback' | 'random';
   tavilyApiKey?: string;
@@ -156,6 +160,7 @@ export function onLoadProfile(): void {
   if (p.aiRpm !== undefined && ui.apiRpmInput) (ui.apiRpmInput as HTMLInputElement).value = String(p.aiRpm);
   if (p.aiThinkingMode && ui.apiThinkingSelect) (ui.apiThinkingSelect as HTMLSelectElement).value = p.aiThinkingMode;
   if (p.aiFilterThinkingOutput !== undefined && ui.apiFilterThinkingCheck) (ui.apiFilterThinkingCheck as HTMLInputElement).checked = !!p.aiFilterThinkingOutput;
+  if (p.aiMergeSystemPrompt !== undefined && ui.apiMergeSystemCheck) (ui.apiMergeSystemCheck as HTMLInputElement).checked = !!p.aiMergeSystemPrompt;
   if (p.aiBackupKeys !== undefined && ui.apiBackupKeysInput) (ui.apiBackupKeysInput as HTMLTextAreaElement).value = p.aiBackupKeys;
   if (p.aiKeyStrategy && ui.apiKeyStrategySelect) (ui.apiKeyStrategySelect as HTMLSelectElement).value = p.aiKeyStrategy;
   if (p.tavilyApiKey !== undefined && ui.tavilyKeyInput) (ui.tavilyKeyInput as HTMLInputElement).value = p.tavilyApiKey;
@@ -185,6 +190,7 @@ export function onSaveProfile(): void {
     aiRpm: parseInt((ui.apiRpmInput as HTMLInputElement | undefined)?.value || '10') || 10,
     aiThinkingMode: (ui.apiThinkingSelect as HTMLSelectElement | undefined)?.value as any || 'default',
     aiFilterThinkingOutput: (ui.apiFilterThinkingCheck as HTMLInputElement | undefined)?.checked ?? true,
+    aiMergeSystemPrompt: (ui.apiMergeSystemCheck as HTMLInputElement | undefined)?.checked ?? false,
     aiBackupKeys: (ui.apiBackupKeysInput as HTMLTextAreaElement | undefined)?.value || '',
     aiKeyStrategy: (ui.apiKeyStrategySelect as HTMLSelectElement | undefined)?.value as any || 'fallback',
     tavilyApiKey: (ui.tavilyKeyInput as HTMLInputElement | undefined)?.value?.trim() || '',
@@ -249,14 +255,20 @@ export async function onFetchModels(): Promise<void> {
         .filter(Boolean)
         .sort();
     } else {
+      // OpenAI + Anthropic-compatible gateways usually expose GET /v1/models
       let url = apiUrl || 'https://api.openai.com/v1/models';
       url = url.replace(/\/chat\/completions\/?$/, '');
+      url = url.replace(/\/messages\/?$/, '');
       if (!url.endsWith('/models')) {
         if (!url.endsWith('/')) url += '/';
         url += 'models';
       }
       const res = await fetch(url, {
-        headers: { 'Authorization': 'Bearer ' + apiKey },
+        headers: {
+          'Authorization': 'Bearer ' + apiKey,
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+        },
       });
       if (!res.ok) {
         const detail = await res.text().catch(() => '');
@@ -335,6 +347,7 @@ export function onSaveApiSettings(): void {
   if (ui.apiRpmInput) state.aiRpm = parseInt((ui.apiRpmInput as HTMLInputElement).value) || 10;
   if (ui.apiThinkingSelect) state.aiThinkingMode = (ui.apiThinkingSelect as HTMLSelectElement).value as any;
   if (ui.apiFilterThinkingCheck) state.aiFilterThinkingOutput = (ui.apiFilterThinkingCheck as HTMLInputElement).checked;
+  if (ui.apiMergeSystemCheck) state.aiMergeSystemPrompt = (ui.apiMergeSystemCheck as HTMLInputElement).checked;
   if (ui.apiBackupKeysInput) state.aiBackupKeys = (ui.apiBackupKeysInput as HTMLTextAreaElement).value;
   if (ui.apiKeyStrategySelect) state.aiKeyStrategy = (ui.apiKeyStrategySelect as HTMLSelectElement).value as any;
   if (ui.aiTranslateModeSelect) state.aiTranslateMode = (ui.aiTranslateModeSelect as HTMLSelectElement).value as any;
@@ -696,9 +709,12 @@ async function fetchOpenAIWithConfig(prompt: string, config: ApiConfig): Promise
   }
 
   const temp = state.aiTemperature;
+  const userContent = state.aiMergeSystemPrompt
+    ? `[System instructions]\n${prompt}`
+    : prompt;
   const body: any = {
     model: config.model,
-    messages: [{ role: 'user', content: prompt }],
+    messages: [{ role: 'user', content: userContent }],
     temperature: temp,
     top_p: state.aiTopP,
   };
@@ -712,6 +728,9 @@ async function fetchOpenAIWithConfig(prompt: string, config: ApiConfig): Promise
       body.reasoning = thinkMode === 'on' ? { effort: 'high' } : { effort: 'none' };
     } else if (/o1|o3|o4/.test(config.model || '')) {
       body.reasoning_effort = thinkMode === 'on' ? 'high' : 'low';
+    } else if (/forge-gateway|thinking/.test(apiUrl) || thinkMode === 'on') {
+      // Forge custom param; harmless if ignored by other providers
+      if (/forge-gateway/.test(apiUrl)) body.thinking = thinkMode === 'on';
     }
   }
 
@@ -731,6 +750,61 @@ async function fetchOpenAIWithConfig(prompt: string, config: ApiConfig): Promise
 
   const data = await res.json();
   const rawText = data.choices?.[0]?.message?.content || '';
+  return state.aiFilterThinkingOutput ? stripThinkingTags(rawText) : rawText;
+}
+
+async function fetchAnthropicWithConfig(prompt: string, config: ApiConfig): Promise<string> {
+  let url = (config.url || '').trim() || 'https://api.anthropic.com/v1/messages';
+  // Accept base .../v1, .../v1/, or full .../messages
+  if (!/\/messages\/?$/.test(url)) {
+    url = url.replace(/\/chat\/completions\/?$/, '');
+    url = url.replace(/\/$/, '') + '/messages';
+  }
+
+  const body: any = {
+    model: config.model || 'claude-haiku-4-5-20251001',
+    max_tokens: 8192,
+    temperature: state.aiTemperature ?? 1.0,
+    messages: [{ role: 'user', content: prompt }],
+    stream: false,
+  };
+  // top_p + temperature together rejected by some Claude endpoints — send top_p only if not default
+  if (state.aiTopP !== undefined && state.aiTopP < 1) {
+    body.top_p = state.aiTopP;
+  }
+
+  const thinkMode = state.aiThinkingMode;
+  if (thinkMode === 'on') {
+    body.thinking = true;
+  }
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': config.key,
+      'Authorization': `Bearer ${config.key}`,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error(`HTTP ${res.status}: ${errorText}`);
+  }
+
+  const data = await res.json();
+  let rawText = '';
+  if (Array.isArray(data.content)) {
+    rawText = data.content
+      .filter((p: any) => p && (p.type === 'text' || typeof p.text === 'string'))
+      .map((p: any) => p.text || '')
+      .join('');
+  } else if (data.choices?.[0]?.message?.content) {
+    // Some gateways wrap Anthropic in OpenAI shape
+    rawText = data.choices[0].message.content;
+  }
   return state.aiFilterThinkingOutput ? stripThinkingTags(rawText) : rawText;
 }
 
@@ -797,6 +871,9 @@ export async function fetchApiResult(prompt: string): Promise<string> {
     try {
       if (state.aiApiType === 'gemini') {
         return await fetchGeminiWithConfig(prompt, config);
+      }
+      if (state.aiApiType === 'anthropic') {
+        return await fetchAnthropicWithConfig(prompt, config);
       }
       return await fetchOpenAIWithConfig(prompt, config);
     } catch (err: any) {

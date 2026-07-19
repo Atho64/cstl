@@ -71,6 +71,7 @@ export const state: AppState = {
   aiRpm: 10,
   aiThinkingMode: 'default',
   aiFilterThinkingOutput: true,
+  aiMergeSystemPrompt: false,
   glossaryPrompt: DEFAULT_GLOSSARY_PROMPT,
   aiCheckPrompt: DEFAULT_AI_CHECK_PROMPT,
   agentPrompt: DEFAULT_AGENT_PROMPT,

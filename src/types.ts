@@ -95,7 +95,7 @@ export interface AppState {
   importedFiles: string[];
   aiInstructionHeader: string;
   aiTranslationFormat: string;
-  aiApiType: 'openai' | 'gemini';
+  aiApiType: 'openai' | 'gemini' | 'anthropic';
   aiApiUrl: string;
   aiApiKey: string;
   aiModel: string;
@@ -104,6 +104,8 @@ export interface AppState {
   aiRpm: number;
   aiThinkingMode: 'default' | 'off' | 'on';
   aiFilterThinkingOutput: boolean;
+  /** Merge role:system into user message (workaround for gateways that drop system, e.g. Forge OpenAI route). */
+  aiMergeSystemPrompt: boolean;
   glossaryPrompt: string;
   aiCheckPrompt: string;
   agentPrompt: string;
