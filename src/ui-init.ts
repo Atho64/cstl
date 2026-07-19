@@ -777,11 +777,18 @@ if (ui.settingsCheckSimilarity) {
     historyEl.scrollTop = historyEl.scrollHeight;
     
     const sendAgentMessage = (await import('./ai-agent')).sendAgentMessage;
-    
+
+    // Disable input while agent runs
+    const sendBtn = ui.btnAgentSend as HTMLButtonElement | null;
+    if (sendBtn) sendBtn.disabled = true;
+    input.disabled = true;
+
     try {
-      await sendAgentMessage(text, (msg, role) => {
+      await sendAgentMessage(text, (msg, role, meta) => {
         respDiv.className = `agent-msg ${role}`;
-        
+        if (meta?.streaming) respDiv.classList.add('streaming');
+        else respDiv.classList.remove('streaming');
+
         let html = msg
           .replace(/&/g, '&amp;')
           .replace(/</g, '&lt;')
@@ -789,15 +796,21 @@ if (ui.settingsCheckSimilarity) {
           .replace(/\n/g, '<br>')
           .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
           .replace(/\*(.*?)\*/g, '<em>$1</em>')
-          .replace(/\`(.*?)\`/g, '<code>$1</code>');
-          
+          .replace(/`(.*?)`/g, '<code>$1</code>');
+
         respDiv.innerHTML = html;
         historyEl.scrollTop = historyEl.scrollHeight;
       });
+      respDiv.classList.remove('streaming');
     } catch (e: any) {
       respDiv.className = 'agent-msg system';
+      respDiv.classList.remove('streaming');
       respDiv.style.color = 'var(--danger)';
       respDiv.textContent = `Error: ${e.message}`;
+    } finally {
+      if (sendBtn) sendBtn.disabled = false;
+      input.disabled = false;
+      input.focus();
     }
   };
 

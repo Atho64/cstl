@@ -112,10 +112,53 @@ export function renderChatHistory(): void {
 }
 
 // ------------------------------------------------------------------
-// API Wrappers for Chat (OpenAI & Gemini) — multi-key
+// API Wrappers for Chat (OpenAI & Gemini) — multi-key + streaming
 // ------------------------------------------------------------------
 
-export async function chatCompletion(messages: ChatMessage[]): Promise<string> {
+export type StreamDeltaCallback = (delta: string, fullText: string) => void;
+
+/** Baca body SSE (data: ...\\n\\n). Fallback: treat whole body as one JSON if no stream. */
+async function readSseDataLines(
+  res: Response,
+  onEvent: (data: string) => void
+): Promise<void> {
+  if (!res.body) {
+    const text = await res.text();
+    if (text.trim()) onEvent(text.trim());
+    return;
+  }
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    // Normalize CRLF; process complete lines
+    buffer = buffer.replace(/\r\n/g, '\n');
+    let nl: number;
+    while ((nl = buffer.indexOf('\n')) >= 0) {
+      let line = buffer.slice(0, nl);
+      buffer = buffer.slice(nl + 1);
+      if (line.endsWith('\r')) line = line.slice(0, -1);
+      if (!line.startsWith('data:')) continue;
+      const data = line.slice(5).trimStart();
+      if (!data || data === '[DONE]') continue;
+      onEvent(data);
+    }
+  }
+  // leftover
+  const tail = buffer.trim();
+  if (tail.startsWith('data:')) {
+    const data = tail.slice(5).trimStart();
+    if (data && data !== '[DONE]') onEvent(data);
+  }
+}
+
+export async function chatCompletion(
+  messages: ChatMessage[],
+  onDelta?: StreamDeltaCallback
+): Promise<string> {
   const configs = parseBackupKeys();
   if (configs.length === 0) throw new Error("API Key belum diatur.");
   let ordered = configs;
@@ -125,9 +168,9 @@ export async function chatCompletion(messages: ChatMessage[]): Promise<string> {
     const config = ordered[i];
     try {
       if (state.aiApiType === 'gemini') {
-        return await chatCompletionGemini(messages, config);
+        return await chatCompletionGemini(messages, config, onDelta);
       }
-      return await chatCompletionOpenAI(messages, config);
+      return await chatCompletionOpenAI(messages, config, onDelta);
     } catch (err: any) {
       lastError = err;
       if (i < ordered.length - 1 && shouldTryNextKey(err)) {
@@ -140,7 +183,11 @@ export async function chatCompletion(messages: ChatMessage[]): Promise<string> {
   throw lastError || new Error('Semua API key gagal.');
 }
 
-async function chatCompletionOpenAI(messages: ChatMessage[], config: ApiConfig): Promise<string> {
+async function chatCompletionOpenAI(
+  messages: ChatMessage[],
+  config: ApiConfig,
+  onDelta?: StreamDeltaCallback
+): Promise<string> {
   let url = config.url || 'https://api.openai.com/v1/chat/completions';
   if (!url.includes('/chat/completions')) {
     if (!url.endsWith('/')) url += '/';
@@ -151,6 +198,7 @@ async function chatCompletionOpenAI(messages: ChatMessage[], config: ApiConfig):
     messages: messages.map(({ role, content }) => ({ role, content })),
     temperature: state.aiTemperature ?? 1.0,
     top_p: state.aiTopP ?? 1.0,
+    stream: true,
   };
 
   const thinkMode = state.aiThinkingMode;
@@ -167,26 +215,84 @@ async function chatCompletionOpenAI(messages: ChatMessage[], config: ApiConfig):
 
   const res = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${config.key}` },
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${config.key}`,
+      'Accept': 'text/event-stream',
+    },
     body: JSON.stringify(body),
   });
   if (!res.ok) {
     const errorText = await res.text();
     throw new Error(`HTTP ${res.status}: ${errorText}`);
   }
-  const data = await res.json();
-  const rawText = data.choices?.[0]?.message?.content || '';
-  return state.aiFilterThinkingOutput ? stripThinkingTags(rawText) : rawText;
+
+  const ct = (res.headers.get('content-type') || '').toLowerCase();
+  // Provider that ignores stream:true may still return JSON
+  if (ct.includes('application/json') && !ct.includes('event-stream') && !ct.includes('text/event-stream')) {
+    const data = await res.json();
+    const rawText = data.choices?.[0]?.message?.content || '';
+    const text = state.aiFilterThinkingOutput ? stripThinkingTags(rawText) : rawText;
+    if (onDelta && text) onDelta(text, text);
+    return text;
+  }
+
+  let full = '';
+  await readSseDataLines(res, (data) => {
+    try {
+      const chunk = JSON.parse(data);
+      // OpenAI / OpenRouter style
+      const delta =
+        chunk.choices?.[0]?.delta?.content ??
+        chunk.choices?.[0]?.message?.content ??
+        '';
+      if (typeof delta === 'string' && delta) {
+        full += delta;
+        const display = state.aiFilterThinkingOutput ? stripThinkingTags(full) : full;
+        onDelta?.(delta, display);
+      }
+    } catch {
+      // ignore malformed SSE chunks
+    }
+  });
+
+  if (!full) {
+    // Some proxies return one JSON object as a single data line without deltas
+    return '';
+  }
+  return state.aiFilterThinkingOutput ? stripThinkingTags(full) : full;
 }
 
-async function chatCompletionGemini(messages: ChatMessage[], config: ApiConfig): Promise<string> {
-  const model = config.model || 'gemini-1.5-flash';
-  let url = config.url;
+function geminiStreamUrl(baseUrl: string, model: string, key: string): string {
+  // Prefer streamGenerateContent; convert generateContent if present.
+  // Custom URLs that already include /models/ but no method are left as-is + alt=sse.
+  let url = (baseUrl || '').trim();
   if (!url) {
-    url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${config.key}`;
-  } else if (!url.includes('?key=')) {
-    url += `?key=${config.key}`;
+    url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent`;
+  } else if (url.includes(':generateContent')) {
+    url = url.replace(':generateContent', ':streamGenerateContent');
   }
+  // Strip existing query so we can re-append key/alt cleanly later
+  const qIdx = url.indexOf('?');
+  let query = '';
+  if (qIdx >= 0) {
+    query = url.slice(qIdx + 1);
+    url = url.slice(0, qIdx);
+  }
+  const params = new URLSearchParams(query);
+  if (!params.has('key')) params.set('key', key);
+  if (!params.has('alt')) params.set('alt', 'sse');
+  return `${url}?${params.toString()}`;
+}
+
+async function chatCompletionGemini(
+  messages: ChatMessage[],
+  config: ApiConfig,
+  onDelta?: StreamDeltaCallback
+): Promise<string> {
+  const model = config.model || 'gemini-1.5-flash';
+  const url = geminiStreamUrl(config.url || '', model, config.key);
+
   let systemInstruction: any = null;
   const contents: any[] = [];
   for (const msg of messages) {
@@ -208,19 +314,56 @@ async function chatCompletionGemini(messages: ChatMessage[], config: ApiConfig):
     generationConfig: genConfig,
   };
   if (systemInstruction) body.systemInstruction = systemInstruction;
+
   const res = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'Accept': 'text/event-stream' },
     body: JSON.stringify(body),
   });
   if (!res.ok) {
     const errorText = await res.text();
     throw new Error(`HTTP ${res.status}: ${errorText}`);
   }
-  const data = await res.json();
-  const parts: any[] = data.candidates?.[0]?.content?.parts || [];
-  const rawText = parts.filter((p: any) => !p.thought).map((p: any) => p.text || '').join('').trim();
-  return state.aiFilterThinkingOutput ? stripThinkingTags(rawText) : rawText;
+
+  const ct = (res.headers.get('content-type') || '').toLowerCase();
+  // Non-stream JSON fallback
+  if (ct.includes('application/json') && !ct.includes('event-stream') && !ct.includes('text/event-stream') && !ct.includes('text/plain')) {
+    const data = await res.json();
+    // stream without alt=sse can return an array of chunks
+    const chunks = Array.isArray(data) ? data : [data];
+    let full = '';
+    for (const item of chunks) {
+      const parts: any[] = item.candidates?.[0]?.content?.parts || [];
+      const piece = parts.filter((p: any) => !p.thought).map((p: any) => p.text || '').join('');
+      if (piece) {
+        full += piece;
+        const display = state.aiFilterThinkingOutput ? stripThinkingTags(full) : full;
+        onDelta?.(piece, display);
+      }
+    }
+    return state.aiFilterThinkingOutput ? stripThinkingTags(full) : full;
+  }
+
+  let full = '';
+  // Gemini alt=sse: each data line is a GenerateContentResponse JSON
+  // Some gateways stream raw NDJSON without "data:" prefix — also handle via buffer path in readSse
+  await readSseDataLines(res, (data) => {
+    try {
+      const chunk = JSON.parse(data);
+      const parts: any[] = chunk.candidates?.[0]?.content?.parts || [];
+      const piece = parts.filter((p: any) => !p.thought).map((p: any) => p.text || '').join('');
+      if (piece) {
+        full += piece;
+        const display = state.aiFilterThinkingOutput ? stripThinkingTags(full) : full;
+        onDelta?.(piece, display);
+      }
+    } catch {
+      // ignore
+    }
+  });
+
+  // If SSE parser got nothing, try reading as NDJSON/text (already consumed — full stays '')
+  return state.aiFilterThinkingOutput ? stripThinkingTags(full) : full;
 }
 
 // ------------------------------------------------------------------
@@ -1224,7 +1367,10 @@ ATURAN PENTING:
 
 export const chatHistory: ChatMessage[] = [];
 
-export async function sendAgentMessage(userMessage: string, onUpdate: (msg: string, role: 'assistant' | 'system') => void): Promise<void> {
+export async function sendAgentMessage(
+  userMessage: string,
+  onUpdate: (msg: string, role: 'assistant' | 'system', meta?: { streaming?: boolean }) => void
+): Promise<void> {
   // Ensure system prompt is fresh
   if (chatHistory.length === 0 || chatHistory[0].role !== 'system') {
     chatHistory.unshift({ role: 'system', content: buildSystemPrompt() });
@@ -1247,8 +1393,20 @@ export async function sendAgentMessage(userMessage: string, onUpdate: (msg: stri
     onUpdate('Memproses...', 'system');
 
     let responseText = '';
+    let streamedVisible = false;
     try {
-      responseText = await chatCompletion(chatHistory);
+      responseText = await chatCompletion(chatHistory, (_delta, fullText) => {
+        // Live stream only while text looks like a normal reply (not pure tool JSON).
+        // During tool-call JSON we keep "Memproses..." until parse finishes.
+        const looksLikeTool =
+          /^\s*\{/.test(fullText) ||
+          /"tool"\s*:/.test(fullText) ||
+          /```json\s*\{/.test(fullText);
+        if (!looksLikeTool && fullText.trim()) {
+          streamedVisible = true;
+          onUpdate(fullText, 'assistant', { streaming: true });
+        }
+      });
     } catch (e: any) {
       chatHistory.push({ role: 'assistant', content: `Error: ${e.message}` });
       saveChatHistory();
@@ -1277,7 +1435,8 @@ export async function sendAgentMessage(userMessage: string, onUpdate: (msg: stri
       // Loop continues — AI can call more tools or respond with text
     } else {
       // No tool call — plain text response, conversation turn ended
-      onUpdate(responseText, 'assistant');
+      // Final paint without streaming cursor (even if already streamed)
+      onUpdate(responseText || (streamedVisible ? '' : '(kosong)'), 'assistant', { streaming: false });
       break;
     }
   }

@@ -1480,6 +1480,18 @@ h3 .lucide-icon { width: 18px; height: 18px; vertical-align: -3px; margin-right:
   border: 1px solid var(--line);
   border-bottom-left-radius: 2px;
 }
+.agent-msg.streaming::after {
+  content: '▍';
+  display: inline-block;
+  margin-left: 2px;
+  color: var(--primary);
+  animation: agent-cursor-blink 0.9s step-end infinite;
+  font-weight: 600;
+}
+@keyframes agent-cursor-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
 .agent-msg pre { background: var(--bg); padding: 8px; border-radius: var(--radius-xs); overflow-x: auto; margin: 8px 0 0 0; }
 .agent-msg code { font-family: var(--font-mono); font-size: 11px; }
 .agent-input-area { padding: 10px 14px; background: var(--panel); border-top: 1px solid var(--line); }
