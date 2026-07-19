@@ -104,7 +104,7 @@ export interface AppState {
   aiRpm: number;
   aiThinkingMode: 'default' | 'off' | 'on';
   aiFilterThinkingOutput: boolean;
-  /** Merge role:system into user message (workaround for gateways that drop system, e.g. Forge OpenAI route). */
+  /** Merge role:system into user message (workaround for gateways that drop system on OpenAI-compatible routes). */
   aiMergeSystemPrompt: boolean;
   glossaryPrompt: string;
   aiCheckPrompt: string;

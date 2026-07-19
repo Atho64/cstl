@@ -728,9 +728,6 @@ async function fetchOpenAIWithConfig(prompt: string, config: ApiConfig): Promise
       body.reasoning = thinkMode === 'on' ? { effort: 'high' } : { effort: 'none' };
     } else if (/o1|o3|o4/.test(config.model || '')) {
       body.reasoning_effort = thinkMode === 'on' ? 'high' : 'low';
-    } else if (/forge-gateway|thinking/.test(apiUrl) || thinkMode === 'on') {
-      // Forge custom param; harmless if ignored by other providers
-      if (/forge-gateway/.test(apiUrl)) body.thinking = thinkMode === 'on';
     }
   }
 

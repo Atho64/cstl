@@ -249,8 +249,6 @@ async function chatCompletionOpenAI(
       body.reasoning = thinkMode === 'on' ? { effort: 'high' } : { effort: 'none' };
     } else if (/o1|o3|o4/.test(config.model || '')) {
       body.reasoning_effort = thinkMode === 'on' ? 'high' : 'low';
-    } else if (/forge-gateway/.test(apiUrl)) {
-      body.thinking = thinkMode === 'on';
     }
   }
 
@@ -721,7 +719,7 @@ const SETTING_REGISTRY: Record<string, SettingMeta> = {
   enableBackgroundChaining: { field: 'enableBackgroundChaining', type: 'boolean', desc: 'Aktifkan background chaining' },
   disableEmptyLineValidation: { field: 'disableEmptyLineValidation', type: 'boolean', desc: 'Matikan validasi baris kosong' },
   aiFilterThinkingOutput: { field: 'aiFilterThinkingOutput', type: 'boolean', desc: 'Filter <think> tag dari output AI' },
-  aiMergeSystemPrompt: { field: 'aiMergeSystemPrompt', type: 'boolean', desc: 'Merge system prompt ke user (workaround gateway yang drop system, mis. Forge OpenAI)' },
+  aiMergeSystemPrompt: { field: 'aiMergeSystemPrompt', type: 'boolean', desc: 'Merge system prompt ke user (workaround gateway yang drop system di OpenAI-compatible)' },
   // Number settings
   fontSize: { field: 'fontSize', type: 'number', desc: 'Ukuran font (8-32)' },
   contextLines: { field: 'contextLines', type: 'number', desc: 'Jumlah baris konteks (0-100)' },
