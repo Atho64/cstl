@@ -87,6 +87,7 @@ export function onOpenSettings(): void {
   (ui.settingsGlossaryBatchSizeInput as HTMLInputElement).value = String(state.glossaryBatchSize);
   (ui.settingsAiCheckBatchSizeInput as HTMLInputElement).value = String(state.aiCheckBatchSize);
   if (ui.settingsParallelBatchSizeInput) (ui.settingsParallelBatchSizeInput as HTMLInputElement).value = String(state.parallelBatchSize ?? 1);
+  if (ui.settingsSubagentWorkersInput) (ui.settingsSubagentWorkersInput as HTMLInputElement).value = String(state.subagentWorkers ?? 3);
   (ui.settingsSelectionPrevShortcutInput as HTMLInputElement).value = state.selectionBatchPrevShortcut;
   (ui.settingsSelectionNextShortcutInput as HTMLInputElement).value = state.selectionBatchNextShortcut;
 
@@ -215,6 +216,7 @@ export function onSavePromptSettings(): void {
   state.glossaryBatchSize = glossaryBatchSize;
   state.aiCheckBatchSize = aiCheckBatchSize;
   state.parallelBatchSize = parallelBatchSize;
+  state.subagentWorkers = Math.max(1, Math.min(10, parseInt((ui.settingsSubagentWorkersInput as HTMLInputElement)?.value) || 3));
   state.selectionBatchPrevShortcut = prevShortcut;
   state.selectionBatchNextShortcut = nextShortcut;
   state.lucaExportLang = (ui.settingsLucaExportLangSelect as HTMLSelectElement)?.value || state.lucaExportLang || 'en';

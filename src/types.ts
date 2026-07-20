@@ -116,6 +116,7 @@ export interface AppState {
   glossaryBatchSize: number;
   aiCheckBatchSize: number;
   parallelBatchSize: number;
+  subagentWorkers: number;
   selectionBatchPrevShortcut: string;
   selectionBatchNextShortcut: string;
   undoStack: UndoSnapshot[];

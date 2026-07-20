@@ -728,6 +728,7 @@ const SETTING_REGISTRY: Record<string, SettingMeta> = {
   aiCheckBatchSize: { field: 'aiCheckBatchSize', type: 'number', desc: 'Ukuran batch AI check (1-500)' },
   parallelBatchSize: { field: 'parallelBatchSize', type: 'number', desc: 'Jumlah request paralel ke API (1-10)' },
   agentMaxTurns: { field: 'agentMaxTurns', type: 'number', desc: 'Maksimum turn AI agent (3-30)' },
+  subagentWorkers: { field: 'subagentWorkers', type: 'number', desc: 'Jumlah worker paralel untuk subagent (1-10, default 3)' },
   similarityThreshold: { field: 'similarityThreshold', type: 'number', desc: 'Threshold kemiripan (0.01-0.99)' },
   lengthRatioThreshold: { field: 'lengthRatioThreshold', type: 'number', desc: 'Threshold rasio panjang (1-10)' },
   // String settings
@@ -781,6 +782,7 @@ function toggleSetting(settingName: string, value: any): string {
     if ((field === 'selectionBatchSize' || field === 'glossaryBatchSize' || field === 'aiCheckBatchSize') && (num < 1 || num > 500)) return `Error: ${field} harus 1-500.`;
     if (field === 'parallelBatchSize' && (num < 1 || num > 10)) return 'Error: parallelBatchSize harus 1-10.';
     if (field === 'agentMaxTurns' && (num < 3 || num > 30)) return 'Error: agentMaxTurns harus 3-30.';
+    if (field === 'subagentWorkers' && (num < 1 || num > 10)) return 'Error: subagentWorkers harus 1-10.';
     if (field === 'similarityThreshold' && (num < 0.01 || num > 0.99)) return 'Error: similarityThreshold harus 0.01-0.99.';
     if (field === 'lengthRatioThreshold' && (num < 1 || num > 10)) return 'Error: lengthRatioThreshold harus 1-10.';
     applied = num;
@@ -1151,50 +1153,93 @@ async function webSearch(query: string, source: string): Promise<string> {
 
 // ── Subagent Tools: delegate tasks to parallel AI calls ──────────────────────
 
+/** Helper: build a translate prompt for a set of line numbers using the current selection trick. */
+async function buildTranslatePrompt(lineNums: number[], instruction?: string): Promise<string> {
+  const { buildSelectedTranslationExport, applyPromptVariables } = await import('./ai-format');
+  const { getGlossaryPrompt } = await import('./glossary');
+  const { DEFAULT_PROMPT_HEADER } = await import('./constants');
+
+  const prevSelection = new Set(state.selectedLines);
+  state.selectedLines.clear();
+  for (const n of lineNums) state.selectedLines.add(n);
+  let joinedText = '';
+  let glossaryBlock = '';
+  try {
+    joinedText = buildSelectedTranslationExport(false);
+    glossaryBlock = getGlossaryPrompt(joinedText);
+  } finally {
+    state.selectedLines.clear();
+    prevSelection.forEach(n => state.selectedLines.add(n));
+  }
+
+  const baseHeader = applyPromptVariables((state.aiInstructionHeader || DEFAULT_PROMPT_HEADER).trim());
+  const extra = instruction ? `\n\nInstruction: ${instruction}` : '';
+  const sections: string[] = [baseHeader];
+  if (glossaryBlock) sections.push(glossaryBlock.trim());
+  if (state.enableUncertainMarking) sections.push('If you are uncertain about a translation, prefix it with [?].');
+  sections.push(joinedText.trim());
+  return sections.join('\n\n') + extra;
+}
+
+/** Helper: run one translate worker for a chunk of line nums. Returns a status string. */
+async function runTranslateWorker(lineNums: number[], instruction?: string): Promise<string> {
+  const { fetchApiResult } = await import('./auto-translate');
+  const Translate = await import('./translate');
+  const { ui } = await import('./state');
+
+  const prompt = await buildTranslatePrompt(lineNums, instruction);
+  const result = await fetchApiResult(prompt);
+
+  // Apply: temporarily set pasteArea value then call onApplyTranslation
+  const prevVal = (ui.pasteArea as HTMLTextAreaElement)?.value ?? '';
+  if (ui.pasteArea) (ui.pasteArea as HTMLTextAreaElement).value = result;
+  try {
+    Translate.onApplyTranslation({ suppressAlerts: true });
+  } catch (err: any) {
+    if (ui.pasteArea) (ui.pasteArea as HTMLTextAreaElement).value = prevVal;
+    throw new Error(`Apply error: ${err.message}`);
+  }
+  if (ui.pasteArea) (ui.pasteArea as HTMLTextAreaElement).value = prevVal;
+  return `${lineNums.length} baris (${lineNums[0]}–${lineNums[lineNums.length - 1]})`;
+}
+
 async function delegateTranslate(lineNums: number[], instruction?: string): Promise<string> {
   const nums = Array.isArray(lineNums) ? lineNums.filter(n => n > 0) : [];
   if (!nums.length) return 'Error: lineNums tidak boleh kosong.';
   const lines = nums.map(n => state.lineByNum.get(n)).filter(l => l);
   if (!lines.length) return 'Error: tidak ada baris yang ditemukan.';
 
-  const { buildSelectedTranslationExport, applyPromptVariables } = await import('./ai-format');
-  const { getGlossaryPrompt } = await import('./glossary');
-  const { DEFAULT_PROMPT_HEADER } = await import('./constants');
-  const { fetchApiResult } = await import('./auto-translate');
-  const Translate = await import('./translate');
+  const chunkSize = state.selectionBatchSize || 25;
+  const workers = Math.max(1, state.subagentWorkers || 3);
 
-  // Set selection to just these lines
-  const prevSelection = new Set(state.selectedLines);
-  state.selectedLines.clear();
-  for (const l of lines) state.selectedLines.add(l.line_num);
+  // Split into chunks
+  const chunks: number[][] = [];
+  for (let i = 0; i < nums.length; i += chunkSize) chunks.push(nums.slice(i, i + chunkSize));
 
-  try {
-    const joinedText = buildSelectedTranslationExport(false);
-    const glossaryBlock = getGlossaryPrompt(joinedText);
-    const baseHeader = applyPromptVariables((state.aiInstructionHeader || DEFAULT_PROMPT_HEADER).trim());
-    const extra = instruction ? `\n\nInstruction: ${instruction}` : '';
-    const sections: string[] = [baseHeader];
-    if (glossaryBlock) sections.push(glossaryBlock.trim());
-    if (state.enableUncertainMarking) sections.push('If you are uncertain about a translation, prefix it with [?].');
-    sections.push(joinedText.trim());
-    const prompt = sections.join('\n\n') + extra;
-
-    const result = await fetchApiResult(prompt);
-    // Apply result
-    (await import('./state')).ui.pasteArea.value = result;
+  if (chunks.length === 1) {
+    // Single chunk — run directly
     try {
-      Translate.onApplyTranslation({ suppressAlerts: true });
+      const msg = await runTranslateWorker(nums, instruction);
+      return `Berhasil menerjemahkan ${msg}.`;
     } catch (err: any) {
-      return `Error saat apply: ${err.message}\nRaw result:\n${result.slice(0, 500)}`;
+      return `Error: ${err.message}`;
     }
-    return `Berhasil menerjemahkan ${lines.length} baris (line_nums: ${nums.join(', ')}).`;
-  } catch (err: any) {
-    return `Error saat delegate translate: ${err.message}`;
-  } finally {
-    // Restore selection
-    state.selectedLines.clear();
-    prevSelection.forEach(n => state.selectedLines.add(n));
   }
+
+  // Multiple chunks — run in parallel batches of `workers`
+  const results: string[] = [];
+  const errors: string[] = [];
+  for (let i = 0; i < chunks.length; i += workers) {
+    const batch = chunks.slice(i, i + workers);
+    const settled = await Promise.allSettled(batch.map(chunk => runTranslateWorker(chunk, instruction)));
+    for (const r of settled) {
+      if (r.status === 'fulfilled') results.push(r.value);
+      else errors.push(r.reason?.message || String(r.reason));
+    }
+  }
+
+  const summary = `Berhasil menerjemahkan ${results.length}/${chunks.length} chunk (${lines.length} baris total).`;
+  return errors.length ? `${summary}\nError: ${errors.join('; ')}` : summary;
 }
 
 async function delegateAnalyze(lineNums: number[], focus?: string): Promise<string> {
@@ -1204,22 +1249,125 @@ async function delegateAnalyze(lineNums: number[], focus?: string): Promise<stri
   if (!lines.length) return 'Error: tidak ada baris yang ditemukan.';
 
   const { fetchApiResult } = await import('./auto-translate');
-
-  const out = lines.map(l => {
-    let namePart = '';
-    if (l.name) namePart = l.trans_name ? `${l.trans_name}: ` : `${l.name}: `;
-    return `#${l.line_num}\n[Original] ${namePart}${l.message}\n[Translated] ${namePart}${l.trans_message || ''}`;
-  });
-
+  const chunkSize = state.selectionBatchSize || 25;
+  const workers = Math.max(1, state.subagentWorkers || 3);
   const focusStr = focus ? `\n\nFocus: ${focus}` : '';
-  const prompt = `You are a translation quality analyst. Analyze the following translations and report issues (accuracy, naturalness, consistency, missing nuance). Be concise.\n\n${out.join('\n\n')}${focusStr}`;
 
-  try {
-    const result = await fetchApiResult(prompt);
-    return `=== ANALISIS SUBAGENT (${lines.length} baris) ===\n${result}`;
-  } catch (err: any) {
-    return `Error saat delegate analyze: ${err.message}`;
+  function buildAnalyzePrompt(chunk: typeof lines): string {
+    const out = chunk.map(l => {
+      let namePart = '';
+      if (l.name) namePart = l.trans_name ? `${l.trans_name}: ` : `${l.name}: `;
+      return `#${l.line_num}\n[Original] ${namePart}${l.message}\n[Translated] ${namePart}${l.trans_message || ''}`;
+    });
+    return `You are a translation quality analyst. Analyze the following translations and report issues (accuracy, naturalness, consistency, missing nuance). Be concise.\n\n${out.join('\n\n')}${focusStr}`;
   }
+
+  // Split into chunks
+  const chunks: typeof lines[] = [];
+  for (let i = 0; i < lines.length; i += chunkSize) chunks.push(lines.slice(i, i + chunkSize));
+
+  if (chunks.length === 1) {
+    try {
+      const result = await fetchApiResult(buildAnalyzePrompt(chunks[0]));
+      return `=== ANALISIS SUBAGENT (${lines.length} baris) ===\n${result}`;
+    } catch (err: any) {
+      return `Error saat delegate analyze: ${err.message}`;
+    }
+  }
+
+  const reports: string[] = [];
+  const errors: string[] = [];
+  for (let i = 0; i < chunks.length; i += workers) {
+    const batch = chunks.slice(i, i + workers);
+    const settled = await Promise.allSettled(batch.map(chunk => fetchApiResult(buildAnalyzePrompt(chunk))));
+    for (let j = 0; j < settled.length; j++) {
+      const r = settled[j];
+      const chunk = batch[j];
+      if (r.status === 'fulfilled') {
+        reports.push(`--- Baris ${chunk[0].line_num}–${chunk[chunk.length - 1].line_num} ---\n${r.value}`);
+      } else {
+        errors.push(`Chunk ${chunk[0].line_num}–${chunk[chunk.length - 1].line_num}: ${r.reason?.message || r.reason}`);
+      }
+    }
+  }
+
+  const header = `=== ANALISIS SUBAGENT (${lines.length} baris, ${chunks.length} chunk) ===`;
+  const body = reports.join('\n\n');
+  return errors.length ? `${header}\n${body}\n\nError:\n${errors.join('\n')}` : `${header}\n${body}`;
+}
+
+/** delegateParallelTranslate — high-level orchestrator: translate a LINE RANGE in parallel. */
+async function delegateParallelTranslate(
+  startLine: number,
+  endLine: number,
+  instruction?: string,
+  onProgress?: (msg: string) => void
+): Promise<string> {
+  const start = Number(startLine) || 1;
+  const end = Number(endLine) || start;
+  if (start > end) return 'Error: startLine harus <= endLine.';
+
+  const targetLines = state.lines.filter(l => l.line_num >= start && l.line_num <= end);
+  if (!targetLines.length) return `Error: tidak ada baris di rentang ${start}–${end}.`;
+
+  const chunkSize = state.selectionBatchSize || 25;
+  const workers = Math.max(1, state.subagentWorkers || 3);
+
+  // Build chunks
+  const chunks: number[][] = [];
+  for (let i = 0; i < targetLines.length; i += chunkSize) {
+    chunks.push(targetLines.slice(i, i + chunkSize).map(l => l.line_num));
+  }
+
+  const startTime = Date.now();
+  let completedChunks = 0;
+  const errors: string[] = [];
+
+  for (let i = 0; i < chunks.length; i += workers) {
+    const batch = chunks.slice(i, i + workers);
+    const settled = await Promise.allSettled(
+      batch.map(chunk => runTranslateWorker(chunk, instruction))
+    );
+    for (let j = 0; j < settled.length; j++) {
+      const r = settled[j];
+      completedChunks++;
+      if (r.status === 'fulfilled') {
+        onProgress?.(`Subagent ${completedChunks}/${chunks.length}: Selesai ${r.value}`);
+      } else {
+        const errMsg = r.reason?.message || String(r.reason);
+        errors.push(`Chunk ${batch[j][0]}–${batch[j][batch[j].length - 1]}: ${errMsg}`);
+        onProgress?.(`Subagent ${completedChunks}/${chunks.length}: Error — ${errMsg}`);
+      }
+    }
+  }
+
+  const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+  const ok = completedChunks - errors.length;
+  const summary = `Selesai: ${ok}/${chunks.length} chunk berhasil (${targetLines.length} baris, ${workers} worker paralel, ${elapsed}s).`;
+  return errors.length ? `${summary}\nError:\n${errors.join('\n')}` : summary;
+}
+
+/** delegateGlossaryExtract — parallel glossary extraction across multiple queries. */
+async function delegateGlossaryExtract(queries: string[], source: string = 'vndb'): Promise<string> {
+  if (!Array.isArray(queries) || !queries.length) return 'Error: queries harus berupa array string.';
+  const workers = Math.max(1, state.subagentWorkers || 3);
+
+  const results: string[] = [];
+  const errors: string[] = [];
+
+  for (let i = 0; i < queries.length; i += workers) {
+    const batch = queries.slice(i, i + workers);
+    const settled = await Promise.allSettled(batch.map(q => extractGlossary(q, source)));
+    for (let j = 0; j < settled.length; j++) {
+      const r = settled[j];
+      if (r.status === 'fulfilled') results.push(`[${batch[j]}]\n${r.value}`);
+      else errors.push(`[${batch[j]}]: ${r.reason?.message || r.reason}`);
+    }
+  }
+
+  const header = `=== GLOSSARY EXTRACT (${queries.length} query, source: ${source}) ===`;
+  const body = results.join('\n\n');
+  return errors.length ? `${header}\n${body}\n\nError:\n${errors.join('\n')}` : `${header}\n${body}`;
 }
 
 // ── Tool 26: searchVn — search VN/anime by name ──────────────────────────────
@@ -1313,7 +1461,11 @@ async function extractGlossary(query: string, source: string = 'vndb'): Promise<
   }
 }
 
-async function executeTool(name: string, args: any): Promise<string> {
+async function executeTool(
+  name: string,
+  args: any,
+  onProgress?: (msg: string) => void
+): Promise<string> {
   switch (name) {
     case 'getProjectStats': return getProjectStats();
     case 'getLines': return getLines(args.start, args.end);
@@ -1359,6 +1511,10 @@ async function executeTool(name: string, args: any): Promise<string> {
       return await delegateTranslate(args.lineNums || args.line_nums, args.instruction);
     case 'delegateAnalyze':
       return await delegateAnalyze(args.lineNums || args.line_nums, args.focus);
+    case 'delegateParallelTranslate':
+      return await delegateParallelTranslate(args.startLine, args.endLine, args.instruction, onProgress);
+    case 'delegateGlossaryExtract':
+      return await delegateGlossaryExtract(args.queries, args.source);
     case 'searchVn':
       return await searchVn(args.query, args.source);
     case 'extractGlossary':
@@ -1492,6 +1648,8 @@ DAFTAR TOOL YANG TERSEDIA:
 25. delegateAnalyze(lineNums, focus?) — Delegasikan analisis kualitas terjemahan ke subagent AI. lineNums: array nomor baris. focus (opsional): fokus analisis (misal "cek konsistensi nama"). Mengembalikan laporan analisis.
 26. searchVn(query, source?) — Cari visual novel/anime berdasarkan nama tanpa perlu ID. query: nama VN/anime. source (opsional): "vndb" (default, cari di VNDB) | "anilist" (cari di AniList). Mengembalikan daftar hasil dengan ID, judul, dan info singkat.
 27. extractGlossary(query, source?) — Extract glossary otomatis dari karakter VN/anime. query: nama VN/anime. source (opsional): "vndb" (default) | "anilist". Mencari VN by nama → ambil karakter → extract nama JP/EN → merge ke glossary. Untuk VNDB, juga langsung apply nama ke name table. Mengembalikan ringkasan entri yang ditambahkan.
+28. delegateParallelTranslate(startLine, endLine, instruction?) — **SUBAGENT PARALEL (DIREKOMENDASIKAN untuk batch besar)**. Terjemahkan semua baris dalam rentang startLine–endLine menggunakan beberapa worker AI paralel. Chunk size = selectionBatchSize, jumlah worker = subagentWorkers (default 3). Menampilkan progress tiap chunk. Gunakan ini alih-alih delegateTranslate untuk rentang besar (>30 baris).
+29. delegateGlossaryExtract(queries, source?) — Extract glossary dari beberapa VN/anime sekaligus secara paralel. queries: array nama VN/anime. source (opsional): "vndb" (default) | "anilist". Berguna untuk proyek yang melibatkan banyak karakter dari sumber berbeda.
 
 CARA MEMANGGIL TOOL:
 Kirim respons JSON. Kamu bisa memanggil beberapa tool sekaligus dalam satu respons:
@@ -1594,7 +1752,7 @@ export async function sendAgentMessage(
       // Execute all tools and collect results
       const toolResults: string[] = [];
       for (const call of parsed.calls) {
-        const result = await executeTool(call.name, call.arguments);
+        const result = await executeTool(call.name, call.arguments, (msg) => onUpdate(msg, 'system'));
         toolResults.push(`Tool "${call.name}" result:\n${result}`);
       }
 

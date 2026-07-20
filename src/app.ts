@@ -22,12 +22,28 @@ window.addEventListener('unhandledrejection', function(event) {
 import { init } from './ui-init';
 import { initExtensionBridge } from './extension-bridge';
 
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', () => {
-    init();
-    initExtensionBridge();
-  });
-} else {
+const appStartTime = performance.now();
+
+function removeLoader() {
+  const loader = document.getElementById('startupLoader');
+  if (loader) {
+    const elapsed = performance.now() - appStartTime;
+    const remaining = Math.max(0, 800 - elapsed);
+    setTimeout(() => {
+      loader.classList.add('fade-out');
+      setTimeout(() => loader.remove(), 400);
+    }, remaining);
+  }
+}
+
+function bootstrap() {
   init();
   initExtensionBridge();
+  removeLoader();
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', bootstrap);
+} else {
+  bootstrap();
 }

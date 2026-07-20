@@ -23,6 +23,12 @@
   <script type="module" src="./src/app.ts"></script>
 </head>
 <body>
+  <div id="startupLoader" class="startup-loader">
+    <div class="loader-content">
+      <div class="loader-spinner"></div>
+      <h1 class="loader-title">Copas Tool</h1>
+    </div>
+  </div>
   <div id="dashboardView" class="dashboard-shell open">
     <div class="dashboard-aurora" aria-hidden="true">
       <span class="aurora-blob aurora-1"></span>
@@ -711,8 +717,12 @@
         <p class="hint mt-1">Jumlah request API yang dikirim bersamaan saat Auto Translate (1 = berurutan, 3-5 = paralel).</p>
         <div class="flex-center gap-4 wrap mt-1">
           <div class="flex-col grow">
-            <label class="hint m-0" for="settingsParallelBatchSizeInput">Paralel Batch</label>
+            <label class="hint m-0" for="settingsParallelBatchSizeInput">Paralel Batch (Auto Translate)</label>
             <input id="settingsParallelBatchSizeInput" class="text-input w-full" type="number" min="1" max="10" value="1" />
+          </div>
+          <div class="flex-col grow">
+            <label class="hint m-0" for="settingsSubagentWorkersInput">Subagent Workers (Agent Chat)</label>
+            <input id="settingsSubagentWorkersInput" class="text-input w-full" type="number" min="1" max="10" value="3" title="Jumlah worker paralel untuk delegateParallelTranslate di Agent Chat" />
           </div>
         </div>
       </div>
