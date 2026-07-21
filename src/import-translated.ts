@@ -92,6 +92,14 @@ export function isSameAsOriginal(translatedValue: any, originalValue: any): bool
   return t === o;
 }
 
+/** Silence / beat lines (…… / ....) are often intentionally identical JP==TL. */
+export function isPunctuationOnlyMessage(value: any): boolean {
+  const t = String(value ?? '').trim();
+  if (!t) return false;
+  // dots, ellipsis, fullwidth forms, dashes, common beat punctuation only
+  return /^[\s.．。…‥・･\-―—–~～!！?？*＊…]+$/u.test(t);
+}
+
 export function collectTranslatedJsonUpdates(pathOrName: string, jsonArray: any[], fileMatchMap: Map<string, string | null>, groupedLines: Map<string, Line[]>, usedFiles: Set<string>): any {
   if (!Array.isArray(jsonArray)) throw new Error(`${pathOrName} bukan array JSON.`);
   const target = findTranslatedImportTarget(pathOrName, fileMatchMap, groupedLines);
@@ -109,7 +117,8 @@ export function collectTranslatedJsonUpdates(pathOrName: string, jsonArray: any[
     const message = normalizeTranslatedImportValue(entry.message ?? entry.trans_message ?? entry.text);
     if (!message && !state.disableEmptyLineValidation) continue;
     const line = lines[i];
-    if (isSameAsOriginal(message, line.message)) continue;
+    // Skip identity TL unless punctuation-only (…… / ....) — those are valid TL beats.
+    if (isSameAsOriginal(message, line.message) && !isPunctuationOnlyMessage(message)) continue;
     const hasNameValue = Object.prototype.hasOwnProperty.call(entry, 'name') || Object.prototype.hasOwnProperty.call(entry, 'trans_name');
     const name = hasNameValue ? normalizeTranslatedImportValue(entry.name ?? entry.trans_name) : null;
     if (hasNameValue && isSameAsOriginal(name, line.name)) {
@@ -179,7 +188,7 @@ export function collectTranslatedLucaTxtUpdates(pathOrName: string, fileText: st
         unmatchedRows.push(rawIndex + 1);
         continue;
       }
-      if (isSameAsOriginal(message, line.message)) continue;
+      if (isSameAsOriginal(message, line.message) && !isPunctuationOnlyMessage(message)) continue;
       const normName = normalizeTranslatedImportValue(name);
       const useName = isSameAsOriginal(normName, line.name) ? null : normName;
       updates.push({ line, name: useName, message, hasNameValue: !!useName });
@@ -196,7 +205,7 @@ export function collectTranslatedLucaTxtUpdates(pathOrName: string, fileText: st
           unmatchedRows.push(rawIndex + 1);
           continue;
         }
-        if (isSameAsOriginal(message, line.message)) continue;
+        if (isSameAsOriginal(message, line.message) && !isPunctuationOnlyMessage(message)) continue;
         updates.push({ line, name: null, message, hasNameValue: false });
       }
     }
@@ -236,7 +245,7 @@ export async function collectTranslatedEpubUpdates(file: File): Promise<any> {
     for (let i = 0; i < limit; i++) {
       const message = normalizeTranslatedImportValue((els[i].textContent || '').replace(/\r?\n/g, ' ').trim());
       if (!message && !state.disableEmptyLineValidation) continue;
-      if (isSameAsOriginal(message, lines[i].message)) continue;
+      if (isSameAsOriginal(message, lines[i].message) && !isPunctuationOnlyMessage(message)) continue;
       updates.push({ line: lines[i], name: null, message, hasNameValue: false });
     }
   }
