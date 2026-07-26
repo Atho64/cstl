@@ -60,6 +60,7 @@ export const state: AppState = {
   lucaRawBuffers: {},
   lines: [],
   importedFiles: [],
+  fileOrder: [],
   aiInstructionHeader: DEFAULT_PROMPT_HEADER,
   aiTranslationFormat: DEFAULT_AI_TRANSLATION_FORMAT,
   aiApiType: 'openai',

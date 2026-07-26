@@ -93,6 +93,7 @@
         <button id="btnQaCheck" class="btn" disabled>Validasi QC</button>
         <button id="btnDictHistory" class="btn">Riwayat Kamus</button>
         <button id="btnTextReplacer" class="btn">Text Replacer</button>
+        <button id="btnFileList" class="btn" disabled>File List</button>
         <div class="dropdown">
           <button id="btnDropdownSettings" class="btn dropdown-toggle">Pengaturan ▼</button>
           <div id="dropdownSettingsMenu" class="dropdown-content">
@@ -1198,6 +1199,31 @@
       </div>
     </div>
   </div>
+  </div>
+
+  <!-- File List Modal -->
+  <div id="fileListModal" class="modal-backdrop">
+    <div class="modal modal-md">
+      <div class="modal-head">
+        <h3>File List</h3>
+      </div>
+      <div class="modal-body">
+        <div class="card-box mb-2">
+          <div class="flex gap-2 wrap">
+            <button id="btnFileListAdd" class="btn btn-outline">Tambah File</button>
+            <button id="btnFileListDelete" class="btn btn-danger" disabled>Hapus</button>
+          </div>
+        </div>
+        <div class="hint mb-2">Seret dan lepas untuk mengubah urutan file. Urutan akan memengaruhi tampilan di daftar teks.</div>
+        <div id="fileListContainer" class="file-list-container">
+          <!-- di-render dinamis oleh file-list.ts -->
+        </div>
+      </div>
+      <div class="modal-actions">
+        <span class="grow"></span>
+        <button id="btnFileListClose" class="btn btn-primary">Tutup</button>
+      </div>
+    </div>
   </div>
 
   <!-- Dictionary Popup -->

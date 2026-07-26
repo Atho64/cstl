@@ -244,8 +244,46 @@ export function onApplyTranslation(options: ApplyTranslationOptions = {}): void 
   flashHint(`${updates.length} baris sukses diterapkan.`);
 }
 
-export function onUndoLastApply(): void {
+export async function onUndoLastApply(): Promise<void> {
   if (state.undoStack.length === 0) return;
+  
+  const snapshot = state.undoStack[state.undoStack.length - 1];
+  
+  // Handle file-level undo
+  if (snapshot.fileAction) {
+    // Push current state to redoStack (full line snapshot for file actions)
+    state.redoStack.push({
+      lines: state.lines.map(l => ({
+        line_num: l.line_num,
+        trans_name: l.trans_name,
+        trans_message: l.trans_message,
+        is_translated: l.is_translated,
+        _hidden: l._hidden,
+        _glossary_extracted: l._glossary_extracted,
+        _ai_checked: l._ai_checked,
+      })),
+      fileAction: {
+        type: snapshot.fileAction.type,
+        files: snapshot.fileAction.files,
+        prevImportedFiles: [...state.importedFiles],
+        newImportedFiles: snapshot.fileAction.newImportedFiles || [...state.importedFiles],
+        prevFileOrder: [...state.fileOrder],
+        newFileOrder: snapshot.fileAction.newFileOrder || [...state.fileOrder],
+        removedLines: snapshot.fileAction.removedLines,
+        addedLines: snapshot.fileAction.addedLines,
+      },
+    });
+    
+    // Apply the undo
+    const { applyFileAction } = await import('./file-list');
+    applyFileAction(snapshot.fileAction);
+    
+    state.undoStack.pop();
+    refreshAll();
+    queueAutoSave();
+    flashHint('Undo berhasil (file).');
+    return;
+  }
   
   // Push current state to redoStack
   state.redoStack.push({
@@ -260,9 +298,9 @@ export function onUndoLastApply(): void {
     }))
   });
 
-  const snapshot = state.undoStack.pop();
-  if (!snapshot) return;
-  for (const saved of snapshot.lines) {
+  const snap = state.undoStack.pop();
+  if (!snap) return;
+  for (const saved of snap.lines) {
     const l = state.lineByNum.get(saved.line_num);
     if (l) {
       l.trans_name = saved.trans_name;
@@ -278,15 +316,33 @@ export function onUndoLastApply(): void {
   flashHint('Undo berhasil.');
 }
 
-export function onRedoLastUndo(): void {
+export async function onRedoLastUndo(): Promise<void> {
   if (state.redoStack.length === 0) return;
+  
+  const snapshot = state.redoStack[state.redoStack.length - 1];
+  
+  // Handle file-level redo
+  if (snapshot.fileAction) {
+    // Push current state to undoStack but WITHOUT clearing redoStack
+    pushUndoSnapshot(false);
+    
+    // Apply the redo
+    const { redoFileAction } = await import('./file-list');
+    redoFileAction(snapshot.fileAction);
+    
+    state.redoStack.pop();
+    refreshAll();
+    queueAutoSave();
+    flashHint('Redo berhasil (file).');
+    return;
+  }
   
   // Push current state to undoStack but WITHOUT clearing redoStack
   pushUndoSnapshot(false);
 
-  const snapshot = state.redoStack.pop();
-  if (!snapshot) return;
-  for (const saved of snapshot.lines) {
+  const snap = state.redoStack.pop();
+  if (!snap) return;
+  for (const saved of snap.lines) {
     const l = state.lineByNum.get(saved.line_num);
     if (l) {
       l.trans_name = saved.trans_name;

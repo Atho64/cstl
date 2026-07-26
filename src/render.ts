@@ -9,7 +9,7 @@ import { openModal, closeModal } from './project';
 import { getTranslationPastePlaceholder } from './ai-format';
 import { getActiveLineEditorLineNum, setActiveLineEditorLineNum } from './state';
 import { isClannadProtagonistToken, parseLucaTxtText, resolveLucaDisplayName } from './luca-engine';
-import { windowsFileOrderCompare } from './string-utils';
+import { getFileDisplayOrder } from './file-list';
 import type { DisplayRow, Line } from './types';
 
 // ─── Lazy helpers (break circular deps) ──────────────────────────────────────
@@ -25,7 +25,7 @@ let fileLineRanges = new Map<string, { first: number; last: number }>();
 
 export function rebuildDisplayState(): void {
   state.lineByNum.clear();
-  const orderedImportedFiles = [...state.importedFiles].sort(windowsFileOrderCompare);
+  const orderedImportedFiles = getFileDisplayOrder();
   const grouped = new Map<string, Line[]>(orderedImportedFiles.map(f => [f, []]));
   let cachedRegex: RegExp | null = null;
   if (state.regexFilter) {
@@ -48,9 +48,9 @@ export function rebuildDisplayState(): void {
   state.displayRows = [];
   separatorIndices = [];
   fileLineRanges = new Map();
-  for (const fileName of Array.from(grouped.keys()).sort(windowsFileOrderCompare)) {
-    const rows = grouped.get(fileName)!;
-    if (!rows.length) continue;
+  for (const fileName of orderedImportedFiles) {
+    const rows = grouped.get(fileName);
+    if (!rows || !rows.length) continue;
     fileLineRanges.set(fileName, {
       first: rows[0].line_num,
       last: rows[rows.length - 1].line_num,
@@ -369,6 +369,7 @@ export function updateButtonStates(): void {
   setDisabled('btnExport', !hasData);
   setDisabled('btnProofread', !hasData);
   setDisabled('btnQaCheck', !hasData);
+  setDisabled('btnFileList', !hasData);
   setDisabled('btnImportTranslatedFile', !hasData);
   setDisabled('btnImportTranslatedFolder', !hasData);
   setDisabled('btnSelectAll', !hasData);

@@ -23,6 +23,7 @@ import { onOpenSettings, onSavePromptSettings, onOpenPromptsSettings, onOpenGlos
 import { onExport } from './export';
 import { onImportVndbNames, onImportAnilistNames } from './vndb-anilist';
 import { onExtractEpubRubyNames } from './epub-ruby';
+import { openFileListModal, closeFileListModal, onAddFile, onDeleteSelectedFiles } from './file-list';
 import {
   onImportRefLang1, onImportRefLang2, onImportRefLang1Folder, onImportRefLang2Folder,
   onRefLang1FileChange, onRefLang2FileChange, onRefLang1FolderChange, onRefLang2FolderChange,
@@ -97,7 +98,8 @@ export function cacheElements(): void {
  'aiCheckReviewActions', 'btnReviewApply', 'btnReviewSkip',
     'btnFloatingAiAgent', 'aiAgentChatPanel', 'btnAgentClose', 'btnAgentClear', 'btnAgentMemory', 'agentChatHistory', 'agentInput', 'btnAgentSend',
     'agentMemoryModal', 'agentMemoryList', 'agentMemoryKey', 'agentMemoryCategory', 'agentMemoryScope', 'agentMemoryValue', 'btnAgentMemoryCancel', 'btnAgentMemorySave',
-    'btnTextReplacer', 'textReplacerModal', 'replacerPreInput', 'replacerPostInput', 'btnTextReplacerCancel', 'btnTextReplacerSave'
+    'btnTextReplacer', 'textReplacerModal', 'replacerPreInput', 'replacerPostInput', 'btnTextReplacerCancel', 'btnTextReplacerSave',
+    'btnFileList', 'fileListModal', 'fileListContainer', 'btnFileListAdd', 'btnFileListDelete', 'btnFileListClose'
   ];
   for (const id of ids) {
     ui[id] = document.getElementById(id);
@@ -457,6 +459,12 @@ if (ui.settingsCheckSimilarity) {
       import('./render').then(r => r.flashHint('Aturan Replacer berhasil disimpan.'));
     });
   });
+
+  // File List
+  ui.btnFileList?.addEventListener('click', () => openFileListModal());
+  ui.btnFileListClose?.addEventListener('click', () => closeFileListModal());
+  ui.btnFileListAdd?.addEventListener('click', () => onAddFile());
+  ui.btnFileListDelete?.addEventListener('click', () => onDeleteSelectedFiles());
 
   let isDraggingRobot = false;
   let robotStartX = 0, robotStartY = 0;

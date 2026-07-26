@@ -93,6 +93,7 @@ export interface AppState {
   lucaRawBuffers: Record<string, string>;
   lines: Line[];
   importedFiles: string[];
+  fileOrder: string[];
   aiInstructionHeader: string;
   aiTranslationFormat: string;
   aiApiType: 'openai' | 'gemini' | 'anthropic';
@@ -151,6 +152,27 @@ export interface PartialLineSnapshot {
 
 export interface UndoSnapshot {
   lines: PartialLineSnapshot[];
+  /** File-level operations (add/remove/reorder) — when present, lines is empty */
+  fileAction?: FileActionSnapshot;
+}
+
+export interface FileActionSnapshot {
+  type: 'add' | 'remove' | 'reorder';
+  /** Files affected by this action */
+  files: string[];
+  /** Lines that were removed (for 'remove' action undo) */
+  removedLines?: Line[];
+  /** Lines that were added (for 'add' action undo — to remove them on undo) */
+  addedLines?: Line[];
+  /** Previous file order (for 'reorder' action undo) */
+  prevOrder?: string[];
+  /** New file order (for 'reorder' action redo) */
+  newOrder?: string[];
+  /** Full state snapshot for add/remove (for reliable redo) */
+  prevImportedFiles?: string[];
+  newImportedFiles?: string[];
+  prevFileOrder?: string[];
+  newFileOrder?: string[];
 }
 
 // ─── Display / Render ─────────────────────────────────────────────────────────

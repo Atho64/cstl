@@ -381,7 +381,7 @@ export async function createNewProject(): Promise<void> {
     lucaRawFiles: {}, lucaRawBuffers: {}, updatedAt: Date.now(),
     source_lang: d.sourceLang, target_lang: d.targetLang, regex_filter: d.regexFilter || '',
     disable_empty_line_validation: false, check_kana_residue: false, check_similarity: false, similarity_threshold: 0.7,
-    imported_files: [], lines: [],
+    imported_files: [], file_order: [], lines: [],
     prompt_header: d.promptHeader !== undefined ? d.promptHeader : getDefaultPromptHeaderForFormat(d.aiFormat), ai_translation_format: d.aiFormat,
     glossary_prompt: d.glossaryPrompt !== undefined ? d.glossaryPrompt : DEFAULT_GLOSSARY_PROMPT, ai_check_prompt: d.aiCheckPrompt !== undefined ? d.aiCheckPrompt : DEFAULT_AI_CHECK_PROMPT,
     agent_prompt: d.agentPrompt !== undefined ? d.agentPrompt : DEFAULT_AGENT_PROMPT,
@@ -521,7 +521,7 @@ export function queueAutoSave(): void {
       dictionary_engine: state.dictionaryEngine,
       dictionary_prompt: state.dictionaryPrompt,
       similarity_threshold: state.similarityThreshold,
-      imported_files: state.importedFiles, lines: state.lines,
+      imported_files: state.importedFiles, file_order: state.fileOrder, lines: state.lines,
       prompt_header: state.aiInstructionHeader,
       ai_translation_format: state.aiTranslationFormat || DEFAULT_AI_TRANSLATION_FORMAT,
       glossary_prompt: state.glossaryPrompt, ai_check_prompt: state.aiCheckPrompt,
@@ -610,6 +610,7 @@ export function openProject(id: string, data: any): void {
   state.lines = (data.lines || []).map(normalizeLineDict);
   recoverLucaRawFields();
   state.importedFiles = data.imported_files || [];
+  state.fileOrder = data.file_order || [];
   state.aiInstructionHeader = data.prompt_header || DEFAULT_PROMPT_HEADER;
   state.aiTranslationFormat = data.ai_translation_format != null
     ? normalizeAiTranslationFormat(data.ai_translation_format)
@@ -680,7 +681,7 @@ export function closeProject(): void {
       dictionary_engine: state.dictionaryEngine,
       dictionary_prompt: state.dictionaryPrompt,
       similarity_threshold: state.similarityThreshold,
-      imported_files: state.importedFiles, lines: state.lines,
+      imported_files: state.importedFiles, file_order: state.fileOrder, lines: state.lines,
       prompt_header: state.aiInstructionHeader,
       ai_translation_format: state.aiTranslationFormat || DEFAULT_AI_TRANSLATION_FORMAT,
       glossary_prompt: state.glossaryPrompt, ai_check_prompt: state.aiCheckPrompt,
@@ -746,6 +747,7 @@ export async function onRestoreProject(ev: Event): Promise<void> {
       check_kana_residue: !!p.check_kana_residue, check_similarity: !!p.check_similarity,
       similarity_threshold: (typeof p.similarity_threshold === 'number' && p.similarity_threshold > 0 && p.similarity_threshold < 1) ? p.similarity_threshold : 0.7,
       imported_files: p.imported_files || [],
+      file_order: p.file_order || [],
       lines: (p.lines || []).map(normalizeLineDict),
       prompt_header: p.prompt_header || DEFAULT_PROMPT_HEADER,
       ai_translation_format: p.ai_translation_format != null ? normalizeAiTranslationFormat(p.ai_translation_format) : DEFAULT_AI_TRANSLATION_FORMAT,
