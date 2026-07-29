@@ -4,6 +4,7 @@ import { state, ui, getMainScroller } from './state';
 import { isTranslated } from './state';
 import { eventMatchesShortcut } from './shortcuts';
 import { DEFAULT_GLOSSARY_BATCH_SIZE, DEFAULT_AI_CHECK_BATCH_SIZE, DEFAULT_SELECTION_BATCH_SIZE } from './constants';
+import { getFileDisplayOrder } from './file-list';
 import type { Line, WorkspaceTab } from './types';
 
 // ─── Utility: normalizeSelectionBatchSize ────────────────────────────────────
@@ -36,11 +37,40 @@ export function pruneSelectionForActiveTab(): void {
   }
 }
 
+// ─── Display-ordered line helpers ────────────────────────────────────────────
+// Lines grouped by the current file display order (state.fileOrder), so batch
+// selection shortcuts (Alt+↑/↓) navigate in the same order the user sees on
+// screen — even after files have been reordered in the File List manager.
+
+export function getDisplayOrderedLines(): Line[] {
+  const order = getFileDisplayOrder();
+  const fileRank = new Map<string, number>();
+  order.forEach((f, i) => fileRank.set(f, i));
+  const tail = order.length; // unknown files sort after known ones
+  return [...state.lines].sort((a, b) => {
+    const ra = fileRank.has(a.file) ? fileRank.get(a.file)! : tail;
+    const rb = fileRank.has(b.file) ? fileRank.get(b.file)! : tail;
+    if (ra !== rb) return ra - rb;
+    return a.line_num - b.line_num;
+  });
+}
+
 export function getSelectionHistorySnapshot(): number[] {
+  // Sort by display order (fileOrder) so selection history reflects what the
+  // user sees, not the internal line_num order. Falls back to line_num for any
+  // line not present in the ordered list.
+  const ordered = getDisplayOrderedLines();
+  const orderRank = new Map<number, number>();
+  ordered.forEach((l, i) => orderRank.set(l.line_num, i));
   return Array.from(state.selectedLines)
     .map(Number)
     .filter(num => Number.isFinite(num) && isSelectableForActiveTab(state.lineByNum.get(num)!))
-    .sort((a, b) => a - b);
+    .sort((a, b) => {
+      const ra = orderRank.has(a) ? orderRank.get(a)! : Number.MAX_SAFE_INTEGER;
+      const rb = orderRank.has(b) ? orderRank.get(b)! : Number.MAX_SAFE_INTEGER;
+      if (ra !== rb) return ra - rb;
+      return a - b;
+    });
 }
 
 export function selectionSnapshotsEqual(a: number[], b: number[]): boolean {
@@ -78,11 +108,13 @@ export function restoreSelectionHistory(direction: number): boolean {
   }
   syncCheckboxUI();
 
-  let firstSelected: number | null = null;
-  for (const num of state.selectedLines) {
-    if (firstSelected === null || num < firstSelected) firstSelected = num;
+  // Scroll to the first selected line in display order (file list order),
+  // not the lowest line_num, so the viewport matches what the user sees.
+  if (state.selectedLines.size > 0) {
+    const ordered = getDisplayOrderedLines();
+    const firstInDisplay = ordered.find(l => state.selectedLines.has(l.line_num));
+    if (firstInDisplay) scrollPreviewToLine(firstInDisplay.line_num);
   }
-  if (firstSelected !== null) scrollPreviewToLine(firstSelected);
   return true;
 }
 
@@ -109,9 +141,12 @@ export function isEditableShortcutTarget(target: EventTarget | null): boolean {
 }
 
 export function getActiveBatchConfig() {
+  // Use display-ordered lines so batch navigation follows the file list order
+  // the user sees (including reorders), not the internal import order.
+  const orderedLines = getDisplayOrderedLines();
   if (state.activeWorkspaceTab === 'glossary') {
     return {
-      lines: state.lines.filter(l => !l._hidden),
+      lines: orderedLines.filter(l => !l._hidden),
       batchSize: normalizeSelectionBatchSize(state.glossaryBatchSize, DEFAULT_GLOSSARY_BATCH_SIZE),
       emptyMessage: 'Tidak ada baris untuk Glossary Extractor.',
       tabLabel: 'Glossary Extractor',
@@ -119,14 +154,14 @@ export function getActiveBatchConfig() {
   }
   if (state.activeWorkspaceTab === 'aiCheck') {
     return {
-      lines: state.lines.filter(l => isTranslated(l) && !l._hidden),
+      lines: orderedLines.filter(l => isTranslated(l) && !l._hidden),
       batchSize: normalizeSelectionBatchSize(state.aiCheckBatchSize, DEFAULT_AI_CHECK_BATCH_SIZE),
       emptyMessage: 'Tidak ada baris terjemahan untuk AI Check.',
       tabLabel: 'AI Check',
     };
   }
   return {
-    lines: state.lines.filter(l => !isTranslated(l) && !l._hidden),
+    lines: orderedLines.filter(l => !isTranslated(l) && !l._hidden),
     batchSize: normalizeSelectionBatchSize(state.selectionBatchSize),
     emptyMessage: 'Tidak ada baris belum diterjemahkan.',
     tabLabel: 'Translate',
@@ -142,14 +177,23 @@ export function selectActiveWorkspaceBatch(direction: number): boolean {
     return true;
   }
 
+  const batchSize = config.batchSize;
+  // Map line_num -> index in the display-ordered list. After a file reorder,
+  // line_num order no longer matches the on-screen order, so batch navigation
+  // must use this index, not line_num comparison.
+  const indexByLineNum = new Map<number, number>();
+  for (let i = 0; i < selectableLines.length; i++) {
+    indexByLineNum.set(selectableLines[i].line_num, i);
+  }
+
   const selectedInScope = selectableLines.filter(l => state.selectedLines.has(l.line_num));
   let startIndex = 0;
 
   if (direction > 0) {
     if (selectedInScope.length) {
-      const maxSelected = Math.max(...selectedInScope.map(l => l.line_num));
-      startIndex = selectableLines.findIndex(l => l.line_num > maxSelected);
-      if (startIndex === -1) {
+      const maxIndex = Math.max(...selectedInScope.map(l => indexByLineNum.get(l.line_num)!));
+      startIndex = maxIndex + 1;
+      if (startIndex >= selectableLines.length) {
         flashHint('Sudah di batch terakhir.', false);
         return true;
       }
@@ -159,16 +203,15 @@ export function selectActiveWorkspaceBatch(direction: number): boolean {
       flashHint('Belum ada batch sebelumnya.', false);
       return true;
     }
-    const minSelected = Math.min(...selectedInScope.map(l => l.line_num));
-    const currentIndex = selectableLines.findIndex(l => l.line_num >= minSelected);
-    if (currentIndex <= 0) {
+    const minIndex = Math.min(...selectedInScope.map(l => indexByLineNum.get(l.line_num)!));
+    if (minIndex <= 0) {
       flashHint('Sudah di batch pertama.', false);
       return true;
     }
-    startIndex = Math.max(0, currentIndex - config.batchSize);
+    startIndex = Math.max(0, minIndex - batchSize);
   }
 
-  const batch = selectableLines.slice(startIndex, startIndex + config.batchSize);
+  const batch = selectableLines.slice(startIndex, startIndex + batchSize);
   if (!batch.length) return true;
 
   state.selectedLines.clear();

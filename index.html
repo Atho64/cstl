@@ -292,7 +292,7 @@
           </div>
           <div id="aiCheckStatus" class="status-toast empty"></div>
           <label class="section-label" for="pasteAiCheckArea">Paste hasil koreksi AI di sini</label>
-          <textarea id="pasteAiCheckArea" class="mono input-area" placeholder="[line 12]&#10;category: Grammar&#10;reason: alasan koreksi&#10;name: Nama jika perlu diubah&#10;text: Teks terjemahan yang sudah dikoreksi" disabled></textarea>
+          <textarea id="pasteAiCheckArea" class="mono input-area" placeholder="[line 12]&#10;category: Grammar&#10;reason: alasan koreksi&#10;correction: Nama: Teks terjemahan yang sudah dikoreksi" disabled></textarea>
           <div class="inline-actions">
             <button id="btnParseAiCheck" class="btn btn-outline grow" disabled>Parse AI Check Result</button>
             <button id="btnApplyAiCheck" class="btn btn-success grow" disabled>Apply Checked Corrections</button>
@@ -762,6 +762,7 @@
             <div class="flex" style="gap: 8px;">
               <select id="settingsPromptTemplateSelect" class="text-input" style="padding: 2px 8px; font-size: 12px;">
                 <option value="simple">Standar (Bawaan CSTL)</option>
+                <option value="kagikakko">Standar (Kagikakko 「」)</option>
                 <option value="complex-id">Kompleks (Indo)</option>
                 <option value="complex-en">Kompleks (Eng)</option>
               </select>

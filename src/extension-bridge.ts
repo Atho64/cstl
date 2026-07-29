@@ -12,7 +12,7 @@ import {
   getSelectedTranslationPlainText,
   applyPromptVariables,
 } from './ai-format';
-import { DEFAULT_GLOSSARY_PROMPT, DEFAULT_AI_CHECK_PROMPT } from './constants';
+import { DEFAULT_GLOSSARY_PROMPT } from './constants';
 import {
   parseGlossaryToMap,
   serializeGlossaryMap,
@@ -21,7 +21,7 @@ import {
 } from './glossary';
 import {
   getSelectedTranslatedLines,
-  getLineForAiCheck,
+  buildAiCheckPrompt,
   parseAiCheckBlocks,
   renderAiCheckCorrections,
   setAiCheckStatus,
@@ -592,12 +592,7 @@ export function cancelGlossaryAutoCopas(): void {
 
 // ─── AI Check helpers ─────────────────────────────────────────────────────────
 
-function buildAiCheckPrompt(): string {
-  const sel = getSelectedTranslatedLines();
-  if (!sel.length) return '';
-  const baseCheck = applyPromptVariables((state.aiCheckPrompt || DEFAULT_AI_CHECK_PROMPT).trim());
-  return `${baseCheck}\n\n${sel.map(getLineForAiCheck).join('\n\n')}\n`;
-}
+// buildAiCheckPrompt is imported from ./ai-check (context once at start + glossary + lines).
 
 function applyAiCheckResult(text: string): void {
   const area = ui.pasteAiCheckArea as HTMLTextAreaElement | undefined;
@@ -635,7 +630,7 @@ async function runAiCheckFullAuto(): Promise<void> {
       for (const l of batch) state.selectedLines.add(l.line_num);
       syncCheckboxUI();
 
-      const payload = buildAiCheckPrompt();
+      const payload = buildAiCheckPrompt(batch);
       if (!payload) break;
 
       const reqId = rid();
@@ -752,7 +747,7 @@ export async function sendAiCheckAutoCopas(): Promise<void> {
     await runAiCheckFullAuto();
     return;
   }
-  const payload = buildAiCheckPrompt();
+  const payload = buildAiCheckPrompt(getSelectedTranslatedLines());
   if (!payload) { flashHint('Pilih baris terjemahan dulu.'); return; }
   if (!available && !(await pingExtension())) {
     flashHint('Extension belum terpasang.');

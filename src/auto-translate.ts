@@ -3,7 +3,7 @@
 import { state, ui, isTranslated } from './state';
 import { buildSelectedTranslationExport, applyPromptVariables } from './ai-format';
 import { getGlossaryPrompt } from './glossary';
-import { DEFAULT_PROMPT_HEADER, DEFAULT_GLOSSARY_PROMPT, DEFAULT_AI_CHECK_PROMPT } from './constants';
+import { DEFAULT_PROMPT_HEADER, DEFAULT_GLOSSARY_PROMPT } from './constants';
 import { flashHint } from './render';
 import { openModal, closeModal } from './project';
 import * as Translate from './translate';
@@ -1037,13 +1037,9 @@ export async function onAutoAiCheck(): Promise<void> {
 
       btn.textContent = `Cek Batch (${batchLines.length} baris)... (Klik Stop)`;
 
-      // Build prompt with glossary and context (fix: previously missing glossary)
-      const { applyPromptVariables } = await import('./ai-format');
-      const { getGlossaryPrompt } = await import('./glossary');
-      const { getLineForAiCheck } = await import('./ai-check');
-      const basePrompt = applyPromptVariables((state.aiCheckPrompt || DEFAULT_AI_CHECK_PROMPT).trim());
-      const out = batchLines.map(l => getLineForAiCheck(l));
-      const prompt = `${basePrompt}\n\n${out.join('\n\n')}\n`;
+      // Build prompt with context (once at start) + glossary + lines
+      const { buildAiCheckPrompt } = await import('./ai-check');
+      const prompt = buildAiCheckPrompt(batchLines);
 
       let rawResult = await fetchWithRetry(() => fetchApiResult(prompt), (retry) => {
         btn.textContent = `${formatRetryLabel(retry)}... (Klik Stop)`;

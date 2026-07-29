@@ -22,6 +22,17 @@ window.addEventListener('unhandledrejection', function(event) {
 import { init } from './ui-init';
 import { initExtensionBridge } from './extension-bridge';
 
+// Inject critical dynamic CSS that Vite may strip from external stylesheet
+(function injectDynamicStyles() {
+  const style = document.createElement('style');
+  style.id = 'cstl-dynamic-styles';
+  style.textContent = [
+    '.preview-row.row-translated { border-left: 3px solid #10b981 !important; }',
+    '.preview-row.row-ai-checked { border-left: 3px solid #f59e0b !important; }',
+  ].join('\n');
+  document.head.appendChild(style);
+})();
+
 const appStartTime = performance.now();
 
 function removeLoader() {

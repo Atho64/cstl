@@ -153,6 +153,12 @@ export function renderMainRow(rowData: DisplayRow): HTMLElement {
     const line = rowData.line!;
     row.dataset.lineNum = line.line_num.toString();
     if (isTranslated(line)) row.classList.add('row-translated');
+    if (line._ai_checked) {
+      row.classList.add('row-ai-checked');
+      row.style.borderLeft = '3px solid #f59e0b';
+    } else if (isTranslated(line)) {
+      row.style.borderLeft = '3px solid #10b981';
+    }
     const isChecked = state.selectedLines.has(line.line_num);
     if (isChecked) row.classList.add('row-selected');
     const cbWrap = document.createElement('div');

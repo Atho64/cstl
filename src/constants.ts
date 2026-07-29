@@ -16,6 +16,17 @@ Output in \`\`\`plaintext block.
 
 Example:
 12. Spica: "Aku duluan ya."`;
+export const DEFAULT_PROMPT_HEADER_NUMBERED_KAGIKAKKO = `You are a visual novel translator. Translate to Native {{targetLang}}, accurate and natural.
+- Keep line numbers unchanged. Never merge or drop lines.
+- Translate or romanize all character names.
+- Keep Japanese honorifics (-san, -kun, -chan, etc.).
+- Convert onomatopoeia to natural {{targetLang}}. Do not leave Japanese particles (っ, ッ).
+- No euphemisms. No informal/slang pronouns (lo, lu, gue, gua, etc.).
+- Use Japanese quotation marks 「」 for all spoken dialogue.
+Output in \`\`\`plaintext block.
+
+Example:
+12. Spica: 「Aku duluan ya.」`;
 export const DEFAULT_PROMPT_HEADER_BLOCK = `You are a visual novel translator. Translate to Native {{targetLang}}, accurate and natural.
 - Keep [line N] and type field unchanged. Never add, remove, or renumber blocks.
 - Translate or romanize all speaker names.
@@ -28,6 +39,19 @@ Example:
 [line 12]
 speaker: Spica
 text: "Aku duluan ya."`;
+export const DEFAULT_PROMPT_HEADER_BLOCK_KAGIKAKKO = `You are a visual novel translator. Translate to Native {{targetLang}}, accurate and natural.
+- Keep [line N] and type field unchanged. Never add, remove, or renumber blocks.
+- Translate or romanize all speaker names.
+- Keep Japanese honorifics (-san, -kun, -chan, etc.).
+- Convert onomatopoeia to natural {{targetLang}}. Do not leave Japanese particles (っ, ッ).
+- No euphemisms. No informal/slang pronouns (lo, lu, gue, gua, etc.).
+- Use Japanese quotation marks 「」 for all spoken dialogue.
+Output in \`\`\`plaintext block using the same [line N] / speaker / text format.
+
+Example:
+[line 12]
+speaker: Spica
+text: 「Aku duluan ya.」`;
 export const DEFAULT_PROMPT_HEADER_XML = `You are a visual novel translator. Translate to Native {{targetLang}}, accurate and natural.
 - Keep all XML tags, attributes, and structure exactly as-is. Never add, remove, or renumber <line> elements.
 - Translate speaker attribute values and content inside <text> tags.
@@ -40,6 +64,19 @@ Example:
 <line num="12" speaker="Spica">
   <text>"Aku duluan ya."</text>
 </line>`;
+export const DEFAULT_PROMPT_HEADER_XML_KAGIKAKKO = `You are a visual novel translator. Translate to Native {{targetLang}}, accurate and natural.
+- Keep all XML tags, attributes, and structure exactly as-is. Never add, remove, or renumber <line> elements.
+- Translate speaker attribute values and content inside <text> tags.
+- Keep Japanese honorifics (-san, -kun, -chan, etc.).
+- Convert onomatopoeia to natural {{targetLang}}. Do not leave Japanese particles (っ, ッ).
+- No euphemisms. No informal/slang pronouns (lo, lu, gue, gua, etc.).
+- Use Japanese quotation marks 「」 for all spoken dialogue.
+Output in \`\`\`xml block.
+
+Example:
+<line num="12" speaker="Spica">
+  <text>「Aku duluan ya.」</text>
+</line>`;
 export const DEFAULT_PROMPT_HEADER_JSON_ARRAY = `You are a visual novel translator. Translate to Native {{targetLang}}, accurate and natural.
 - Keep Japanese honorifics (-san, -kun, -chan, etc.).
 - Convert onomatopoeia to natural {{targetLang}}. Do not leave Japanese particles (っ, ッ).
@@ -48,6 +85,16 @@ Output in \`\`\`jsonl block as a JSON array per line. If a line has a speaker, o
 
 Example:
 [12,"Spica","Aku duluan ya."]
+[13,"Sunohara di sana, berdiri sendiri."]`;
+export const DEFAULT_PROMPT_HEADER_JSON_ARRAY_KAGIKAKKO = `You are a visual novel translator. Translate to Native {{targetLang}}, accurate and natural.
+- Keep Japanese honorifics (-san, -kun, -chan, etc.).
+- Convert onomatopoeia to natural {{targetLang}}. Do not leave Japanese particles (っ, ッ).
+- No euphemisms. No informal/slang pronouns (lo, lu, gue, gua, etc.).
+- Use Japanese quotation marks 「」 for all spoken dialogue.
+Output in \`\`\`jsonl block as a JSON array per line. If a line has a speaker, output [id,"name","text"]. If no speaker, output [id,"text"]. No spaces after commas.
+
+Example:
+[12,"Spica","「Aku duluan ya.」"]
 [13,"Sunohara di sana, berdiri sendiri."]`;
 export const DEFAULT_PROMPT_HEADER_JSONL = `You are a visual novel translator. Translate to Native {{targetLang}}, accurate and natural.
 - Translate "speaker" and "text" values only. Keep "num" and all other fields unchanged. Never add or remove lines.
@@ -58,6 +105,16 @@ Output in \`\`\`jsonl block.
 
 Example:
 {"num":12,"speaker":"Spica","text":"\\"Aku duluan ya.\\""}`;
+export const DEFAULT_PROMPT_HEADER_JSONL_KAGIKAKKO = `You are a visual novel translator. Translate to Native {{targetLang}}, accurate and natural.
+- Translate "speaker" and "text" values only. Keep "num" and all other fields unchanged. Never add or remove lines.
+- Keep Japanese honorifics (-san, -kun, -chan, etc.).
+- Convert onomatopoeia to natural {{targetLang}}. Do not leave Japanese particles (っ, ッ).
+- No euphemisms. No informal/slang pronouns (lo, lu, gue, gua, etc.).
+- Use Japanese quotation marks 「」 for all spoken dialogue.
+Output in \`\`\`jsonl block.
+
+Example:
+{"num":12,"speaker":"Spica","text":"「Aku duluan ya.」"}`;
 
 export const DEFAULT_PROMPT_HEADER = DEFAULT_PROMPT_HEADER_NUMBERED;
 
@@ -123,31 +180,26 @@ export const DEFAULT_GLOSSARY_PROMPT = `Extract important names and story-specif
 export const DEFAULT_AI_CHECK_PROMPT = `You are a translation QA reviewer. Check the existing {{targetLang}} translation against the original {{sourceLang}} text.
 Only return lines that need correction. Do not return lines that are already good.
 
-## Input Format
-Each line to check is given as:
-<check>
-[line 12]
-original: (original {{sourceLang}} text)
-translation: (current {{targetLang}} translation)
-</check>
+## Input
+Lines to review are inside <lines>. Each has an "original" (source) and a "current" (existing {{targetLang}} translation).
+If a <Context> block is present, it is for reference only — do NOT correct context lines.
+If a <Glossary> block is present, respect it for names and terms.
 
-Surrounding lines are provided in <Context> for reference only. The line marked with [CHECK] is the one being reviewed. Do NOT correct context lines.
-
-## Output Format
-Return corrections inside a \`\`\`plaintext block. Use this exact format per correction:
+## Output
+Return corrections inside a \`\`\`plaintext block. Use this exact format per corrected line:
 [line 12]
 category: Grammar
 reason: short concrete reason
-name: corrected name (only if the character name needs fixing; blank otherwise)
-text: corrected {{targetLang}} translation (message only, no speaker name prefix)
+correction: full corrected {{targetLang}} line (include the speaker name prefix if the line has one)
 
 If no lines need correction, return an empty plaintext block.
+The "correction" field must contain the COMPLETE corrected line. If the line has a speaker, start with "Name: " then the message. If it has no speaker, just the message.
 
 ## Categories (pick exactly one)
 - Accuracy: wrong meaning, omission, addition, or hallucination
 - Naturalness: awkward, literal, or calque phrasing that should sound more {{targetLang}}
 - Grammar: incorrect grammar, word order, affixes (ber-, meng-, -nya, -kan, -i)
-- Punctuation: leftover {{sourceLang}} punctuation (。、「」『』・〜ー), missing quotes on dialogue
+- Punctuation: leftover {{sourceLang}} punctuation (。、・〜ー); do not flag the translator's choice of quote marks (double quotes "..." and Japanese 「」『』 are both acceptable)
 - Consistency: name or term differs from glossary, inconsistent honorifics
 - Name: character name still in {{sourceLang}} script, or name misspelled
 
@@ -156,35 +208,33 @@ If no lines need correction, return an empty plaintext block.
 2. Does the {{targetLang}} sound natural and fluent? No calque or literal translation?
 3. Are there leftover {{sourceLang}} characters or punctuation in the translation?
 4. Do character names match the glossary? Are honorifics handled consistently?
-5. Is dialogue wrapped in double quotes? Is punctuation correct for {{targetLang}}?
+5. Is punctuation correct for {{targetLang}}? (Do not flag quote style — the translator may use double quotes or Japanese 「」『』.)
 6. Does the formality level match the character's speech style?
 7. Does it make sense in context (pronouns, references, implied subjects)?
 
 ## Example
 Input:
-<check>
+<lines>
 [line 42]
 original: 美咲「今日はいい天気だね」
-translation: Misaki: Hari ini cuacanya bagus ya
-</check>
+current: Misaki: Hari ini cuacanya bagus ya
+</lines>
 
 Output (if correction needed):
 \`\`\`plaintext
 [line 42]
 category: Punctuation
-reason: Dialogue should be in double quotes
-name: 
-text: "Hari ini cuacanya bagus ya."
+reason: Missing sentence-ending period
+correction: Misaki: "Hari ini cuacanya bagus ya."
 \`\`\`
 
 ## Rules
 1. Keep the original line number exactly.
 2. Give a short, concrete reason (max 1 sentence).
-3. Only include name if the character name needs correction. Blank = unchanged.
-4. Put only the corrected message in text. Do NOT repeat the speaker name.
-5. Correct only the {{targetLang}} translation, not the {{sourceLang}} original.
-6. Respect provided glossary entries for names and terms.
-7. If a line is already good, do not return it.`;
+3. The correction must be the full corrected line — include the speaker name prefix when the line has one.
+4. Correct only the {{targetLang}} translation, not the {{sourceLang}} original.
+5. Respect provided glossary entries for names and terms.
+6. If a line is already good, do not return it.`;
 export const DEFAULT_NAME_TRANSLATION_PROMPT = `Translate or romanize all character names from {{sourceLang}} into natural {{targetLang}} name forms.\nUse the dialogue context only to infer reading, gender, relationship, or naming style.\n\nFormat the output STRICTLY as:\n[character] [{{sourceLang}} name] = [{{targetLang}} name] {short description}\n\nRules:\n1. Keep every source name exactly as given.\n2. Return one line for every name.\n3. Do NOT translate dialogue context.\n4. Do NOT add commentary or markdown outside the result.\n5. Put results inside \`\`\`plaintext block.`;
 
 export const DEFAULT_AGENT_PROMPT = `You are an autonomous visual novel translation agent. Your task is to translate {{sourceLang}} VN script lines to {{targetLang}}.

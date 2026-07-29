@@ -37,46 +37,59 @@ export function getSelectedTranslatedLines(): Line[] {
   return state.lines.filter(l => state.selectedLines.has(l.line_num) && isTranslated(l));
 }
 
-// ─── Context building (surrounding lines) ─────────────────────────────────────
+// ─── Context building (once, at the start — same logic as Copy for AI) ────────
 
-function buildContextLines(line: Line, radius: number): string {
-  const idx = state.lines.indexOf(line);
-  if (idx === -1) return '';
-  const start = Math.max(0, idx - radius);
-  const end = Math.min(state.lines.length - 1, idx + radius);
-  const parts: string[] = [];
-  for (let i = start; i <= end; i++) {
-    const l = state.lines[i];
-    if (l._hidden) continue;
-    const isTarget = i === idx;
-    const marker = isTarget ? '[CHECK] ' : '';
-    const name = l.trans_name || l.name || '';
-    const origText = name ? `${name}: ${l.message}` : l.message;
-    const transText = isTranslated(l) ? (name ? `${l.trans_name || name}: ${l.trans_message}` : `${l.trans_message}`) : '(untranslated)';
-    parts.push(`${marker}[line ${l.line_num}] ${origText} => ${transText}`);
+function buildAiCheckContextBlock(sel: Line[]): string {
+  if (state.contextLines <= 0 || !sel.length) return '';
+  const firstSelLineNum = sel[0].line_num;
+  const firstSelIdx = state.lines.findIndex(l => l.line_num === firstSelLineNum);
+  if (firstSelIdx <= 0) return '';
+  const startIdx = Math.max(0, firstSelIdx - state.contextLines);
+  const ctxLines = state.lines.slice(startIdx, firstSelIdx).filter(l => !l._hidden);
+  if (!ctxLines.length) return '';
+  const ctxOut: string[] = [];
+  for (const l of ctxLines) {
+    const origNameStr = l.name ? `${l.name}: ` : '';
+    const transNameStr = (l.trans_name || l.name) ? `${(l.trans_name || l.name)!.trim()}: ` : '';
+    if (state.contextType === 'raw') {
+      ctxOut.push(`${origNameStr}${l.message}`);
+    } else if (state.contextType === 'both') {
+      ctxOut.push(`[Original] ${origNameStr}${l.message}\n[Translated] ${transNameStr}${l.trans_message || ''}`);
+    } else {
+      ctxOut.push(`${transNameStr}${l.trans_message || l.message}`);
+    }
   }
-  return parts.join('\n');
+  if (!ctxOut.length) return '';
+  return `<Context>\nThese lines are for context only. Do NOT correct them.\n${ctxOut.join('\n')}\n</Context>`;
 }
 
 export function getLineForAiCheck(line: Line): string {
   const originalName = line.name || '';
   const translatedName = (line.trans_name || '').trim() || originalName;
   const originalText = originalName ? `${originalName}: ${line.message}` : line.message;
-  const translatedText = translatedName ? `${translatedName}: ${line.trans_message}` : line.trans_message;
-  const glossary = getGlossaryPrompt(`${originalText}\n${translatedText}`).trim();
-
-  // Build surrounding context (2 lines before/after)
-  const contextLines = buildContextLines(line, 2);
-
+  const currentText = translatedName ? `${translatedName}: ${line.trans_message}` : line.trans_message;
   return [
-    `<check>`,
     `[line ${line.line_num}]`,
     `original: ${originalText}`,
-    `translation: ${translatedText}`,
-    glossary ? glossary : '',
-    `</check>`,
-    contextLines ? `<Context>\n${contextLines}\n</Context>` : '',
-  ].filter(Boolean).join('\n');
+    `current: ${currentText}`,
+  ].join('\n');
+}
+
+export function buildAiCheckPrompt(sel: Line[]): string {
+  if (!sel.length) return '';
+  const baseCheck = applyPromptVariables((state.aiCheckPrompt || DEFAULT_AI_CHECK_PROMPT).trim());
+  const contextBlock = buildAiCheckContextBlock(sel);
+  const joinedOriginal = sel.map(l => {
+    const n = l.name || '';
+    return n ? `${n}: ${l.message}` : l.message;
+  }).join('\n');
+  const glossaryBlock = getGlossaryPrompt(joinedOriginal).trim();
+  const linesBlock = `<lines>\n${sel.map(getLineForAiCheck).join('\n\n')}\n</lines>`;
+  const sections: string[] = [baseCheck];
+  if (contextBlock) sections.push(contextBlock);
+  if (glossaryBlock) sections.push(glossaryBlock);
+  sections.push(linesBlock);
+  return sections.join('\n\n') + '\n';
 }
 
 export function setAiCheckStatus(message: string, keepAlive = false): void {
@@ -97,8 +110,7 @@ export async function onCopyForAiCheck(): Promise<void> {
     setAiCheckStatus('Tidak ada baris terjemahan yang dipilih.');
     return;
   }
-  const baseCheck = applyPromptVariables((state.aiCheckPrompt || DEFAULT_AI_CHECK_PROMPT).trim());
-  const promptText = `${baseCheck}\n\n${sel.map(getLineForAiCheck).join('\n\n')}\n`;
+  const promptText = buildAiCheckPrompt(sel);
   try {
     await navigator.clipboard.writeText(promptText);
     setAiCheckStatus(`Disalin ${sel.length} baris untuk AI Check.`);
@@ -111,28 +123,70 @@ export async function onCopyForAiCheck(): Promise<void> {
 
 // ─── Parse AI Check response ──────────────────────────────────────────────────
 
+/** Split "Name: message" into name + message using the first ASCII/fullwidth colon. */
+function splitNameMessage(correction: string): { name: string; message: string } {
+  const raw = String(correction || '');
+  const colonIdx = raw.indexOf(':');
+  const jpColonIdx = raw.indexOf('：');
+  let splitIdx = -1;
+  if (colonIdx !== -1 && jpColonIdx !== -1) splitIdx = Math.min(colonIdx, jpColonIdx);
+  else if (colonIdx !== -1) splitIdx = colonIdx;
+  else if (jpColonIdx !== -1) splitIdx = jpColonIdx;
+  if (splitIdx === -1) return { name: '', message: raw.trim() };
+  return { name: raw.substring(0, splitIdx).trim(), message: raw.substring(splitIdx + 1).trim() };
+}
+
 export function parseAiCheckBlocks(text: string): { num: number; category: string; reason: string; name: string; text: string }[] {
   const lines = text.split(/\r?\n/);
   const blocks: { num: number; category: string; reason: string; name: string; text: string }[] = [];
   let current: { num: number; category: string; reason: string; name: string; text: string } | null = null;
+  let lastField: 'reason' | 'text' | 'name' | null = null;
   for (const rawLine of lines) {
     const line = rawLine.trim();
     if (!line || line === '```' || line === '```plaintext' || line === '```text') continue;
-    const header = line.match(/^\[line\s+(\d+)\]$/i);
+    // Accept both [line N] and [N] headers
+    const header = line.match(/^\[line\s+(\d+)\]$/i) || line.match(/^\[(\d+)\]$/);
     if (header) {
       if (current) blocks.push(current);
       current = { num: Number(header[1]), category: '', reason: '', name: '', text: '' };
+      lastField = null;
       continue;
     }
-    if (!current) throw new Error(`Baris tanpa header [line N]: "${line.slice(0, 50)}"`);
-    const field = line.match(/^(category|reason|name|text)\s*:\s*(.*)$/i);
-    if (!field) throw new Error(`Format field rusak pada line ${current.num}: "${line.slice(0, 50)}"`);
-    const key = field[1].toLowerCase() as 'category' | 'reason' | 'name' | 'text';
-    if (key === 'category') {
-      current.category = normalizeCategory(field[2]);
-    } else {
-      current[key] = field[2].trim();
+    if (!current) continue; // lenient: skip stray lines before any header
+    const field = line.match(/^(category|reason|name|text|correction)\s*:\s*(.*)$/i);
+    if (field) {
+      const key = field[1].toLowerCase() as 'category' | 'reason' | 'name' | 'text' | 'correction';
+      const value = field[2];
+      if (key === 'category') {
+        current.category = normalizeCategory(value);
+        lastField = null;
+      } else if (key === 'correction') {
+        // Combined "Name: message" — split using line context
+        const lineObj = state.lineByNum.get(current.num);
+        if (lineObj && lineObj.name) {
+          const split = splitNameMessage(value);
+          current.name = split.name;
+          current.text = split.message;
+        } else {
+          current.name = '';
+          current.text = value;
+        }
+        lastField = 'text'; // continuations append to the message
+      } else {
+        current[key] = value.trim();
+        lastField = key;
+      }
+      continue;
     }
+    // Continuation line for multi-line text/reason/name
+    if (lastField === 'text') {
+      current.text = current.text ? `${current.text}\n${rawLine}` : rawLine;
+    } else if (lastField === 'reason') {
+      current.reason = current.reason ? `${current.reason} ${line}` : line;
+    } else if (lastField === 'name') {
+      current.name = current.name ? `${current.name} ${line}` : line;
+    }
+    // else: lenient — skip unrecognized lines instead of throwing
   }
   if (current) blocks.push(current);
   if (!blocks.length) throw new Error('Tidak ada blok [line N] yang valid.');
@@ -378,8 +432,8 @@ export function onApplyAiCheckCorrections(): { applied: number; categories: Map<
     if (line.name) correctedMsg = stripDuplicateSpeakerPrefix(correctedMsg, effectiveName);
     line.trans_message = escapeStoredNewlines(correctedMsg);
     line.is_translated = true;
-    // Mark for re-check (clear _ai_checked so it gets re-checked next time)
-    line._ai_checked = false;
+    // Mark as checked after corrections are applied
+    line._ai_checked = true;
     applied++;
     catStats.set(correction.category, (catStats.get(correction.category) || 0) + 1);
   }

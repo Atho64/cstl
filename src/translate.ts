@@ -53,8 +53,16 @@ export function buildCopyForAiPrompt(): string | null {
   const sections: string[] = [baseHeader];
   if (glossaryBlock) sections.push(glossaryBlock.trim());
   if (contextBlock) sections.push(contextBlock.trim());
-  if (state.enableBackgroundChaining && state.currentBackground) {
-    sections.push(`<background>\n${state.currentBackground.trim()}\n</background>`);
+  if (state.enableBackgroundChaining) {
+    if (state.currentBackground) {
+      sections.push(`<background>\n${state.currentBackground.trim()}\n</background>`);
+    }
+    // Inject instruksi estafet agar AI tahu format background yang diharapkan
+    sections.push(applyPromptVariables(
+      'If the <background> section is provided above, absorb the history translations and plot to ensure semantic accuracy.\n' +
+      'After translation, generate a short context background summary (in {{targetLang}}) that focuses on translation-relevant points (scene, events, current topic) to help make the next batches more accurate. Keep it empty if there is nothing meaningful.\n' +
+      'Your background output should be enclosed in a label pair (<background>...</background>) at the very end of your response, INSIDE the plaintext block.'
+    ));
   }
   if (state.enableUncertainMarking) {
     sections.push('If you are uncertain about a translation, prefix it with [?].');

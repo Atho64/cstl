@@ -178,6 +178,8 @@ export function normalizeLineDict(line: any): Line {
   if (line.luca_prefix_b64 != null) normalized.luca_prefix_b64 = String(line.luca_prefix_b64);
   if (line.epub_selector != null) normalized.epub_selector = String(line.epub_selector);
   if (line.epub_id != null) normalized.epub_id = String(line.epub_id);
+  if (line._ai_checked != null) normalized._ai_checked = Boolean(line._ai_checked);
+  if (line._ai_confirmed != null) normalized._ai_confirmed = Boolean(line._ai_confirmed);
   return normalized;
 }
 

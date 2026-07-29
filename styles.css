@@ -16,6 +16,7 @@
   --success-hover: #059669;
   --danger: #f43f5e;
   --danger-hover: #e11d48;
+  --warning: #f59e0b;
   /* Compatibility aliases for old CSTL variable names */
   --bg-card: var(--panel-2);
   --border: var(--line);
@@ -661,6 +662,7 @@ input, textarea, button, select { font-family: inherit; font-size: inherit; }
   border-color: var(--primary);
 }
 .preview-row.row-translated { border-left: 3px solid var(--success); }
+.preview-row.row-ai-checked { border-left: 3px solid var(--warning); }
 .preview-row.separator {
   flex-direction: row;
   align-items: center;

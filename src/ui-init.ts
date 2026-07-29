@@ -6,6 +6,8 @@ import {
   DEFAULT_PROMPT_HEADER_NUMBERED, DEFAULT_PROMPT_HEADER_BLOCK,
   DEFAULT_PROMPT_HEADER_XML, DEFAULT_PROMPT_HEADER_JSONL, DEFAULT_PROMPT_HEADER_JSON_ARRAY,
   DEFAULT_PROMPT_HEADER_COMPLEX_ID, DEFAULT_PROMPT_HEADER_COMPLEX_EN,
+  DEFAULT_PROMPT_HEADER_NUMBERED_KAGIKAKKO, DEFAULT_PROMPT_HEADER_BLOCK_KAGIKAKKO,
+  DEFAULT_PROMPT_HEADER_XML_KAGIKAKKO, DEFAULT_PROMPT_HEADER_JSONL_KAGIKAKKO, DEFAULT_PROMPT_HEADER_JSON_ARRAY_KAGIKAKKO,
   DEFAULT_AGENT_PROMPT
 } from './constants';
 import { VirtualScroller } from './virtual-scroller';
@@ -40,7 +42,7 @@ import {
   openDashboardSettings, saveDashboardSettings, resetDashboardSettings,
   queueAutoSave, openModal, closeModal, loadDashboardProjects,
 } from './project';
-import { getDefaultPromptHeaderForFormat } from './ai-format';
+import { getDefaultPromptHeaderForFormat, getKagikakkoPromptHeaderForFormat } from './ai-format';
 import { getLucaProfile, populateLucaExportSlotSelect, DEFAULT_LUCA_PROFILE } from './luca-engine';
 import { bindShortcutCaptureInput } from './shortcuts';
 import { getMainScroller } from './state';
@@ -325,10 +327,16 @@ export function bindEvents(): void {
   if (ui.settingsAiTranslationFormatSelect) {
     ui.settingsAiTranslationFormatSelect.addEventListener('change', () => {
       const format = (ui.settingsAiTranslationFormatSelect as HTMLSelectElement).value || DEFAULT_AI_TRANSLATION_FORMAT;
-      const currentDefault = getDefaultPromptHeaderForFormat(format);
+      const templateVal = (ui.settingsPromptTemplateSelect as HTMLSelectElement)?.value;
+      const currentDefault = templateVal === 'kagikakko'
+        ? getKagikakkoPromptHeaderForFormat(format)
+        : getDefaultPromptHeaderForFormat(format);
+      
       const allDefaults = [
         DEFAULT_PROMPT_HEADER_NUMBERED, DEFAULT_PROMPT_HEADER_BLOCK,
         DEFAULT_PROMPT_HEADER_XML, DEFAULT_PROMPT_HEADER_JSONL, DEFAULT_PROMPT_HEADER_JSON_ARRAY,
+        DEFAULT_PROMPT_HEADER_NUMBERED_KAGIKAKKO, DEFAULT_PROMPT_HEADER_BLOCK_KAGIKAKKO,
+        DEFAULT_PROMPT_HEADER_XML_KAGIKAKKO, DEFAULT_PROMPT_HEADER_JSONL_KAGIKAKKO, DEFAULT_PROMPT_HEADER_JSON_ARRAY_KAGIKAKKO,
       ];
       if (allDefaults.some(d => (ui.settingsPromptInput as HTMLTextAreaElement).value.trim() === d.trim()) ||
           (ui.settingsPromptInput as HTMLTextAreaElement).value.trim() === DEFAULT_PROMPT_HEADER_COMPLEX_ID.trim() ||
@@ -344,6 +352,9 @@ export function bindEvents(): void {
       (ui.settingsPromptInput as HTMLTextAreaElement).value = DEFAULT_PROMPT_HEADER_COMPLEX_ID;
     } else if (val === 'complex-en') {
       (ui.settingsPromptInput as HTMLTextAreaElement).value = DEFAULT_PROMPT_HEADER_COMPLEX_EN;
+    } else if (val === 'kagikakko') {
+      const format = (ui.settingsAiTranslationFormatSelect as HTMLSelectElement)?.value || DEFAULT_AI_TRANSLATION_FORMAT;
+      (ui.settingsPromptInput as HTMLTextAreaElement).value = getKagikakkoPromptHeaderForFormat(format);
     } else {
       const format = (ui.settingsAiTranslationFormatSelect as HTMLSelectElement)?.value || DEFAULT_AI_TRANSLATION_FORMAT;
       (ui.settingsPromptInput as HTMLTextAreaElement).value = getDefaultPromptHeaderForFormat(format);
