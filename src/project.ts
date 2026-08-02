@@ -461,6 +461,82 @@ export async function backupDashboardProject(name: string, data: any, id: string
   const safeName = name.replace(/[^a-z0-9]/gi, '_').toLowerCase();
   a.download = `${safeName}_backup${PROJECT_EXT}`;
   a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+function buildCurrentProjectBackupData(): Record<string, any> {
+  return {
+    version: APP_VERSION, projectName: state.projectName, projectType: state.projectType,
+    source_lang: state.sourceLang, target_lang: state.targetLang,
+    translationMode: state.translationMode || 'ai', jsonRefLang: state.jsonRefLang || '',
+    epubTags: state.epubTags, epubSourceId: state.epubSourceId,
+    lucaExportLang: state.lucaExportLang, luca_profile: state.lucaProfile || DEFAULT_LUCA_PROFILE,
+    luca_mc_display_name: state.lucaMcDisplayName || DEFAULT_LUCA_MC_DISPLAY_NAME,
+    regex_filter: state.regexFilter, disable_empty_line_validation: state.disableEmptyLineValidation,
+    check_kana_residue: state.checkKanaResidue, check_similarity: state.checkSimilarity,
+    similarity_threshold: state.similarityThreshold, imported_files: state.importedFiles,
+    file_order: state.fileOrder, lines: state.lines, prompt_header: state.aiInstructionHeader,
+    ai_translation_format: state.aiTranslationFormat || DEFAULT_AI_TRANSLATION_FORMAT,
+    glossary_prompt: state.glossaryPrompt, ai_check_prompt: state.aiCheckPrompt,
+    agent_prompt: state.agentPrompt, glossary_text: state.glossaryText,
+    context_lines: state.contextLines, context_type: state.contextType,
+    selection_batch_size: state.selectionBatchSize, glossary_batch_size: state.glossaryBatchSize,
+    ai_check_batch_size: state.aiCheckBatchSize,
+    selection_batch_prev_shortcut: state.selectionBatchPrevShortcut,
+    selection_batch_next_shortcut: state.selectionBatchNextShortcut,
+    enableBackgroundChaining: state.enableBackgroundChaining, currentBackground: state.currentBackground,
+  };
+}
+
+export async function backupCurrentProject(): Promise<void> {
+  if (!state.currentProjectId) return;
+  await backupDashboardProject(state.projectName, buildCurrentProjectBackupData(), state.currentProjectId);
+}
+
+export async function backupAllProjectsAsZip(): Promise<void> {
+  if (!(window as any).JSZip) { alert('JSZip tidak tersedia.'); return; }
+  const projects = state.dashboardProjects || [];
+  if (!projects.length) { alert('Belum ada proyek untuk dibackup.'); return; }
+  if (!confirm(`Backup semua ${projects.length} proyek sebagai satu file ZIP?`)) return;
+  const button = ui.btnBackupAllProjects as HTMLButtonElement | undefined;
+  const originalLabel = button?.textContent || 'Backup Semua ZIP';
+  if (button) {
+    button.disabled = true;
+    button.textContent = `Backup 0/${projects.length}...`;
+  }
+  try {
+    flashHint('Menyiapkan backup semua proyek...', true);
+    const zip = new (window as any).JSZip();
+    for (let index = 0; index < projects.length; index++) {
+      const p = projects[index];
+      if (button) button.textContent = `Backup ${index + 1}/${projects.length}...`;
+      flashHint(`Membackup proyek ${index + 1}/${projects.length}: ${p.name}`, true);
+      const data = await fetchProjectData(p.id);
+      const backupData = JSON.parse(JSON.stringify(data));
+      if (backupData.projectType === 'luca') {
+        const lucaData = await loadLucaDataFromOpfs(p.id);
+        if (lucaData) Object.assign(backupData, lucaData);
+      }
+      if (backupData.projectType === 'epub' && backupData.epubSourceId) {
+        try { backupData.epub_source = await readEpubSourceForBackup(backupData.epubSourceId); } catch (_) {}
+      }
+      const safeName = String(p.name || p.id).replace(/[^a-z0-9._-]/gi, '_').toLowerCase();
+      zip.file(`${safeName}_backup${PROJECT_EXT}`, JSON.stringify(backupData));
+    }
+    const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
+    const href = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = href;
+    a.download = `cstl_projects_backup_${new Date().toISOString().slice(0, 10)}.zip`; a.click();
+    setTimeout(() => URL.revokeObjectURL(href), 1000);
+    flashHint('Backup semua proyek berhasil.');
+  } catch (e: any) {
+    alert('Gagal membuat backup ZIP: ' + e.message);
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = originalLabel;
+    }
+  }
 }
 
 // ─── OPFS persistence ─────────────────────────────────────────────────────────

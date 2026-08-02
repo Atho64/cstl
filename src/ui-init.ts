@@ -14,7 +14,7 @@ import { VirtualScroller } from './virtual-scroller';
 import { renderMainRow, syncCheckboxUI, updateButtonStates, onSaveLineEditor, flashHint, updateCurrentFileBar } from './render';
 import { renderProofreadRow } from './proofread';
 import { renderQaRow } from './qa';
-import { onSelectionHistoryKeydown, isSelectableForActiveTab, recordSelectionHistory, switchWorkspaceTab } from './selection';
+import { onSelectionHistoryKeydown, isSelectableForActiveTab, recordSelectionHistory, switchWorkspaceTab, selectActiveWorkspaceBatch } from './selection';
 import { onSaveGlossary, onImportGlossaryFile, onExportGlossaryFile, onDeleteTranslation, onCopyForGlossaryAi } from './glossary';
 import { onCopyForAi, onApplyTranslation, onUndoLastApply, onRedoLastUndo } from './translate';
 import { onCopyNamesForAi, onApplyNameTranslations, onResetNameTranslations } from './name-translation';
@@ -41,6 +41,7 @@ import {
   createNewProject, closeProject, onRestoreProject, renderDashboardProjects,
   openDashboardSettings, saveDashboardSettings, resetDashboardSettings,
   queueAutoSave, openModal, closeModal, loadDashboardProjects,
+  backupCurrentProject, backupAllProjectsAsZip,
 } from './project';
 import { getDefaultPromptHeaderForFormat, getKagikakkoPromptHeaderForFormat } from './ai-format';
 import { getLucaProfile, populateLucaExportSlotSelect, DEFAULT_LUCA_PROFILE } from './luca-engine';
@@ -63,8 +64,8 @@ function debounce(func: Function, wait: number) {
 
 export function cacheElements(): void {
   const ids = [
-    'dashboardView', 'workspaceView', 'projectList', 'projectFilterInput', 'btnNewProject', 'btnRestoreProject',
-    'btnBackToDashboard', 'projectNameDisplay', 'restoreProjectInput', 'btnDropdownImport', 'dropdownImportMenu', 'btnDropdownImportOther', 'dropdownImportOtherMenu', 'btnImportFile',
+    'dashboardView', 'workspaceView', 'projectList', 'projectFilterInput', 'btnNewProject', 'btnRestoreProject', 'btnBackupAllProjects',
+    'btnBackToDashboard', 'btnBackupProject', 'btnBatchPrev', 'btnBatchNext', 'projectNameDisplay', 'restoreProjectInput', 'btnDropdownImport', 'dropdownImportMenu', 'btnDropdownImportOther', 'dropdownImportOtherMenu', 'btnImportFile',
     'btnDropdownDashboardSettings', 'dropdownDashboardSettingsMenu', 'btnDashboardSettings', 'dashboardSettingsModal', 'btnDashboardSettingsSave', 'btnDashboardSettingsReset', 'paletteSelect', 'btnDashboardSettingsCancel',     'btnDashboardPrompts', 'dashboardPromptsModal', 'dpPromptInput', 'dpGlossaryPromptInput', 'dpAiCheckPromptInput', 'dpAgentPromptInput', 'btnDashboardPromptsSave', 'btnDashboardPromptsReset', 'btnDashboardPromptsCancel',
     'dsSourceLang', 'dsTargetLang', 'dsTranslationMode', 'dsAiFormat', 'dsContextLines', 'dsSelectionBatch', 'dsGlossaryBatch', 'dsAiCheckBatch', 'dsRegexFilter',
     'btnImportFolder', 'btnImportZip', 'btnImportTranslatedFile', 'btnImportTranslatedFolder', 'btnExport', 'btnProofread', 'btnSettings',
@@ -195,9 +196,19 @@ export function bindEvents(): void {
   });
 
   document.addEventListener('keydown', onSelectionHistoryKeydown);
+  document.addEventListener('keydown', (event) => {
+    if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 's') return;
+    if (!state.currentProjectId) return;
+    event.preventDefault();
+    backupCurrentProject();
+  });
   ui.btnNewProject?.addEventListener('click', createNewProject);
+  ui.btnBackupAllProjects?.addEventListener('click', backupAllProjectsAsZip);
   ui.projectFilterInput?.addEventListener('input', () => renderDashboardProjects());
   ui.btnBackToDashboard?.addEventListener('click', closeProject);
+  ui.btnBackupProject?.addEventListener('click', backupCurrentProject);
+  ui.btnBatchPrev?.addEventListener('click', () => selectActiveWorkspaceBatch(-1));
+  ui.btnBatchNext?.addEventListener('click', () => selectActiveWorkspaceBatch(1));
   ui.btnRestoreProject?.addEventListener('click', () => (ui.restoreProjectInput as HTMLInputElement).click());
   ui.restoreProjectInput?.addEventListener('change', onRestoreProject);
 

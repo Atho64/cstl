@@ -42,6 +42,7 @@
       <div class="actions">
           <button id="btnNewProject" class="btn btn-primary">Buat Proyek Baru</button>
           <button id="btnRestoreProject" class="btn btn-outline">Pulihkan Proyek</button>
+          <button id="btnBackupAllProjects" class="btn btn-outline" title="Backup semua proyek sebagai ZIP">Backup Semua ZIP</button>
           <div class="dropdown">
             <button id="btnDropdownDashboardSettings" class="btn btn-outline dropdown-toggle" title="Pengaturan Default Proyek"><svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915" /><circle cx="12" cy="12" r="3" /></svg> Default ▼</button>
             <div id="dropdownDashboardSettingsMenu" class="dropdown-content">
@@ -85,7 +86,9 @@
           </div>
         </div>
         <button id="btnUndo" class="btn" disabled title="Undo (Batalkan aksi terakhir)"><svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5" /><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11" /></svg></button>
-                <button id="btnRedo" class="btn" disabled title="Redo (Ulangi aksi terakhir)"><svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 14 5-5-5-5" /><path d="M20 9H9.5A5.5 5.5 0 0 0 4 14.5A5.5 5.5 0 0 0 9.5 20H13" /></svg></button>
+        <button id="btnRedo" class="btn" disabled title="Redo (Ulangi aksi terakhir)"><svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 14 5-5-5-5" /><path d="M20 9H9.5A5.5 5.5 0 0 0 4 14.5A5.5 5.5 0 0 0 9.5 20H13" /></svg></button>
+        <button id="btnBatchPrev" class="btn btn-icon btn-outline" title="Batch sebelumnya (Alt+ArrowUp)" aria-label="Batch sebelumnya (Alt+ArrowUp)">&#8593;</button>
+        <button id="btnBatchNext" class="btn btn-icon btn-outline" title="Batch berikutnya (Alt+ArrowDown)" aria-label="Batch berikutnya (Alt+ArrowDown)">&#8595;</button>
         <span class="toolbar-sep"></span>
         <button id="btnExport" class="btn" disabled>Ekspor</button>
         <span class="toolbar-sep"></span>
@@ -102,6 +105,7 @@
             <button id="btnSettingsGlossary" class="dropdown-item">Smart Glossary</button>
           </div>
         </div>
+        <button id="btnBackupProject" class="btn btn-outline" title="Backup proyek (Ctrl+S)">Backup</button>
       </div>
       <span id="projectNameDisplay" class="toolbar-label toolbar-project-name desktop-only"></span>
     </header>
