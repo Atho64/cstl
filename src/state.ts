@@ -73,6 +73,7 @@ export const state: AppState = {
   aiThinkingMode: 'default',
   aiFilterThinkingOutput: true,
   aiMergeSystemPrompt: false,
+  aiStreaming: false,
   glossaryPrompt: DEFAULT_GLOSSARY_PROMPT,
   aiCheckPrompt: DEFAULT_AI_CHECK_PROMPT,
   agentPrompt: DEFAULT_AGENT_PROMPT,
@@ -99,6 +100,7 @@ export const state: AppState = {
   aiCheckCorrections: [],
   dashboardProjects: [],
   agentMemories: [],
+  projectLoggingEnabled: false,
 };
 
 // ─── Shared UI Element Cache ──────────────────────────────────────────────────

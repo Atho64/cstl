@@ -18,6 +18,7 @@ import { resetSelectionHistory, switchWorkspaceTab, normalizeSelectionBatchSize 
 import { normalizeLineDict } from './state';
 import { normalizeShortcutString } from './shortcuts';
 import { getDictHistory, setDictHistory } from './dictionary';
+import { applyProjectLoggingVisibility } from './logging';
 
 // ─── Luca raw-field recovery (migration for saves made before the luca_raw_index fix) ───
 function recoverLucaRawFields(): void {
@@ -166,6 +167,7 @@ export function getDefaultSettings(): Record<string, any> {
     aiCheckBatch: DEFAULT_AI_CHECK_BATCH_SIZE,
     regexFilter: '',
     palette: 'indigo',
+    enableLogging: false,
   };
 }
 
@@ -180,6 +182,7 @@ export function openDashboardSettings(): void {
   (ui.dsGlossaryBatch as HTMLInputElement).value = d.glossaryBatch;
   (ui.dsAiCheckBatch as HTMLInputElement).value = d.aiCheckBatch;
   (ui.dsRegexFilter as HTMLInputElement).value = d.regexFilter || '';
+  if (ui.dsEnableLogging) (ui.dsEnableLogging as HTMLInputElement).checked = !!d.enableLogging;
   if (ui.paletteSelect) (ui.paletteSelect as HTMLSelectElement).value = d.palette || 'indigo';
   (ui.dashboardSettingsModal as HTMLElement).classList.add('open');
 }
@@ -195,9 +198,12 @@ export function saveDashboardSettings(): void {
   d.glossaryBatch = parseInt((ui.dsGlossaryBatch as HTMLInputElement).value) || DEFAULT_GLOSSARY_BATCH_SIZE;
   d.aiCheckBatch = parseInt((ui.dsAiCheckBatch as HTMLInputElement).value) || DEFAULT_AI_CHECK_BATCH_SIZE;
   d.regexFilter = (ui.dsRegexFilter as HTMLInputElement).value || '';
+  d.enableLogging = !!(ui.dsEnableLogging as HTMLInputElement | undefined)?.checked;
   d.palette = (ui.paletteSelect as HTMLSelectElement)?.value || 'indigo';
   localStorage.setItem(DS_STORAGE_KEY, JSON.stringify(d));
   applyPalette(d.palette);
+  state.projectLoggingEnabled = !!d.enableLogging;
+  applyProjectLoggingVisibility();
   (ui.dashboardSettingsModal as HTMLElement).classList.remove('open');
 }
 
@@ -240,8 +246,11 @@ export function resetDashboardSettings(): void {
   (ui.dsGlossaryBatch as HTMLInputElement).value = d.glossaryBatch;
   (ui.dsAiCheckBatch as HTMLInputElement).value = d.aiCheckBatch;
   (ui.dsRegexFilter as HTMLInputElement).value = d.regexFilter;
+  if (ui.dsEnableLogging) (ui.dsEnableLogging as HTMLInputElement).checked = !!d.enableLogging;
   if (ui.paletteSelect) (ui.paletteSelect as HTMLSelectElement).value = 'indigo';
   applyPalette('indigo');
+  state.projectLoggingEnabled = !!d.enableLogging;
+  applyProjectLoggingVisibility();
 }
 
 // ─── Dashboard project list ───────────────────────────────────────────────────
@@ -389,6 +398,7 @@ export async function createNewProject(): Promise<void> {
     selection_batch_size: d.selectionBatch, glossary_batch_size: d.glossaryBatch, ai_check_batch_size: d.aiCheckBatch,
     selection_batch_prev_shortcut: DEFAULT_SELECTION_BATCH_PREV_SHORTCUT,
     selection_batch_next_shortcut: DEFAULT_SELECTION_BATCH_NEXT_SHORTCUT,
+    enable_logging: !!d.enableLogging,
   };
   try {
     const root = await getOpfsRoot();
@@ -484,6 +494,7 @@ function buildCurrentProjectBackupData(): Record<string, any> {
     ai_check_batch_size: state.aiCheckBatchSize,
     selection_batch_prev_shortcut: state.selectionBatchPrevShortcut,
     selection_batch_next_shortcut: state.selectionBatchNextShortcut,
+    enable_logging: state.projectLoggingEnabled,
     enableBackgroundChaining: state.enableBackgroundChaining, currentBackground: state.currentBackground,
   };
 }
@@ -613,6 +624,7 @@ export function queueAutoSave(): void {
       selection_batch_next_shortcut: state.selectionBatchNextShortcut,
       enableBackgroundChaining: state.enableBackgroundChaining,
       currentBackground: state.currentBackground,
+      enable_logging: state.projectLoggingEnabled,
       proofread_settings: {
         scope: (ui.proofreadScope as HTMLSelectElement)?.value,
         regex: (ui.proofreadRegexCheck as HTMLInputElement)?.checked,
@@ -634,6 +646,8 @@ export function openProject(id: string, data: any): void {
   state.currentProjectId = id;
   state.projectName = data.projectName || 'Unknown Project';
   state.projectType = data.projectType || 'json';
+  // Logging visibility is controlled globally by Project Defaults for every project.
+  state.projectLoggingEnabled = !!getDefaultSettings().enableLogging;
   state.sourceLang = data.source_lang || state.sourceLang || 'Japanese';
   state.targetLang = data.target_lang || state.targetLang || 'Indonesian';
   state.translationMode = data.translationMode || 'ai';
@@ -736,6 +750,7 @@ export function openProject(id: string, data: any): void {
   refreshAll();
   applyHtlMode();
   switchWorkspaceTab('translate');
+  applyProjectLoggingVisibility();
 }
 
 export function closeProject(): void {
@@ -773,6 +788,7 @@ export function closeProject(): void {
       selection_batch_next_shortcut: state.selectionBatchNextShortcut,
       enableBackgroundChaining: state.enableBackgroundChaining,
       currentBackground: state.currentBackground,
+      enable_logging: state.projectLoggingEnabled,
     };
     saveProjectToOpfs(state.currentProjectId!, data).then(() => finishClose());
   } else {
@@ -782,12 +798,14 @@ export function closeProject(): void {
 
 export function finishClose(): void {
   state.currentProjectId = null;
+  state.projectLoggingEnabled = false;
   state.lines = [];
   state.selectedLines.clear();
   resetSelectionHistory();
   (ui.workspaceView as HTMLElement).style.display = 'none';
   (ui.dashboardView as HTMLElement).classList.add('open');
   loadDashboardProjects();
+  applyProjectLoggingVisibility();
 }
 
 export async function onRestoreProject(ev: Event): Promise<void> {
@@ -839,6 +857,7 @@ export async function onRestoreProject(ev: Event): Promise<void> {
       selection_batch_next_shortcut: normalizeShortcutString(p.selection_batch_next_shortcut, DEFAULT_SELECTION_BATCH_NEXT_SHORTCUT),
       enableBackgroundChaining: !!p.enableBackgroundChaining,
       currentBackground: p.currentBackground || '',
+      enable_logging: !!p.enable_logging,
     };
     await saveProjectToOpfs(id, safeData);
     if (p.lucaRawBuffers && Object.keys(p.lucaRawBuffers).length > 0) {

@@ -49,6 +49,7 @@ import { bindShortcutCaptureInput } from './shortcuts';
 import { getMainScroller } from './state';
 import { initDictionary } from './dictionary';
 import { initExtensionBridge, isExtensionAvailable } from './extension-bridge';
+import { applyProjectLoggingVisibility, appendProjectLog, updateStreamingLog, finishStreamingLog } from './logging';
 
 // ─── Debounce Utility ─────────────────────────────────────────────────────────
 
@@ -67,7 +68,7 @@ export function cacheElements(): void {
     'dashboardView', 'workspaceView', 'projectList', 'projectFilterInput', 'btnNewProject', 'btnRestoreProject', 'btnBackupAllProjects',
     'btnBackToDashboard', 'btnBackupProject', 'btnBatchPrev', 'btnBatchNext', 'projectNameDisplay', 'restoreProjectInput', 'btnDropdownImport', 'dropdownImportMenu', 'btnDropdownImportOther', 'dropdownImportOtherMenu', 'btnImportFile',
     'btnDropdownDashboardSettings', 'dropdownDashboardSettingsMenu', 'btnDashboardSettings', 'dashboardSettingsModal', 'btnDashboardSettingsSave', 'btnDashboardSettingsReset', 'paletteSelect', 'btnDashboardSettingsCancel',     'btnDashboardPrompts', 'dashboardPromptsModal', 'dpPromptInput', 'dpGlossaryPromptInput', 'dpAiCheckPromptInput', 'dpAgentPromptInput', 'btnDashboardPromptsSave', 'btnDashboardPromptsReset', 'btnDashboardPromptsCancel',
-    'dsSourceLang', 'dsTargetLang', 'dsTranslationMode', 'dsAiFormat', 'dsContextLines', 'dsSelectionBatch', 'dsGlossaryBatch', 'dsAiCheckBatch', 'dsRegexFilter',
+    'dsSourceLang', 'dsTargetLang', 'dsTranslationMode', 'dsAiFormat', 'dsContextLines', 'dsSelectionBatch', 'dsGlossaryBatch', 'dsAiCheckBatch', 'dsRegexFilter', 'dsEnableLogging',
     'btnImportFolder', 'btnImportZip', 'btnImportTranslatedFile', 'btnImportTranslatedFolder', 'btnExport', 'btnProofread', 'btnSettings',
     'previewViewport', 'previewContainer', 'currentFileBar', 'progressFill', 'progressText', 'btnSelectAll',
     'btnClearSelection', 'copyCount', 'btnCopyForAi', 'copyStatus', 'pasteArea', 'btnApply', 'checkIgnorePasteNames',
@@ -97,9 +98,9 @@ export function cacheElements(): void {
     'settingsCheckKanaResidue', 'settingsCheckSimilarity', 'settingsSimilarityThreshold', 'settingsSimilarityThresholdWrap',
     'settingsContextTypeSelect',
     'btnQaCheck', 'qaModal', 'qaCheckGlossary', 'qaCheckKana', 'qaCheckSimilarity', 'qaCheckLinebreak', 'qaCheckLength', 'qaCheckLanguage', 'qaCheckPunctuation', 'btnRunQa', 'btnQaReset', 'qaStats', 'qaResults', 'btnQaClose', 'btnRetranslateFlagged', 'settingsCheckLengthRatio', 'settingsLengthRatioThreshold', 'settingsLengthRatioWrap', 'settingsCheckLinebreak', 'settingsCheckLanguage', 'settingsCheckPunctuation', 'settingsCheckUntransName', 'settingsEnableUncertainMarking', 'qaCheckUncertain', 'qaCheckUntransName', 'aiTranslateModeSelect', 'settingsAgentMaxTurns',
-    'btnAutoTranslate', 'btnAutoGlossaryAi', 'btnAutoAiCheck', 'btnFloatingApiSettings', 'apiSettingsModal', 'apiTypeSelect', 'apiUrlInput', 'apiKeyInput', 'apiModelInput', 'apiModelSelect', 'btnFetchModels', 'apiModelFetchStatus', 'apiTemperatureInput', 'apiTopPInput', 'apiRpmInput', 'apiDelayPreview', 'apiThinkingSelect', 'apiFilterThinkingCheck', 'apiMergeSystemCheck', 'apiBackupKeysInput', 'apiKeyStrategySelect', 'btnApiSettingsCancel', 'btnApiSettingsSave', 'tavilyKeyInput', 'apiProfileSelect', 'btnLoadProfile', 'btnDeleteProfile', 'apiProfileNameInput', 'btnSaveProfile',
+    'btnAutoTranslate', 'btnAutoGlossaryAi', 'btnAutoAiCheck', 'btnFloatingApiSettings', 'apiSettingsModal', 'apiTypeSelect', 'apiUrlInput', 'apiKeyInput', 'apiModelInput', 'apiModelSelect', 'btnFetchModels', 'apiModelFetchStatus', 'apiTemperatureInput', 'apiTopPInput', 'apiRpmInput', 'apiDelayPreview', 'apiThinkingSelect', 'apiFilterThinkingCheck', 'apiMergeSystemCheck', 'apiStreamingCheck', 'apiBackupKeysInput', 'apiKeyStrategySelect', 'btnApiSettingsCancel', 'btnApiSettingsSave', 'tavilyKeyInput', 'apiProfileSelect', 'btnLoadProfile', 'btnDeleteProfile', 'apiProfileNameInput', 'btnSaveProfile',
  'aiCheckReviewActions', 'btnReviewApply', 'btnReviewSkip',
-    'btnFloatingAiAgent', 'aiAgentChatPanel', 'btnAgentClose', 'btnAgentClear', 'btnAgentMemory', 'agentChatHistory', 'agentInput', 'btnAgentSend',
+    'btnFloatingAiAgent', 'btnFloatingLogging', 'loggingPanel', 'loggingHistory', 'btnLoggingClear', 'btnLoggingClose', 'aiAgentChatPanel', 'btnAgentClose', 'btnAgentClear', 'btnAgentMemory', 'agentChatHistory', 'agentInput', 'btnAgentSend',
     'agentMemoryModal', 'agentMemoryList', 'agentMemoryKey', 'agentMemoryCategory', 'agentMemoryScope', 'agentMemoryValue', 'btnAgentMemoryCancel', 'btnAgentMemorySave',
     'btnTextReplacer', 'textReplacerModal', 'replacerPreInput', 'replacerPostInput', 'btnTextReplacerCancel', 'btnTextReplacerSave',
     'btnFileList', 'fileListModal', 'fileListContainer', 'btnFileListAdd', 'btnFileListDelete', 'btnFileListClose'
@@ -561,6 +562,61 @@ if (ui.settingsCheckSimilarity) {
   ui.btnSaveProfile?.addEventListener('click', onSaveProfile);
   ui.apiProfileSelect?.addEventListener('change', updateProfileButtonsState);
 
+  if (ui.btnFloatingLogging) {
+    const btn = ui.btnFloatingLogging as HTMLElement;
+    let dragging = false;
+    let moved = false;
+    let startX = 0, startY = 0, initialLeft = 0, initialTop = 0;
+    const onStart = (event: MouseEvent | TouchEvent) => {
+      dragging = false;
+      moved = false;
+      const point = 'touches' in event ? event.touches[0] : event;
+      startX = point.clientX;
+      startY = point.clientY;
+      const rect = btn.getBoundingClientRect();
+      initialLeft = rect.left;
+      initialTop = rect.top;
+      const onMove = (moveEvent: MouseEvent | TouchEvent) => {
+        const movePoint = 'touches' in moveEvent ? moveEvent.touches[0] : moveEvent;
+        const dx = movePoint.clientX - startX;
+        const dy = movePoint.clientY - startY;
+        if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
+          dragging = true;
+          moved = true;
+          moveEvent.preventDefault();
+          btn.style.left = `${Math.max(0, Math.min(window.innerWidth - btn.offsetWidth, initialLeft + dx))}px`;
+          btn.style.top = `${Math.max(0, Math.min(window.innerHeight - btn.offsetHeight, initialTop + dy))}px`;
+          btn.style.right = 'auto';
+          btn.style.bottom = 'auto';
+        }
+      };
+      const onEnd = () => {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onEnd);
+        document.removeEventListener('touchmove', onMove);
+        document.removeEventListener('touchend', onEnd);
+        if (dragging) setTimeout(() => { moved = false; }, 50);
+      };
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onEnd);
+      document.addEventListener('touchmove', onMove, { passive: false });
+      document.addEventListener('touchend', onEnd);
+    };
+    btn.addEventListener('mousedown', onStart);
+    btn.addEventListener('touchstart', onStart, { passive: false });
+    btn.addEventListener('click', (event) => {
+      if (moved) {
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
+      const panel = ui.loggingPanel as HTMLElement;
+      panel.style.display = panel.style.display === 'none' ? 'flex' : 'none';
+    });
+  }
+  ui.btnLoggingClose?.addEventListener('click', () => { (ui.loggingPanel as HTMLElement).style.display = 'none'; });
+  ui.btnLoggingClear?.addEventListener('click', () => { if (ui.loggingHistory) (ui.loggingHistory as HTMLElement).textContent = ''; });
+
   bindShortcutCaptureInput(ui.settingsSelectionPrevShortcutInput as HTMLInputElement);
   bindShortcutCaptureInput(ui.settingsSelectionNextShortcutInput as HTMLInputElement);
 
@@ -702,6 +758,51 @@ if (ui.settingsCheckSimilarity) {
       header.addEventListener('touchstart', onPanelStart, { passive: false });
     }
   }
+
+  // Make the logging panel draggable by its header.
+  if (ui.loggingPanel) {
+    const panel = ui.loggingPanel as HTMLElement;
+    const header = panel.querySelector<HTMLElement>('.agent-header');
+    if (header) {
+      let startX = 0, startY = 0, initialLeft = 0, initialTop = 0;
+      const onStart = (event: MouseEvent | TouchEvent) => {
+        if ((event.target as HTMLElement).closest('button')) return;
+        const point = 'touches' in event ? event.touches[0] : event;
+        startX = point.clientX;
+        startY = point.clientY;
+        const rect = panel.getBoundingClientRect();
+        initialLeft = rect.left;
+        initialTop = rect.top;
+        header.style.cursor = 'grabbing';
+        const onMove = (moveEvent: MouseEvent | TouchEvent) => {
+          const movePoint = 'touches' in moveEvent ? moveEvent.touches[0] : moveEvent;
+          const dx = movePoint.clientX - startX;
+          const dy = movePoint.clientY - startY;
+          if (Math.abs(dx) <= 3 && Math.abs(dy) <= 3) return;
+          moveEvent.preventDefault();
+          panel.style.left = `${Math.max(0, Math.min(window.innerWidth - panel.offsetWidth, initialLeft + dx))}px`;
+          panel.style.top = `${Math.max(0, Math.min(window.innerHeight - panel.offsetHeight, initialTop + dy))}px`;
+          panel.style.right = 'auto';
+          panel.style.bottom = 'auto';
+        };
+        const onEnd = () => {
+          document.removeEventListener('mousemove', onMove);
+          document.removeEventListener('mouseup', onEnd);
+          document.removeEventListener('touchmove', onMove);
+          document.removeEventListener('touchend', onEnd);
+          header.style.cursor = 'grab';
+        };
+        document.addEventListener('mousemove', onMove, { passive: false });
+        document.addEventListener('mouseup', onEnd);
+        document.addEventListener('touchmove', onMove, { passive: false });
+        document.addEventListener('touchend', onEnd);
+      };
+      header.style.cursor = 'grab';
+      header.addEventListener('mousedown', onStart);
+      header.addEventListener('touchstart', onStart, { passive: false });
+    }
+  }
+
   ui.btnAgentClear?.addEventListener('click', async () => {
     if (!confirm('Hapus semua riwayat chat untuk proyek ini?')) return;
     const { clearChatHistory } = await import('./ai-agent');

@@ -133,6 +133,8 @@ export interface AppState {
   aiCheckCorrections: AiCheckCorrection[];
   dashboardProjects: DashboardProject[];
   agentMemories: AgentMemory[];
+  projectLoggingEnabled: boolean;
+  aiStreaming: boolean;
 }
 
 export type WorkspaceTab = 'translate' | 'glossary' | 'aiCheck' | 'delete';

@@ -420,6 +420,12 @@
         <input id="dsRegexFilter" type="text" class="text-input w-full mt-1" placeholder="Kosongkan jika tidak perlu" />
       </div>
 
+      <div class="mt-2">
+        <label class="section-label text-white m-0">Logging Proyek</label>
+        <label class="checkbox-line mt-1"><input id="dsEnableLogging" type="checkbox" /> Tampilkan bubble logging di semua proyek</label>
+        <p class="hint mb-0">Pengaturan ini berlaku global untuk proyek lama maupun proyek baru.</p>
+      </div>
+
       </div>
       <div class="modal-actions">
         <button id="btnDashboardSettingsSave" class="btn btn-primary">Simpan Default</button>
@@ -1017,6 +1023,15 @@
     <svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z" /></svg>
   </button>
 
+  <button id="btnFloatingLogging" class="floating-btn" title="AI Request Log" style="bottom: 140px; background-color: #64748b; display: none;">
+    <svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v16H4z" /><path d="M8 8h8M8 12h8M8 16h5" /></svg>
+  </button>
+
+  <div id="loggingPanel" class="agent-panel" style="display: none;">
+    <div class="agent-header"><span style="font-weight: bold; color: var(--text-base);">AI Request Log</span><button id="btnLoggingClear" class="icon-btn" title="Hapus log">&#128465;</button><button id="btnLoggingClose" class="icon-btn" title="Tutup">&#10005;</button></div>
+    <div id="loggingHistory" class="agent-history"></div>
+  </div>
+
   <div id="aiAgentChatPanel" class="agent-panel" style="display: none;">
     <div class="agent-header">
       <span style="font-weight: bold; color: var(--text-base);">CSTL AI Agent</span>
@@ -1138,6 +1153,12 @@
         </select>
         <p class="hint mb-0">Gemini 2.5 ✓ &nbsp;|&nbsp; OpenRouter ✓ &nbsp;|&nbsp; Ollama ✓</p>
       </div>
+
+      <div class="flex-center gap-2 mt-2">
+        <input id="apiStreamingCheck" type="checkbox" />
+        <label for="apiStreamingCheck" class="hint m-0" style="cursor:pointer;">Streaming output untuk Auto Translate</label>
+      </div>
+      <p class="hint mb-0">Jika didukung provider, hasil akan diterima bertahap dan ditampilkan di log.</p>
 
       <div class="flex-center gap-2 mt-2">
         <input id="apiFilterThinkingCheck" type="checkbox" checked />
