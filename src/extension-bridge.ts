@@ -33,7 +33,7 @@ const SOURCE_APP = 'cstl-app';
 const SOURCE_EXT = 'cstl-extension';
 const PROTOCOL = 1;
 
-export type CopasTargetId = 'gemini' | 'deepseek' | 'meta' | 'chatgpt';
+export type CopasTargetId = 'gemini' | 'deepseek' | 'meta' | 'chatgpt' | 'qwen' | 'arena';
 export type CopasMode = 'semi' | 'full';
 
 type ExtMsg = {
@@ -239,7 +239,7 @@ export async function pingExtension(): Promise<boolean> {
     (window as any).__cstlExtAvailable = true;
     document.documentElement.dataset.cstlExt = '1';
     extensionVersion = res.extensionVersion || '';
-    if (res.settings?.target === 'gemini' || res.settings?.target === 'deepseek' || res.settings?.target === 'meta' || res.settings?.target === 'chatgpt') {
+    if (res.settings?.target === 'gemini' || res.settings?.target === 'deepseek' || res.settings?.target === 'meta' || res.settings?.target === 'chatgpt' || res.settings?.target === 'qwen' || res.settings?.target === 'arena') {
       lastSettings.target = res.settings.target;
     }
     if (res.settings?.mode === 'semi' || res.settings?.mode === 'full') {

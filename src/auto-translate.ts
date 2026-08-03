@@ -11,8 +11,21 @@ import { TranslationApplyError } from './translate';
 import { onSaveGlossary } from './glossary';
 import { onApplyAiCheckCorrections } from './ai-check';
 import { appendProjectLog, updateStreamingLog, finishStreamingLog } from './logging';
+import { applyAnthropicOptions, applyGeminiOptions, applyOpenAIOptions } from './api-request-options';
 
 const API_STORAGE_KEY = 'cstl_api_settings';
+
+function numberFromInput(el: any, fallback: number): number {
+  const value = Number((el as HTMLInputElement | undefined)?.value);
+  return Number.isFinite(value) ? value : fallback;
+}
+
+function optionalIntegerFromInput(el: any): number | null {
+  const raw = String((el as HTMLInputElement | undefined)?.value || '').trim();
+  if (!raw) return null;
+  const value = Number(raw);
+  return Number.isInteger(value) ? value : null;
+}
 
 export function loadApiSettings(): void {
   try {
@@ -25,6 +38,11 @@ export function loadApiSettings(): void {
       if (p.aiModel) state.aiModel = p.aiModel;
       if (p.aiTemperature !== undefined) state.aiTemperature = Number(p.aiTemperature);
       if (p.aiTopP !== undefined) state.aiTopP = Number(p.aiTopP);
+      if (p.aiMaxTokens !== undefined) state.aiMaxTokens = Number(p.aiMaxTokens);
+      if (p.aiFrequencyPenalty !== undefined) state.aiFrequencyPenalty = Number(p.aiFrequencyPenalty);
+      if (p.aiPresencePenalty !== undefined) state.aiPresencePenalty = Number(p.aiPresencePenalty);
+      if (p.aiSeed !== undefined) state.aiSeed = p.aiSeed === null ? null : Number(p.aiSeed);
+      if (p.aiReasoningEffort) state.aiReasoningEffort = p.aiReasoningEffort;
       if (p.aiRpm !== undefined) state.aiRpm = Number(p.aiRpm);
       if (p.aiThinkingMode) state.aiThinkingMode = p.aiThinkingMode;
       if (p.aiFilterThinkingOutput !== undefined) state.aiFilterThinkingOutput = !!p.aiFilterThinkingOutput;
@@ -50,6 +68,11 @@ export function saveApiSettings(): void {
     aiModel: state.aiModel,
     aiTemperature: state.aiTemperature,
     aiTopP: state.aiTopP,
+    aiMaxTokens: state.aiMaxTokens,
+    aiFrequencyPenalty: state.aiFrequencyPenalty,
+    aiPresencePenalty: state.aiPresencePenalty,
+    aiSeed: state.aiSeed,
+    aiReasoningEffort: state.aiReasoningEffort,
     aiRpm: state.aiRpm,
     aiThinkingMode: state.aiThinkingMode,
     aiFilterThinkingOutput: state.aiFilterThinkingOutput,
@@ -72,6 +95,11 @@ export function onOpenApiSettings(): void {
   if (ui.apiModelFetchStatus) (ui.apiModelFetchStatus as HTMLElement).style.display = 'none';
   if (ui.apiTemperatureInput) (ui.apiTemperatureInput as HTMLInputElement).value = String(state.aiTemperature ?? 1.0);
   if (ui.apiTopPInput) (ui.apiTopPInput as HTMLInputElement).value = String(state.aiTopP ?? 1.0);
+  if (ui.apiMaxTokensInput) (ui.apiMaxTokensInput as HTMLInputElement).value = String(state.aiMaxTokens ?? 8192);
+  if (ui.apiFrequencyPenaltyInput) (ui.apiFrequencyPenaltyInput as HTMLInputElement).value = String(state.aiFrequencyPenalty ?? 0);
+  if (ui.apiPresencePenaltyInput) (ui.apiPresencePenaltyInput as HTMLInputElement).value = String(state.aiPresencePenalty ?? 0);
+  if (ui.apiSeedInput) (ui.apiSeedInput as HTMLInputElement).value = state.aiSeed === null ? '' : String(state.aiSeed);
+  if (ui.apiReasoningEffortSelect) (ui.apiReasoningEffortSelect as HTMLSelectElement).value = state.aiReasoningEffort || 'default';
   if (ui.apiRpmInput) (ui.apiRpmInput as HTMLInputElement).value = String(state.aiRpm ?? 10);
   if (ui.apiThinkingSelect) (ui.apiThinkingSelect as HTMLSelectElement).value = state.aiThinkingMode || 'default';
   if (ui.apiFilterThinkingCheck) (ui.apiFilterThinkingCheck as HTMLInputElement).checked = state.aiFilterThinkingOutput !== false;
@@ -97,10 +125,16 @@ export type ApiProfileData = {
   aiModel?: string;
   aiTemperature?: number;
   aiTopP?: number;
+  aiMaxTokens?: number;
+  aiFrequencyPenalty?: number;
+  aiPresencePenalty?: number;
+  aiSeed?: number | null;
+  aiReasoningEffort?: 'default' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
   aiRpm?: number;
   aiThinkingMode?: 'default' | 'off' | 'on';
   aiFilterThinkingOutput?: boolean;
   aiMergeSystemPrompt?: boolean;
+  aiStreaming?: boolean;
   aiBackupKeys?: string;
   aiKeyStrategy?: 'fallback' | 'random';
   tavilyApiKey?: string;
@@ -161,10 +195,16 @@ export function onLoadProfile(): void {
   if (p.aiModel !== undefined && ui.apiModelInput) (ui.apiModelInput as HTMLInputElement).value = p.aiModel;
   if (p.aiTemperature !== undefined && ui.apiTemperatureInput) (ui.apiTemperatureInput as HTMLInputElement).value = String(p.aiTemperature);
   if (p.aiTopP !== undefined && ui.apiTopPInput) (ui.apiTopPInput as HTMLInputElement).value = String(p.aiTopP);
+  if (p.aiMaxTokens !== undefined && ui.apiMaxTokensInput) (ui.apiMaxTokensInput as HTMLInputElement).value = String(p.aiMaxTokens);
+  if (p.aiFrequencyPenalty !== undefined && ui.apiFrequencyPenaltyInput) (ui.apiFrequencyPenaltyInput as HTMLInputElement).value = String(p.aiFrequencyPenalty);
+  if (p.aiPresencePenalty !== undefined && ui.apiPresencePenaltyInput) (ui.apiPresencePenaltyInput as HTMLInputElement).value = String(p.aiPresencePenalty);
+  if (p.aiSeed !== undefined && ui.apiSeedInput) (ui.apiSeedInput as HTMLInputElement).value = p.aiSeed === null ? '' : String(p.aiSeed);
+  if (p.aiReasoningEffort && ui.apiReasoningEffortSelect) (ui.apiReasoningEffortSelect as HTMLSelectElement).value = p.aiReasoningEffort;
   if (p.aiRpm !== undefined && ui.apiRpmInput) (ui.apiRpmInput as HTMLInputElement).value = String(p.aiRpm);
   if (p.aiThinkingMode && ui.apiThinkingSelect) (ui.apiThinkingSelect as HTMLSelectElement).value = p.aiThinkingMode;
   if (p.aiFilterThinkingOutput !== undefined && ui.apiFilterThinkingCheck) (ui.apiFilterThinkingCheck as HTMLInputElement).checked = !!p.aiFilterThinkingOutput;
   if (p.aiMergeSystemPrompt !== undefined && ui.apiMergeSystemCheck) (ui.apiMergeSystemCheck as HTMLInputElement).checked = !!p.aiMergeSystemPrompt;
+  if (p.aiStreaming !== undefined && ui.apiStreamingCheck) (ui.apiStreamingCheck as HTMLInputElement).checked = !!p.aiStreaming;
   if (p.aiBackupKeys !== undefined && ui.apiBackupKeysInput) (ui.apiBackupKeysInput as HTMLTextAreaElement).value = p.aiBackupKeys;
   if (p.aiKeyStrategy && ui.apiKeyStrategySelect) (ui.apiKeyStrategySelect as HTMLSelectElement).value = p.aiKeyStrategy;
   if (p.tavilyApiKey !== undefined && ui.tavilyKeyInput) (ui.tavilyKeyInput as HTMLInputElement).value = p.tavilyApiKey;
@@ -189,12 +229,18 @@ export function onSaveProfile(): void {
     aiApiUrl: (ui.apiUrlInput as HTMLInputElement | undefined)?.value?.trim() || '',
     aiApiKey: (ui.apiKeyInput as HTMLInputElement | undefined)?.value?.trim() || '',
     aiModel: (ui.apiModelInput as HTMLInputElement | undefined)?.value?.trim() || 'gpt-4o-mini',
-    aiTemperature: parseFloat((ui.apiTemperatureInput as HTMLInputElement | undefined)?.value || '1.0') || 1.0,
-    aiTopP: parseFloat((ui.apiTopPInput as HTMLInputElement | undefined)?.value || '1.0') || 1.0,
+    aiTemperature: numberFromInput(ui.apiTemperatureInput, 1),
+    aiTopP: numberFromInput(ui.apiTopPInput, 1),
+    aiMaxTokens: numberFromInput(ui.apiMaxTokensInput, 8192),
+    aiFrequencyPenalty: numberFromInput(ui.apiFrequencyPenaltyInput, 0),
+    aiPresencePenalty: numberFromInput(ui.apiPresencePenaltyInput, 0),
+    aiSeed: optionalIntegerFromInput(ui.apiSeedInput),
+    aiReasoningEffort: (ui.apiReasoningEffortSelect as HTMLSelectElement | undefined)?.value as any || 'default',
     aiRpm: parseInt((ui.apiRpmInput as HTMLInputElement | undefined)?.value || '10') || 10,
     aiThinkingMode: (ui.apiThinkingSelect as HTMLSelectElement | undefined)?.value as any || 'default',
     aiFilterThinkingOutput: (ui.apiFilterThinkingCheck as HTMLInputElement | undefined)?.checked ?? true,
     aiMergeSystemPrompt: (ui.apiMergeSystemCheck as HTMLInputElement | undefined)?.checked ?? false,
+    aiStreaming: (ui.apiStreamingCheck as HTMLInputElement | undefined)?.checked ?? false,
     aiBackupKeys: (ui.apiBackupKeysInput as HTMLTextAreaElement | undefined)?.value || '',
     aiKeyStrategy: (ui.apiKeyStrategySelect as HTMLSelectElement | undefined)?.value as any || 'fallback',
     tavilyApiKey: (ui.tavilyKeyInput as HTMLInputElement | undefined)?.value?.trim() || '',
@@ -346,8 +392,13 @@ export function onSaveApiSettings(): void {
     }
   }
   if (ui.apiModelInput) state.aiModel = (ui.apiModelInput as HTMLInputElement).value.trim();
-  if (ui.apiTemperatureInput) state.aiTemperature = parseFloat((ui.apiTemperatureInput as HTMLInputElement).value) || 1.0;
-  if (ui.apiTopPInput) state.aiTopP = parseFloat((ui.apiTopPInput as HTMLInputElement).value) || 1.0;
+  state.aiTemperature = numberFromInput(ui.apiTemperatureInput, 1);
+  state.aiTopP = numberFromInput(ui.apiTopPInput, 1);
+  state.aiMaxTokens = Math.max(1, Math.trunc(numberFromInput(ui.apiMaxTokensInput, 8192)));
+  state.aiFrequencyPenalty = numberFromInput(ui.apiFrequencyPenaltyInput, 0);
+  state.aiPresencePenalty = numberFromInput(ui.apiPresencePenaltyInput, 0);
+  state.aiSeed = optionalIntegerFromInput(ui.apiSeedInput);
+  if (ui.apiReasoningEffortSelect) state.aiReasoningEffort = (ui.apiReasoningEffortSelect as HTMLSelectElement).value as any;
   if (ui.apiRpmInput) state.aiRpm = parseInt((ui.apiRpmInput as HTMLInputElement).value) || 10;
   if (ui.apiThinkingSelect) state.aiThinkingMode = (ui.apiThinkingSelect as HTMLSelectElement).value as any;
   if (ui.apiFilterThinkingCheck) state.aiFilterThinkingOutput = (ui.apiFilterThinkingCheck as HTMLInputElement).checked;
@@ -713,29 +764,15 @@ async function fetchOpenAIWithConfig(prompt: string, config: ApiConfig): Promise
     url += 'chat/completions';
   }
 
-  const temp = state.aiTemperature;
   const userContent = state.aiMergeSystemPrompt
     ? `[System instructions]\n${prompt}`
     : prompt;
   const body: any = {
     model: config.model,
     messages: [{ role: 'user', content: userContent }],
-    temperature: temp,
-    top_p: state.aiTopP,
     stream: state.aiStreaming,
   };
-
-  const thinkMode = state.aiThinkingMode;
-  if (thinkMode !== 'default') {
-    const apiUrl = config.url || '';
-    if (/localhost|127\.0\.0\.1|11434/.test(apiUrl)) {
-      body.think = (thinkMode === 'on');
-    } else if (apiUrl.includes('openrouter.ai')) {
-      body.reasoning = thinkMode === 'on' ? { effort: 'high' } : { effort: 'none' };
-    } else if (/o1|o3|o4/.test(config.model || '')) {
-      body.reasoning_effort = thinkMode === 'on' ? 'high' : 'low';
-    }
-  }
+  applyOpenAIOptions(body, config.model, config.url || '');
 
   const res = await fetch(url, {
     method: 'POST',
@@ -779,20 +816,11 @@ async function fetchAnthropicWithConfig(prompt: string, config: ApiConfig): Prom
   const body: any = {
     model: config.model || 'claude-haiku-4-5-20251001',
     max_tokens: 8192,
-    temperature: state.aiTemperature ?? 1.0,
     messages: [{ role: 'user', content: prompt }],
     stream: false,
   };
   body.stream = state.aiStreaming;
-  // top_p + temperature together rejected by some Claude endpoints — send top_p only if not default
-  if (state.aiTopP !== undefined && state.aiTopP < 1) {
-    body.top_p = state.aiTopP;
-  }
-
-  const thinkMode = state.aiThinkingMode;
-  if (thinkMode === 'on') {
-    body.thinking = true;
-  }
+  applyAnthropicOptions(body);
 
   const res = await fetch(url, {
     method: 'POST',
@@ -842,16 +870,8 @@ async function fetchGeminiWithConfig(prompt: string, config: ApiConfig): Promise
     url += url.includes('?') ? '&alt=sse' : '?alt=sse';
   }
 
-  const temp = state.aiTemperature;
-  const genConfig: any = {
-    temperature: temp,
-    topP: state.aiTopP,
-  };
-
-  const thinkMode = state.aiThinkingMode;
-  if (thinkMode !== 'default') {
-    genConfig.thinkingConfig = { thinkingBudget: thinkMode === 'off' ? 0 : -1 };
-  }
+  const genConfig: any = {};
+  applyGeminiOptions(genConfig, model);
 
   const body = {
     contents: [{ parts: [{ text: prompt }] }],

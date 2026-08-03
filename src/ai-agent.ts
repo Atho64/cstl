@@ -9,6 +9,7 @@ import { escapeStoredNewlines } from './string-utils';
 import { fetchVndbVnByName, fetchVndbCharacters, fetchAnilistMediaByName, fetchAnilistMediaCharacters, collectVndbGlossaryEntries, collectAnilistGlossaryEntries, applyVndbNameTranslations } from './vndb-anilist';
 import type { Line } from './types';
 import type { AgentMemory, MemoryCategory, MemoryScope } from './types';
+import { applyAnthropicOptions, applyGeminiOptions, applyOpenAIOptions } from './api-request-options';
 
 export type ChatRole = 'system' | 'user' | 'assistant';
 
@@ -235,22 +236,9 @@ async function chatCompletionOpenAI(
   const body: any = {
     model: config.model || 'gpt-4o-mini',
     messages: apiMessages,
-    temperature: state.aiTemperature ?? 1.0,
-    top_p: state.aiTopP ?? 1.0,
     stream: true,
   };
-
-  const thinkMode = state.aiThinkingMode;
-  if (thinkMode !== 'default') {
-    const apiUrl = config.url || '';
-    if (/localhost|127\.0\.0\.1|11434/.test(apiUrl)) {
-      body.think = (thinkMode === 'on');
-    } else if (apiUrl.includes('openrouter.ai')) {
-      body.reasoning = thinkMode === 'on' ? { effort: 'high' } : { effort: 'none' };
-    } else if (/o1|o3|o4/.test(config.model || '')) {
-      body.reasoning_effort = thinkMode === 'on' ? 'high' : 'low';
-    }
-  }
+  applyOpenAIOptions(body, config.model, config.url || '');
 
   const res = await fetch(url, {
     method: 'POST',
@@ -356,19 +344,13 @@ async function chatCompletionAnthropic(
   const body: any = {
     model: config.model || 'claude-haiku-4-5-20251001',
     max_tokens: 8192,
-    temperature: state.aiTemperature ?? 1.0,
     messages: anthMessages,
     stream: true,
   };
   if (prepared.system) {
     body.system = prepared.system;
   }
-  if (state.aiTopP !== undefined && state.aiTopP < 1) {
-    body.top_p = state.aiTopP;
-  }
-  if (state.aiThinkingMode === 'on') {
-    body.thinking = true;
-  }
+  applyAnthropicOptions(body);
 
   const res = await fetch(url, {
     method: 'POST',
@@ -469,12 +451,8 @@ async function chatCompletionGemini(
       contents.push({ role: msg.role === 'assistant' ? 'model' : 'user', parts: [{ text: msg.content }] });
     }
   }
-  const genConfig: any = { temperature: state.aiTemperature ?? 1.0, topP: state.aiTopP ?? 1.0 };
-
-  const thinkMode = state.aiThinkingMode;
-  if (thinkMode !== 'default') {
-    genConfig.thinkingConfig = { thinkingBudget: thinkMode === 'off' ? 0 : -1 };
-  }
+  const genConfig: any = {};
+  applyGeminiOptions(genConfig, model);
 
   const body: any = {
     contents: contents,

@@ -34,9 +34,11 @@ Hubungkan aplikasi ke AI tanpa perlu copy-paste manual. Terjemahan, ekstrak glos
 - Dukung **OpenAI Compatible** (GPT, Claude via OpenRouter, DeepSeek, Local LLM) dan **Gemini API** (Google AI Studio)
 - Ambil daftar model langsung dari API dengan tombol fetch
 - **Thinking / Reasoning Mode** — Kontrol mode berpikir model untuk menghemat token atau meningkatkan akurasi:
-  - *Matikan* — Gemini 2.5 (`thinkingBudget: 0`), OpenRouter (`reasoning: none`), Ollama (`think: false`)
+  - *Matikan* — menonaktifkan reasoning bila provider yang dipilih mendukungnya
   - *Nyalakan* — kebalikannya, masing-masing provider pakai parameternya sendiri
 - **Filter thinking output** — Blok `<think>...</think>` dari model seperti Gemma 4 atau QwQ dihapus otomatis sebelum terjemahan diterapkan, termasuk bagian `thought: true` dari respons Gemini API
+- **Parameter generasi global** — Atur max output tokens, seed, frequency penalty, presence penalty, dan reasoning effort (minimal sampai extra-high) dari satu tempat. Konfigurasi ini dipakai konsisten oleh Auto Translate dan AI Agent untuk OpenAI-compatible, Anthropic, serta Gemini.
+- **Gemma 4 via Gemini API** — Model `gemma-4-31b-it` dan `gemma-4-26b-a4b-it` dikenali otomatis; mode thinking off dikirim sebagai `thinkingLevel: "minimal"` sesuai API Gemma 4.
 - Limit RPM dengan delay otomatis antar request
 
 ### AI Agent
@@ -140,7 +142,7 @@ Kalau tidak mau copy-paste manual, hubungkan ke API:
 4. Atur **RPM** sesuai limit akun, lalu klik **Simpan API**
 5. Pilih baris yang ingin diterjemahkan, klik **Jalankan Auto Translate**
 
-Untuk model thinking seperti Gemma 4 atau Gemini 2.5, aktifkan **Filter `<think>...</think>`** di pengaturan API supaya output terjemahan bersih dari teks reasoning.
+Untuk model thinking yang mengeluarkan blok `<think>...</think>`, aktifkan **Filter `<think>...</think>`** di pengaturan API supaya output terjemahan bersih dari teks reasoning.
 
 ### 5. Glosarium
 

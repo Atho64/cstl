@@ -102,6 +102,11 @@ export interface AppState {
   aiModel: string;
   aiTemperature: number;
   aiTopP: number;
+  aiMaxTokens: number;
+  aiFrequencyPenalty: number;
+  aiPresencePenalty: number;
+  aiSeed: number | null;
+  aiReasoningEffort: 'default' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
   aiRpm: number;
   aiThinkingMode: 'default' | 'off' | 'on';
   aiFilterThinkingOutput: boolean;

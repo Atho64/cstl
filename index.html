@@ -1137,6 +1137,15 @@
       </div>
 
       <div class="flex-center gap-4 wrap mt-3">
+        <div class="flex-col grow"><label class="hint m-0" for="apiMaxTokensInput">Max output tokens</label><input id="apiMaxTokensInput" type="number" class="text-input w-full" min="1" max="1048576" step="1" value="8192" /></div>
+        <div class="flex-col grow"><label class="hint m-0" for="apiSeedInput">Seed (opsional)</label><input id="apiSeedInput" type="number" class="text-input w-full" step="1" placeholder="Acak" /></div>
+      </div>
+      <div class="flex-center gap-4 wrap mt-3">
+        <div class="flex-col grow"><label class="hint m-0" for="apiFrequencyPenaltyInput">Frequency penalty</label><input id="apiFrequencyPenaltyInput" type="number" class="text-input w-full" min="-2" max="2" step="0.1" value="0" /></div>
+        <div class="flex-col grow"><label class="hint m-0" for="apiPresencePenaltyInput">Presence penalty</label><input id="apiPresencePenaltyInput" type="number" class="text-input w-full" min="-2" max="2" step="0.1" value="0" /></div>
+      </div>
+
+      <div class="flex-center gap-4 wrap mt-3">
         <div class="flex-col grow">
           <label class="hint m-0" for="apiRpmInput">Limit RPM (Requests Per Minute)</label>
           <input id="apiRpmInput" type="number" class="text-input w-full" min="1" max="1000" value="10" />
@@ -1145,13 +1154,18 @@
       </div>
 
       <div class="mt-3">
+        <label class="hint m-0" for="apiReasoningEffortSelect">Reasoning effort</label>
+        <select id="apiReasoningEffortSelect" class="text-input w-full mt-1"><option value="default">Default model</option><option value="minimal">Minimal</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="xhigh">Extra high (model/provider tertentu)</option></select>
+        <p class="hint mb-0">Dikirim bila model atau gateway yang dipilih mendukung parameter reasoning.</p>
+      </div>
+      <div class="mt-3">
         <label class="hint m-0" for="apiThinkingSelect">Thinking / Reasoning Mode</label>
         <select id="apiThinkingSelect" class="text-input w-full mt-1">
           <option value="default">Default (Ikuti Pengaturan Model)</option>
           <option value="off">Matikan — Hemat Token &amp; Lebih Cepat</option>
           <option value="on">Nyalakan — Lebih Akurat</option>
         </select>
-        <p class="hint mb-0">Gemini 2.5 ✓ &nbsp;|&nbsp; OpenRouter ✓ &nbsp;|&nbsp; Ollama ✓</p>
+        <p class="hint mb-0">Dukungan mengikuti model dan provider yang dipilih.</p>
       </div>
 
       <div class="flex-center gap-2 mt-2">
