@@ -2,7 +2,7 @@
 
 import { state, ui, isTranslated } from './state';
 import { buildSelectedTranslationExport, applyPromptVariables } from './ai-format';
-import { getGlossaryPrompt } from './glossary';
+import { getGlossaryPrompt, sanitizeTagsForChatgpt } from './glossary';
 import { DEFAULT_PROMPT_HEADER, DEFAULT_GLOSSARY_PROMPT } from './constants';
 import { flashHint } from './render';
 import { openModal, closeModal } from './project';
@@ -539,7 +539,7 @@ export async function onAutoTranslate(): Promise<void> {
               }
             }
             if (ctxOut.length > 0) {
-              contextBlock = `\n\n<Context>\nThese lines are for context only. Do NOT translate them.\n${ctxOut.join('\n')}\n</Context>`;
+              contextBlock = sanitizeTagsForChatgpt(`\n\n<Context>\nThese lines are for context only. Do NOT translate them.\n${ctxOut.join('\n')}\n</Context>`);
             }
           }
         }
@@ -621,7 +621,7 @@ export async function onAutoTranslate(): Promise<void> {
                 }
               }
               if (ctxOut.length > 0) {
-                contextBlock = `\n\n<Context>\nThese lines are for context only. Do NOT translate them.\n${ctxOut.join('\n')}\n</Context>`;
+                contextBlock = sanitizeTagsForChatgpt(`\n\n<Context>\nThese lines are for context only. Do NOT translate them.\n${ctxOut.join('\n')}\n</Context>`);
               }
             }
           }

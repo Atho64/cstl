@@ -41,6 +41,7 @@ export const state: AppState = {
   checkPunctuation: false,
   checkUntransName: false,
   enableUncertainMarking: false,
+  safeTagsForChatgpt: false,
   aiBackupKeys: '',
   aiKeyStrategy: 'fallback',
   aiTranslateMode: 'auto',

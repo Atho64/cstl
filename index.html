@@ -641,8 +641,14 @@
           <label class="checkbox-line">
             <input id="settingsEnableUncertainMarking" type="checkbox" />
             Uncertain Marking — minta AI menandai terjemahan yang tidak yakin dengan [?]
-          </label>
-        </div>
+            </label>
+            </div>
+            <div class="mt-2">
+            <label class="checkbox-line">
+            <input id="settingsSafeTagsForChatgpt" type="checkbox" />
+            Safe Tags — ubah penanda &lt;Glossary&gt;/&lt;Context&gt;/&lt;lines&gt; menjadi <code>=== LABEL ===</code> agar tak terbuang saat di-paste
+            </label>
+            </div>
         <div class="mt-2">
           <label class="checkbox-line">
             Agent Max Turns: <input id="settingsAgentMaxTurns" type="number" class="text-input" min="3" max="30" value="10" style="width: 60px; display: inline-block;" /> per chunk

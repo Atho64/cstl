@@ -10,7 +10,7 @@ import {
 import { unescapeStoredNewlines, escapeStoredNewlines, stringSimilarity, applyReplaceRules } from './string-utils';
 import { rebuildDisplayState, renderPreviewRows, syncCheckboxUI, flashHint, updateButtonStates, pushUndoSnapshot, refreshAll } from './render';
 import { queueAutoSave } from './project';
-import { getGlossaryMatches, getGlossaryPrompt } from './glossary';
+import { getGlossaryMatches, getGlossaryPrompt, sanitizeTagsForChatgpt } from './glossary';
 import {
   AI_TRANSLATION_FORMAT_BLOCK, AI_TRANSLATION_FORMAT_XML,
   AI_TRANSLATION_FORMAT_JSONL, AI_TRANSLATION_FORMAT_JSON_ARRAY, DEFAULT_PROMPT_HEADER,
@@ -43,11 +43,12 @@ export function buildCopyForAiPrompt(): string | null {
       }
       if (ctxOut.length > 0) {
         contextBlock = `\n\n<Context>\nThese lines are for context only. Do NOT translate them.\n${ctxOut.join('\n')}\n</Context>`;
+        contextBlock = sanitizeTagsForChatgpt(contextBlock);
       }
     }
   }
 
-  const joinedText = buildSelectedTranslationExport(false);
+  const joinedText = sanitizeTagsForChatgpt(buildSelectedTranslationExport(false));
   const glossaryBlock = getGlossaryPrompt(joinedText);
   const baseHeader = applyPromptVariables((state.aiInstructionHeader || DEFAULT_PROMPT_HEADER).trim());
   const sections: string[] = [baseHeader];
@@ -55,14 +56,18 @@ export function buildCopyForAiPrompt(): string | null {
   if (contextBlock) sections.push(contextBlock.trim());
   if (state.enableBackgroundChaining) {
     if (state.currentBackground) {
-      sections.push(`<background>\n${state.currentBackground.trim()}\n</background>`);
+      // Follows the Safe Tags setting: <background> when off, === BACKGROUND === when on.
+      sections.push(sanitizeTagsForChatgpt(`<background>\n${state.currentBackground.trim()}\n</background>`));
     }
-    // Inject instruksi estafet agar AI tahu format background yang diharapkan
-    sections.push(applyPromptVariables(
-      'If the <background> section is provided above, absorb the history translations and plot to ensure semantic accuracy.\n' +
-      'After translation, generate a short context background summary (in {{targetLang}}) that focuses on translation-relevant points (scene, events, current topic) to help make the next batches more accurate. Keep it empty if there is nothing meaningful.\n' +
-      'Your background output should be enclosed in a label pair (<background>...</background>) at the very end of your response, INSIDE the plaintext block.'
-    ));
+    // Inject instruksi estafet; format marker ikut setting Safe Tags.
+    const bgInstruction = state.safeTagsForChatgpt
+      ? 'If the === BACKGROUND === section is provided above, absorb the history translations and plot to ensure semantic accuracy.\n' +
+        'After translation, generate a short context background summary (in {{targetLang}}) that focuses on translation-relevant points (scene, events, current topic) to help make the next batches more accurate. Keep it empty if there is nothing meaningful.\n' +
+        'Your background output must start with a line "=== BACKGROUND ===" at the very end of your response, INSIDE the plaintext block. No closing tag needed.'
+      : 'If the <background> section is provided above, absorb the history translations and plot to ensure semantic accuracy.\n' +
+        'After translation, generate a short context background summary (in {{targetLang}}) that focuses on translation-relevant points (scene, events, current topic) to help make the next batches more accurate. Keep it empty if there is nothing meaningful.\n' +
+        'Your background output should be enclosed in a label pair (<background>...</background>) at the very end of your response, INSIDE the plaintext block.';
+    sections.push(applyPromptVariables(bgInstruction));
   }
   if (state.enableUncertainMarking) {
     sections.push('If you are uncertain about a translation, prefix it with [?].');
@@ -117,15 +122,35 @@ export function onApplyTranslation(options: ApplyTranslationOptions = {}): void 
   if (!rawText) fail('Teks di kotak kosong atau tidak valid.');
 
   if (state.enableBackgroundChaining) {
-    const bgMatch = rawText.match(/<background>([\s\S]*?)<\/background>/i);
-    if (bgMatch) {
-      state.currentBackground = bgMatch[1].trim();
-      rawText = rawText.replace(/<background>[\s\S]*?<\/background>/i, '').trim();
-      flashHint('Memori latar belakang diperbarui!');
-      if (ui.settingsBackgroundInput) {
-        (ui.settingsBackgroundInput as HTMLTextAreaElement).value = state.currentBackground;
+    // Background summary may use either marker format depending on the Safe Tags
+    // setting: "=== BACKGROUND ===" (no closing tag) when on, or <background>...</background> when off.
+    let bgIdx = rawText.search(/^=== BACKGROUND ===\s*$/im);
+    let summary = '';
+    if (bgIdx >= 0) {
+      summary = rawText.slice(bgIdx + '=== BACKGROUND ==='.length).trim();
+      rawText = rawText.slice(0, bgIdx).trim();
+    } else {
+      const bgMatch = rawText.match(/<background>([\s\S]*?)<\/background>/i);
+      if (bgMatch) {
+        summary = bgMatch[1].trim();
+        rawText = rawText.replace(/<background>[\s\S]*?<\/background>/i, '').trim();
       }
-      queueAutoSave();
+    }
+    if (summary) {
+      // Drop a stray ```plaintext / ``` fence left at the end when the user pasted
+      // the full ChatGPT response (wrapped in a code block). Strip fence lines only.
+      summary = summary
+        .replace(/^```[^\n]*\n?/i, '')
+        .replace(/\n?```\s*$/i, '')
+        .trim();
+      if (summary) {
+        state.currentBackground = summary;
+        flashHint('Memori latar belakang diperbarui!');
+        if (ui.settingsBackgroundInput) {
+          (ui.settingsBackgroundInput as HTMLTextAreaElement).value = state.currentBackground;
+        }
+        queueAutoSave();
+      }
     }
   }
 

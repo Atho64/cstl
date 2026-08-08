@@ -70,6 +70,7 @@ export function onOpenSettings(): void {
   if (ui.settingsCheckPunctuation) (ui.settingsCheckPunctuation as HTMLInputElement).checked = state.checkPunctuation !== false;
   if (ui.settingsCheckUntransName) (ui.settingsCheckUntransName as HTMLInputElement).checked = !!state.checkUntransName;
   if (ui.settingsEnableUncertainMarking) (ui.settingsEnableUncertainMarking as HTMLInputElement).checked = !!state.enableUncertainMarking;
+  if (ui.settingsSafeTagsForChatgpt) (ui.settingsSafeTagsForChatgpt as HTMLInputElement).checked = !!state.safeTagsForChatgpt;
   if (ui.settingsAgentMaxTurns) (ui.settingsAgentMaxTurns as HTMLInputElement).value = String(state.agentMaxTurns || 10);
   if (ui.settingsAiTranslationFormatSelect) {
     (ui.settingsAiTranslationFormatSelect as HTMLSelectElement).value = normalizeAiTranslationFormat(state.aiTranslationFormat);
@@ -207,6 +208,7 @@ export function onSavePromptSettings(): void {
   state.checkPunctuation = (ui.settingsCheckPunctuation as HTMLInputElement)?.checked !== false;
   state.checkUntransName = !!((ui.settingsCheckUntransName as HTMLInputElement)?.checked);
   state.enableUncertainMarking = !!((ui.settingsEnableUncertainMarking as HTMLInputElement)?.checked);
+  state.safeTagsForChatgpt = !!((ui.settingsSafeTagsForChatgpt as HTMLInputElement)?.checked);
   const amtRaw = parseInt((ui.settingsAgentMaxTurns as HTMLInputElement)?.value);
   state.agentMaxTurns = (!isNaN(amtRaw) && amtRaw >= 3 && amtRaw <= 30) ? amtRaw : 10;
   state.aiTranslationFormat = aiTranslationFormat;

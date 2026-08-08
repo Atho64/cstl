@@ -2,7 +2,7 @@
 
 import { state, ui } from './state';
 import { truncateForPrompt, stripDecorativeWrapping, stripPlaintextFences, matchKnownName } from './string-utils';
-import { addNameGlossaryEntry, mergeGlossaryEntries, parseGlossaryToMap, serializeGlossaryMap } from './glossary';
+import { addNameGlossaryEntry, mergeGlossaryEntries, parseGlossaryToMap, serializeGlossaryMap, sanitizeTagsForChatgpt } from './glossary';
 import { flashHint, rebuildDisplayState, renderPreviewRows, renderNameTable, updateButtonStates, pushUndoSnapshot, collectCharacterNameRows, refreshAll } from './render';
 import { queueAutoSave } from './project';
 import { applyPromptVariables } from './ai-format';
@@ -26,7 +26,7 @@ export function buildNameTranslationPrompt(nameRows: any[]): string {
     });
     return `${row.name}\n${examples.join('\n')}`;
   }).join('\n\n');
-  return `${basePrompt}\n\n<Names>\n${namesBlock}\n</Names>\n\n<Context>\nThese lines are for context only. Do NOT translate them.\n${contextBlock}\n</Context>\n`;
+  return sanitizeTagsForChatgpt(`${basePrompt}\n\n<Names>\n${namesBlock}\n</Names>\n\n<Context>\nThese lines are for context only. Do NOT translate them.\n${contextBlock}\n</Context>\n`);
 }
 
 export async function onCopyNamesForAi(): Promise<void> {

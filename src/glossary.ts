@@ -27,10 +27,9 @@ export function getGlossaryMatches(copiedText: string): string[] {
 
 export function getGlossaryPrompt(copiedText: string): string {
   const matched = getGlossaryMatches(copiedText);
-  if (matched.length > 0) {
-    return `\n\n<Glossary>\n${matched.join('\n')}\n</Glossary>`;
-  }
-  return '';
+  if (!matched.length) return '';
+  const block = `\n\n<Glossary>\n${matched.join('\n')}\n</Glossary>`;
+  return sanitizeTagsForChatgpt(block);
 }
 
 /**
@@ -49,7 +48,27 @@ export function buildExistingGlossaryHint(sourceText: string): string {
     }
   }
   if (!existing.length) return '';
-  return `\n\n<AlreadyInGlossary>\nThe following terms are ALREADY in the glossary — do not re-extract them, skip these:\n${existing.join('\n')}\n</AlreadyInGlossary>`;
+  const block = `\n\n<AlreadyInGlossary>\nThe following terms are ALREADY in the glossary — do not re-extract them, skip these:\n${existing.join('\n')}\n</AlreadyInGlossary>`;
+  return sanitizeTagsForChatgpt(block);
+}
+
+/**
+ * Replace angle-bracket section markers with safe `=== LABEL ===` markers so
+ * ChatGPT's composer does not strip them as HTML. Closing tags are dropped.
+ * Only the known structural sections are touched (whitelist) so XML-format
+ * `<line num="...">` tags inside the payload are left intact.
+ * No-op when the setting is off. Applies to all Auto Copas targets.
+ */
+const SAFE_SECTION_TAGS = ['Glossary', 'Context', 'lines', 'AlreadyInGlossary', 'background'];
+export function sanitizeTagsForChatgpt(text: string): string {
+  if (!state.safeTagsForChatgpt) return text;
+  let out = text;
+  for (const tag of SAFE_SECTION_TAGS) {
+    out = out
+      .replace(new RegExp(`<\\s*/\\s*${tag}\\s*>`, 'gi'), '') // drop closing
+      .replace(new RegExp(`<\\s*${tag}\\s*>`, 'gi'), `=== ${tag.toUpperCase()} ===`); // opening
+  }
+  return out;
 }
 
 export function parseGlossaryToMap(text: string): Map<string, GlossaryEntry> {

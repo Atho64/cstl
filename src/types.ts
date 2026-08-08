@@ -74,6 +74,10 @@ export interface AppState {
   checkPunctuation: boolean;
   checkUntransName: boolean;
   enableUncertainMarking: boolean;
+  /** Replace angle-bracket section tags (<Glossary>, <Context>, <lines>, …) with
+   *  safe `=== LABEL ===` markers before sending to LLM. Prevents ChatGPT from
+   *  stripping the tags as if they were HTML. Applies to all Auto Copas targets. */
+  safeTagsForChatgpt: boolean;
   aiBackupKeys: string;
   aiKeyStrategy: 'fallback' | 'random';
   aiTranslateMode: 'auto' | 'agent';

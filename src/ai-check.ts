@@ -7,7 +7,7 @@ import { getLineDisplayName, formatLineLabel } from './luca-engine';
 import { rebuildDisplayState, renderPreviewRows, syncCheckboxUI, updateButtonStates, pushUndoSnapshot, refreshAll, flashHint } from './render';
 import { queueAutoSave } from './project';
 import { applyPromptVariables } from './ai-format';
-import { getGlossaryPrompt } from './glossary';
+import { getGlossaryPrompt, sanitizeTagsForChatgpt } from './glossary';
 import { DEFAULT_AI_CHECK_PROMPT } from './constants';
 import type { Line, AiCheckCorrection } from './types';
 
@@ -60,7 +60,8 @@ function buildAiCheckContextBlock(sel: Line[]): string {
     }
   }
   if (!ctxOut.length) return '';
-  return `<Context>\nThese lines are for context only. Do NOT correct them.\n${ctxOut.join('\n')}\n</Context>`;
+  const block = `<Context>\nThese lines are for context only. Do NOT correct them.\n${ctxOut.join('\n')}\n</Context>`;
+  return sanitizeTagsForChatgpt(block);
 }
 
 export function getLineForAiCheck(line: Line): string {
@@ -77,14 +78,14 @@ export function getLineForAiCheck(line: Line): string {
 
 export function buildAiCheckPrompt(sel: Line[]): string {
   if (!sel.length) return '';
-  const baseCheck = applyPromptVariables((state.aiCheckPrompt || DEFAULT_AI_CHECK_PROMPT).trim());
+  const baseCheck = sanitizeTagsForChatgpt(applyPromptVariables((state.aiCheckPrompt || DEFAULT_AI_CHECK_PROMPT).trim()));
   const contextBlock = buildAiCheckContextBlock(sel);
   const joinedOriginal = sel.map(l => {
     const n = l.name || '';
     return n ? `${n}: ${l.message}` : l.message;
   }).join('\n');
   const glossaryBlock = getGlossaryPrompt(joinedOriginal).trim();
-  const linesBlock = `<lines>\n${sel.map(getLineForAiCheck).join('\n\n')}\n</lines>`;
+  const linesBlock = sanitizeTagsForChatgpt(`<lines>\n${sel.map(getLineForAiCheck).join('\n\n')}\n</lines>`);
   const sections: string[] = [baseCheck];
   if (contextBlock) sections.push(contextBlock);
   if (glossaryBlock) sections.push(glossaryBlock);
