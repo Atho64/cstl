@@ -823,7 +823,15 @@ if (ui.settingsCheckSimilarity) {
       row.style.cssText = 'display:flex; gap:8px; align-items:flex-start; padding:8px; border-bottom:1px solid var(--border-base);';
       const info = document.createElement('div');
       info.style.flex = '1';
-      info.innerHTML = `<span style="opacity:0.6;font-size:0.85em;">[${m.scope}/${m.category}]</span> <strong>${m.key}</strong><br><span style="font-size:0.9em;">${m.value}</span>`;
+      const meta = document.createElement('span');
+      meta.style.cssText = 'opacity:0.6;font-size:0.85em;';
+      meta.textContent = `[${m.scope}/${m.category}] `;
+      const key = document.createElement('strong');
+      key.textContent = m.key;
+      const value = document.createElement('span');
+      value.style.fontSize = '0.9em';
+      value.textContent = m.value;
+      info.append(meta, key, document.createElement('br'), value);
       row.appendChild(info);
       const editBtn = document.createElement('button');
       editBtn.className = 'icon-btn';

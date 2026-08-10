@@ -95,11 +95,14 @@ export function getFileDisplayOrder(): string[] {
 export function onAddFile(): void {
   const input = ui.importFileInput as HTMLInputElement | undefined;
   if (input) {
-    input.onchange = async (e) => {
+    // Use a separate picker so the permanent toolbar change listener does not
+    // process the same selection alongside this undo-aware handler.
+    const picker = input.cloneNode(false) as HTMLInputElement;
+    picker.removeAttribute('id');
+    picker.onchange = async (e) => {
       // Capture state BEFORE import for undo
       const prevImportedFiles = [...state.importedFiles];
       const prevFileOrder = [...state.fileOrder];
-      const prevLines = [...state.lines];
 
       await onImportFileChange(e);
 
@@ -135,7 +138,7 @@ export function onAddFile(): void {
       // Re-render the list
       renderFileList();
     };
-    input.click();
+    picker.click();
   }
 }
 

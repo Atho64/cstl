@@ -15,6 +15,16 @@ export async function handleImportLucaTxtLogic(files: FileList | File[]): Promis
   flashHint('Memproses file TXT... Mohon tunggu.', true);
   document.body.style.cursor = 'wait';
   await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+  const previousState = {
+    lines: state.lines,
+    importedFiles: [...state.importedFiles],
+    fileOrder: [...state.fileOrder],
+    selectedLines: [...state.selectedLines],
+    projectType: state.projectType,
+    lucaProfile: state.lucaProfile,
+    lucaRawFiles: { ...state.lucaRawFiles },
+    lucaRawBuffers: { ...state.lucaRawBuffers },
+  };
   try {
     let cur = state.lines.length > 0 ? state.lines.reduce((m, l) => l.line_num > m ? l.line_num : m, 0) + 1 : 1;
     const existingFiles = new Set(state.importedFiles);
@@ -66,9 +76,11 @@ export async function handleImportLucaTxtLogic(files: FileList | File[]): Promis
       resetSelectionHistory();
       refreshAll();
       if (state.currentProjectId) {
-        saveLucaDataToOpfs(state.currentProjectId, { lucaRawFiles: state.lucaRawFiles, lucaRawBuffers: state.lucaRawBuffers }).then(() => {
-          queueAutoSave();
+        await saveLucaDataToOpfs(state.currentProjectId, {
+          lucaRawFiles: state.lucaRawFiles,
+          lucaRawBuffers: state.lucaRawBuffers,
         });
+        queueAutoSave();
       } else {
         queueAutoSave();
       }
@@ -90,6 +102,18 @@ export async function handleImportLucaTxtLogic(files: FileList | File[]): Promis
       flashHint('Tidak ada MESSAGE atau SELECT yang ditemukan dalam file TXT.');
     }
   } catch (err: any) {
+    state.lines = previousState.lines;
+    state.importedFiles = previousState.importedFiles;
+    state.fileOrder = previousState.fileOrder;
+    state.selectedLines.clear();
+    for (const lineNum of previousState.selectedLines) state.selectedLines.add(lineNum);
+    state.projectType = previousState.projectType;
+    state.lucaProfile = previousState.lucaProfile;
+    state.lucaRawFiles = previousState.lucaRawFiles;
+    state.lucaRawBuffers = previousState.lucaRawBuffers;
+    clearLucaFileLineBytesCache();
+    resetSelectionHistory();
+    refreshAll();
     (ui.copyStatus as HTMLElement).classList.add('empty');
     setTimeout(() => alert(`Terjadi kesalahan saat mengimpor TXT:\n${err.message}`), 10);
   } finally {

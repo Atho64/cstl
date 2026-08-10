@@ -442,8 +442,13 @@ export async function renameDashboardProject(id: string, oldName: string, data: 
   const newName = prompt('Masukkan nama baru untuk proyek:', oldName);
   if (!newName || newName.trim() === '' || newName === oldName) return;
   data.projectName = newName.trim();
-  await saveProjectToOpfs(id, data);
-  loadDashboardProjects();
+  try {
+    await saveProjectToOpfs(id, data);
+    loadDashboardProjects();
+  } catch (err: any) {
+    data.projectName = oldName;
+    alert('Gagal mengubah nama proyek: ' + (err?.message || err));
+  }
 }
 
 // ─── Backup & Restore ─────────────────────────────────────────────────────────
@@ -552,26 +557,20 @@ export async function backupAllProjectsAsZip(): Promise<void> {
 
 // ─── OPFS persistence ─────────────────────────────────────────────────────────
 export async function saveProjectToOpfs(id: string, dataObj: any): Promise<void> {
-  try {
-    dataObj.updatedAt = Date.now();
-    const root = await getOpfsRoot();
-    const fileHandle = await root.getFileHandle(id, { create: true });
-    const writable = await fileHandle.createWritable();
-    await writable.write(JSON.stringify(dataObj));
-    await writable.close();
-  } catch (_) {
-    flashHint('Gagal menyimpan ke storage!');
-  }
+  dataObj.updatedAt = Date.now();
+  const root = await getOpfsRoot();
+  const fileHandle = await root.getFileHandle(id, { create: true });
+  const writable = await fileHandle.createWritable();
+  await writable.write(JSON.stringify(dataObj));
+  await writable.close();
 }
 export async function saveLucaDataToOpfs(id: string, lucaData: any): Promise<void> {
-  try {
-    const root = await getOpfsRoot();
-    const lucaId = id.replace(PROJECT_EXT, '_luca.json');
-    const fileHandle = await root.getFileHandle(lucaId, { create: true });
-    const writable = await fileHandle.createWritable();
-    await writable.write(JSON.stringify(lucaData));
-    await writable.close();
-  } catch (_) {}
+  const root = await getOpfsRoot();
+  const lucaId = id.replace(PROJECT_EXT, '_luca.json');
+  const fileHandle = await root.getFileHandle(lucaId, { create: true });
+  const writable = await fileHandle.createWritable();
+  await writable.write(JSON.stringify(lucaData));
+  await writable.close();
 }
 
 export async function loadLucaDataFromOpfs(id: string): Promise<any> {
@@ -587,10 +586,17 @@ export async function loadLucaDataFromOpfs(id: string): Promise<any> {
   }
 }
 
+let activeAutoSavePromise: Promise<void> | null = null;
+let projectRevision = 0;
+let isClosingProject = false;
+
 export function queueAutoSave(): void {
-  if (!state.currentProjectId) return;
+  const projectId = state.currentProjectId;
+  if (!projectId) return;
+  projectRevision++;
+  if (isClosingProject) return;
   clearTimeout(getSaveTimeout()!);
-  setSaveTimeout(setTimeout(async () => {
+  const timeout = setTimeout(async () => {
     const data = {
       version: APP_VERSION, projectName: state.projectName, projectType: state.projectType,
       source_lang: state.sourceLang, target_lang: state.targetLang,
@@ -635,10 +641,23 @@ export function queueAutoSave(): void {
         jump: (ui.proofreadJumpCheck as HTMLInputElement)?.checked
       }
     };
-    await saveProjectToOpfs(state.currentProjectId!, data);
-    (ui.statusBar as HTMLElement).textContent = (ui.statusBar as HTMLElement).textContent!.replace(' | Tersimpan!', '') + ' | Tersimpan!';
-    setTimeout(() => { updateStatusBar(); }, 2000);
-  }, 1000));
+    const previousSave = activeAutoSavePromise;
+    const savePromise = (previousSave ? previousSave.catch(() => {}) : Promise.resolve())
+      .then(() => saveProjectToOpfs(projectId, data));
+    activeAutoSavePromise = savePromise;
+    try {
+      await savePromise;
+      (ui.statusBar as HTMLElement).textContent = (ui.statusBar as HTMLElement).textContent!.replace(' | Tersimpan!', '') + ' | Tersimpan!';
+      setTimeout(() => { updateStatusBar(); }, 2000);
+    } catch (err) {
+      console.error('Failed to autosave project', err);
+      flashHint('Gagal menyimpan ke storage!');
+    } finally {
+      if (activeAutoSavePromise === savePromise) activeAutoSavePromise = null;
+      if (getSaveTimeout() === timeout) setSaveTimeout(null);
+    }
+  }, 1000);
+  setSaveTimeout(timeout);
 }
 
 // ─── Open / Close project ─────────────────────────────────────────────────────
@@ -669,7 +688,12 @@ export function openProject(id: string, data: any): void {
       // Migrate old format: save to separate file and clear from main save
       state.lucaRawFiles = data.lucaRawFiles || {};
       state.lucaRawBuffers = data.lucaRawBuffers || {};
-      saveLucaDataToOpfs(id, { lucaRawFiles: state.lucaRawFiles, lucaRawBuffers: state.lucaRawBuffers }).then(() => queueAutoSave());
+      saveLucaDataToOpfs(id, { lucaRawFiles: state.lucaRawFiles, lucaRawBuffers: state.lucaRawBuffers })
+        .then(() => queueAutoSave())
+        .catch(err => {
+          console.error('Failed to migrate Luca project data', err);
+          flashHint('Gagal memigrasikan data mentah Luca ke storage!');
+        });
     }
   });
   state.regexFilter = data.regex_filter || '';
@@ -718,18 +742,18 @@ export function openProject(id: string, data: any): void {
   state.selectionBatchPrevShortcut = normalizeShortcutString(data.selection_batch_prev_shortcut, DEFAULT_SELECTION_BATCH_PREV_SHORTCUT);
   state.selectionBatchNextShortcut = normalizeShortcutString(data.selection_batch_next_shortcut, DEFAULT_SELECTION_BATCH_NEXT_SHORTCUT);
   
-  if (data.proofread_settings) {
-    if (ui.proofreadScope) (ui.proofreadScope as HTMLSelectElement).value = data.proofread_settings.scope || 'all';
-    if (ui.proofreadRegexCheck) (ui.proofreadRegexCheck as HTMLInputElement).checked = !!data.proofread_settings.regex;
-    if (ui.proofreadCaseCheck) (ui.proofreadCaseCheck as HTMLInputElement).checked = !!data.proofread_settings.case;
-    if (ui.proofreadExactCheck) (ui.proofreadExactCheck as HTMLInputElement).checked = !!data.proofread_settings.exact;
-    if (ui.proofreadTranslatedOnlyCheck) (ui.proofreadTranslatedOnlyCheck as HTMLInputElement).checked = !!data.proofread_settings.translatedOnly;
-    if (ui.proofreadJumpCheck) (ui.proofreadJumpCheck as HTMLInputElement).checked = !!data.proofread_settings.jump;
-    if (ui.proofreadPreserveCaseCheck) (ui.proofreadPreserveCaseCheck as HTMLInputElement).checked = data.proofread_settings.preserveCase !== false; // default true
-  }
+  const proofreadSettings = data.proofread_settings || {};
+  if (ui.proofreadScope) (ui.proofreadScope as HTMLSelectElement).value = proofreadSettings.scope || 'all';
+  if (ui.proofreadRegexCheck) (ui.proofreadRegexCheck as HTMLInputElement).checked = !!proofreadSettings.regex;
+  if (ui.proofreadCaseCheck) (ui.proofreadCaseCheck as HTMLInputElement).checked = !!proofreadSettings.case;
+  if (ui.proofreadExactCheck) (ui.proofreadExactCheck as HTMLInputElement).checked = !!proofreadSettings.exact;
+  if (ui.proofreadTranslatedOnlyCheck) (ui.proofreadTranslatedOnlyCheck as HTMLInputElement).checked = proofreadSettings.translatedOnly !== false;
+  if (ui.proofreadJumpCheck) (ui.proofreadJumpCheck as HTMLInputElement).checked = !!proofreadSettings.jump;
+  if (ui.proofreadPreserveCaseCheck) (ui.proofreadPreserveCaseCheck as HTMLInputElement).checked = proofreadSettings.preserveCase !== false;
 
   state.selectedLines.clear();
   state.undoStack = [];
+  state.redoStack = [];
   state.aiCheckCorrections = [];
   state.activeWorkspaceTab = 'translate';
   resetSelectionHistory();
@@ -754,17 +778,31 @@ export function openProject(id: string, data: any): void {
   applyProjectLoggingVisibility();
 }
 
-export function closeProject(): void {
-  if (getSaveTimeout()) {
-    clearTimeout(getSaveTimeout()!);
-    const data: Record<string, any> = {
+export async function closeProject(): Promise<void> {
+  const projectId = state.currentProjectId;
+  if (!projectId) {
+    finishClose();
+    return;
+  }
+  if (isClosingProject) return;
+  isClosingProject = true;
+  if (getSaveTimeout()) clearTimeout(getSaveTimeout()!);
+  setSaveTimeout(null);
+  if (activeAutoSavePromise) {
+    try {
+      await activeAutoSavePromise;
+    } catch (_) {
+      // The final close-time save below retries with the latest project state.
+    }
+  }
+  const buildData = (): Record<string, any> => ({
       version: APP_VERSION, projectName: state.projectName, projectType: state.projectType,
       source_lang: state.sourceLang, target_lang: state.targetLang,
       translationMode: state.translationMode || 'ai', jsonRefLang: state.jsonRefLang || '',
       epubTags: state.epubTags, epubSourceId: state.epubSourceId,
       lucaExportLang: state.lucaExportLang, luca_profile: state.lucaProfile || DEFAULT_LUCA_PROFILE,
       luca_mc_display_name: state.lucaMcDisplayName || DEFAULT_LUCA_MC_DISPLAY_NAME,
-      regex_filter: state.regexFilter, disable_empty_line_validation: state.disableEmptyLineValidation,
+      regex_filter: state.regexFilter, pre_replace_rules: state.preReplaceRules, post_replace_rules: state.postReplaceRules, disable_empty_line_validation: state.disableEmptyLineValidation,
       check_kana_residue: state.checkKanaResidue, check_similarity: state.checkSimilarity, check_linebreak: state.checkLinebreak, check_length_ratio: state.checkLengthRatio, length_ratio_threshold: state.lengthRatioThreshold, check_language: state.checkLanguage, check_punctuation: state.checkPunctuation, check_untrans_name: state.checkUntransName, enable_uncertain_marking: state.enableUncertainMarking, safe_tags_for_chatgpt: state.safeTagsForChatgpt, agent_max_turns: state.agentMaxTurns,
       show_furigana: state.showFurigana,
       furigana_type: state.furiganaType || 'hiragana',
@@ -790,10 +828,28 @@ export function closeProject(): void {
       enableBackgroundChaining: state.enableBackgroundChaining,
       currentBackground: state.currentBackground,
       enable_logging: state.projectLoggingEnabled,
-    };
-    saveProjectToOpfs(state.currentProjectId!, data).then(() => finishClose());
-  } else {
+      proofread_settings: {
+        scope: (ui.proofreadScope as HTMLSelectElement)?.value,
+        regex: (ui.proofreadRegexCheck as HTMLInputElement)?.checked,
+        case: (ui.proofreadCaseCheck as HTMLInputElement)?.checked,
+        preserveCase: (ui.proofreadPreserveCaseCheck as HTMLInputElement)?.checked,
+        exact: (ui.proofreadExactCheck as HTMLInputElement)?.checked,
+        translatedOnly: (ui.proofreadTranslatedOnlyCheck as HTMLInputElement)?.checked,
+        jump: (ui.proofreadJumpCheck as HTMLInputElement)?.checked,
+      },
+    });
+  try {
+    while (true) {
+      const revision = projectRevision;
+      await saveProjectToOpfs(projectId, buildData());
+      if (revision === projectRevision) break;
+    }
     finishClose();
+  } catch (err: any) {
+    console.error('Failed to save project before closing', err);
+    alert('Gagal menyimpan proyek. Proyek tetap terbuka.\n\n' + (err?.message || err));
+  } finally {
+    isClosingProject = false;
   }
 }
 
@@ -814,18 +870,23 @@ export async function onRestoreProject(ev: Event): Promise<void> {
   const f = target.files?.[0];
   target.value = '';
   if (!f) return;
+  let restoreProjectId: string | null = null;
+  let createdEpubSourceId: string | null = null;
   try {
     const p = JSON.parse(await f.text());
     const name = p.projectName || f.name.replace(PROJECT_EXT, '');
     const id = 'proj_' + Date.now() + PROJECT_EXT;
+    restoreProjectId = id;
     let restoredEpubSourceId = p.epubSourceId || null;
     let restoreNote = '';
     if ((p.projectType || 'json') === 'epub') {
       if (p.epub_source?.data) {
         restoredEpubSourceId = await writeEpubSourceFromBackup(p.epub_source);
+        createdEpubSourceId = restoredEpubSourceId;
       } else if (p.epubSourceId) {
         try {
           restoredEpubSourceId = await cloneExistingEpubSource(p.epubSourceId);
+          createdEpubSourceId = restoredEpubSourceId;
         } catch (_) {
           restoredEpubSourceId = null;
           restoreNote = '\n\nCatatan: backup lama ini tidak menyimpan file EPUB asli.';
@@ -867,6 +928,16 @@ export async function onRestoreProject(ev: Event): Promise<void> {
     loadDashboardProjects();
     alert(`Proyek "${name}" berhasil dipulihkan!${restoreNote}`);
   } catch (e: any) {
-    alert('File backup korup atau tidak valid: ' + e.message);
+    try {
+      const root = await getOpfsRoot();
+      if (restoreProjectId) {
+        try { await root.removeEntry(restoreProjectId); } catch (_) {}
+        try { await root.removeEntry(restoreProjectId.replace(PROJECT_EXT, '_luca.json')); } catch (_) {}
+      }
+      if (createdEpubSourceId) {
+        try { await root.removeEntry(createdEpubSourceId); } catch (_) {}
+      }
+    } catch (_) {}
+    alert('Gagal memulihkan proyek: ' + e.message);
   }
 }
