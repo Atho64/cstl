@@ -20,9 +20,10 @@ export default defineConfig({
   plugins: [
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['icon.jpg'],
+      includeAssets: ['icon.jpg', 'icon.svg', 'dict/*.dat.gz'],
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,jpg,jpeg,woff2}']
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,jpg,jpeg,woff2,dat.gz}'],
+        maximumFileSizeToCacheInBytes: 10 * 1024 * 1024,
       },
       manifest: {
         name: 'Copas Tool',
@@ -35,14 +36,14 @@ export default defineConfig({
         icons: [
           {
             src: 'icon.jpg',
-            sizes: '192x192',
+            sizes: '784x784',
             type: 'image/jpeg',
             purpose: 'any maskable'
           },
           {
-            src: 'icon.jpg',
+            src: 'icon.svg',
             sizes: '512x512',
-            type: 'image/jpeg',
+            type: 'image/svg+xml',
             purpose: 'any maskable'
           }
         ]

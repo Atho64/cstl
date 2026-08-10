@@ -190,14 +190,25 @@ export function parseAiCheckBlocks(text: string): { num: number; category: strin
     // else: lenient — skip unrecognized lines instead of throwing
   }
   if (current) blocks.push(current);
-  if (!blocks.length) throw new Error('Tidak ada blok [line N] yang valid.');
+  if (!blocks.length) {
+    const normalized = text.replace(/```(?:plaintext|text)?/gi, '').replace(/```/g, '').trim().toLowerCase();
+    if (!normalized || /^(no corrections?(?: needed| are needed| are necessary)?|no errors?(?: found)?|tidak ada koreksi(?: yang diperlukan)?|tidak ada error(?: yang ditemukan)?)\.?$/.test(normalized)) {
+      return [];
+    }
+    throw new Error('Tidak ada blok [line N] yang valid.');
+  }
   return blocks;
 }
 
-export function onParseAiCheck(): void {
+export function onParseAiCheck(selectedLineNums?: Set<number>): boolean {
   try {
     const parsed = parseAiCheckBlocks(ui.pasteAiCheckArea.value.trim());
-    const selectedTranslated = new Set(getSelectedTranslatedLines().map(l => l.line_num));
+    const selectedTranslated = selectedLineNums
+      ? new Set([...selectedLineNums].filter(num => {
+          const line = state.lineByNum.get(num);
+          return !!line && isTranslated(line);
+        }))
+      : new Set(getSelectedTranslatedLines().map(l => l.line_num));
     const corrections: AiCheckCorrection[] = [];
     const errors: string[] = [];
     const seen = new Set<number>();
@@ -217,15 +228,18 @@ export function onParseAiCheck(): void {
     if (errors.length) {
       state.aiCheckCorrections = [];
       renderAiCheckCorrections();
-      return alert('AI CHECK DITOLAK:\n\n' + errors.slice(0, 12).join('\n') + (errors.length > 12 ? `\n\n... (+${errors.length - 12} error lain)` : ''));
+      alert('AI CHECK DITOLAK:\n\n' + errors.slice(0, 12).join('\n') + (errors.length > 12 ? `\n\n... (+${errors.length - 12} error lain)` : ''));
+      return false;
     }
     state.aiCheckCorrections = corrections;
     renderAiCheckCorrections();
     setAiCheckStatus(`Parsed ${corrections.length} koreksi.`);
+    return true;
   } catch (err: any) {
     state.aiCheckCorrections = [];
     renderAiCheckCorrections();
     alert('Gagal parse AI Check:\n\n' + err.message);
+    return false;
   }
 }
 
@@ -417,10 +431,10 @@ export function stripDuplicateSpeakerPrefix(text: string, name: string): string 
   return cleanText;
 }
 
-export function onApplyAiCheckCorrections(): { applied: number; categories: Map<string, number> } {
+export function onApplyAiCheckCorrections(pushUndo = true): { applied: number; categories: Map<string, number> } {
   const corrections = state.aiCheckCorrections.filter(c => c.checked);
   if (!corrections.length) return { applied: 0, categories: new Map() };
-  pushUndoSnapshot();
+  if (pushUndo) pushUndoSnapshot();
   let applied = 0;
   const catStats = new Map<string, number>();
   for (const correction of corrections) {

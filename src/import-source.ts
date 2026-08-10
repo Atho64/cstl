@@ -131,8 +131,13 @@ export async function handleImportLogic(filesObj: FileList | File[] | File, isZi
     cur = maxExistingLineNum + 1;
     const existingFiles = new Set(state.importedFiles);
     const skippedFiles: string[] = [];
+    let pendingEpubSourceId: string | null = null;
+    let pendingEpubFile: File | null = null;
 
     if (isZip && filesObj instanceof File && (window as any).JSZip) {
+      if (state.projectType !== 'json') {
+        throw new Error('Format ZIP/JSON tidak cocok dengan tipe proyek saat ini. Buat proyek JSON baru untuk mengimpor file JSON.');
+      }
       const zip = await (window as any).JSZip.loadAsync(filesObj);
       const names = Object.keys(zip.files).filter(n => n.endsWith('.json')).sort(windowsFileOrderCompare);
       for (const n of names) {
@@ -156,21 +161,18 @@ export async function handleImportLogic(filesObj: FileList | File[] | File, isZi
         const isEpub = f.name.toLowerCase().endsWith('.epub');
         const isJson = f.name.toLowerCase().endsWith('.json');
 
+        if (isJson && (state.projectType === 'luca' || state.projectType === 'epub' || state.lines.length > 0 && state.projectType !== 'json')) {
+          alert('Format JSON tidak cocok dengan tipe proyek saat ini. Buat proyek JSON baru untuk mengimpor JSON.');
+          continue;
+        }
+
         if (isEpub) {
-          if (state.lines.length > 0 && state.projectType === 'epub') {
-            alert('Proyek ini sudah memuat file EPUB. Buat proyek baru untuk mengimpor EPUB lain.');
+          if (state.projectType === 'luca' || pendingEpubSourceId || lines.length > 0 || state.lines.length > 0 && state.projectType !== 'epub') {
+            alert('Format EPUB tidak cocok dengan tipe proyek saat ini. Buat proyek EPUB baru untuk mengimpor EPUB.');
             continue;
           }
-          if (state.lines.length === 0) {
-            state.projectType = 'epub';
-            state.epubSourceId = 'epub_' + Date.now() + '.epub';
-          }
-
-          const root = await getOpfsRoot();
-          const fh = await (root as any).getFileHandle(state.epubSourceId, { create: true });
-          const writable = await fh.createWritable();
-          await writable.write(f);
-          await writable.close();
+          pendingEpubSourceId = 'epub_' + Date.now() + '.epub';
+          pendingEpubFile = f;
 
           const zip = await (window as any).JSZip.loadAsync(f);
           const containerXml = await zip.file('META-INF/container.xml').async('text');
@@ -228,6 +230,10 @@ export async function handleImportLogic(filesObj: FileList | File[] | File, isZi
             await new Promise(r => setTimeout(r, 0));
           }
         } else if (isJson) {
+          if (pendingEpubSourceId || lines.length > 0) {
+            alert('Jangan mencampur EPUB dan JSON dalam satu impor.');
+            continue;
+          }
           const baseName = normalizeFileBaseName(f.name);
           if (existingFiles.has(baseName)) {
             skippedFiles.push(baseName);
@@ -245,6 +251,15 @@ export async function handleImportLogic(filesObj: FileList | File[] | File, isZi
     }
 
     if (lines.length > 0) {
+      if (pendingEpubSourceId && pendingEpubFile) {
+        const root = await getOpfsRoot();
+        const fh = await (root as any).getFileHandle(pendingEpubSourceId, { create: true });
+        const writable = await fh.createWritable();
+        await writable.write(pendingEpubFile);
+        await writable.close();
+        state.projectType = 'epub';
+        state.epubSourceId = pendingEpubSourceId;
+      }
       state.lines = state.lines.concat(lines);
       state.importedFiles = Array.from(existingFiles);
       state.selectedLines.clear();

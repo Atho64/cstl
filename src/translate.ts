@@ -11,6 +11,34 @@ import { unescapeStoredNewlines, escapeStoredNewlines, stringSimilarity, applyRe
 import { rebuildDisplayState, renderPreviewRows, syncCheckboxUI, flashHint, updateButtonStates, pushUndoSnapshot, refreshAll } from './render';
 import { queueAutoSave } from './project';
 import { getGlossaryMatches, getGlossaryPrompt, sanitizeTagsForChatgpt } from './glossary';
+
+function snapshotLine(l: any): any {
+  return {
+    line_num: l.line_num,
+    file: l.file,
+    name: l.name,
+    message: l.message,
+    trans_name: l.trans_name,
+    trans_message: l.trans_message,
+    is_translated: l.is_translated,
+    _hidden: l._hidden,
+    _glossary_extracted: l._glossary_extracted,
+    _ai_checked: l._ai_checked,
+    _ai_confirmed: l._ai_confirmed,
+    luca_command: l.luca_command,
+    luca_pre: l.luca_pre,
+    luca_post: l.luca_post,
+    luca_text_prefix: l.luca_text_prefix,
+    epub_selector: l.epub_selector,
+    epub_id: l.epub_id,
+  };
+}
+
+function restoreLineSnapshot(l: any, saved: any): void {
+  for (const key of ['file', 'name', 'message', 'trans_name', 'trans_message', 'is_translated', '_hidden', '_glossary_extracted', '_ai_checked', '_ai_confirmed', 'luca_command', 'luca_pre', 'luca_post', 'luca_text_prefix', 'epub_selector', 'epub_id']) {
+    if (Object.prototype.hasOwnProperty.call(saved, key)) l[key] = saved[key];
+  }
+}
 import {
   AI_TRANSLATION_FORMAT_BLOCK, AI_TRANSLATION_FORMAT_XML,
   AI_TRANSLATION_FORMAT_JSONL, AI_TRANSLATION_FORMAT_JSON_ARRAY, DEFAULT_PROMPT_HEADER,
@@ -104,10 +132,12 @@ export class TranslationApplyError extends Error {
 
 type ApplyTranslationOptions = {
   suppressAlerts?: boolean;
+  /** Explicit target set for background/delegated applies; avoids using the UI selection. */
+  selectedLineNums?: ReadonlySet<number>;
 };
 
 export function onApplyTranslation(options: ApplyTranslationOptions = {}): void {
-  const { suppressAlerts = false } = options;
+  const { suppressAlerts = false, selectedLineNums } = options;
   const fail = (message: string, details: string[] = []): never => {
     const suffix = details.length ? '\n\n' + details.join('\n') : '';
     if (suppressAlerts) {
@@ -155,7 +185,9 @@ export function onApplyTranslation(options: ApplyTranslationOptions = {}): void 
   }
 
   const pasteFormat = detectTranslationPasteFormat(rawText);
-  const selectedUntranslated = new Set(state.lines.filter(l => state.selectedLines.has(l.line_num) && !isTranslated(l)).map(l => l.line_num));
+  const selectedUntranslated = new Set(state.lines.filter(l =>
+    (selectedLineNums ? selectedLineNums.has(l.line_num) : state.selectedLines.has(l.line_num)) && !isTranslated(l)
+  ).map(l => l.line_num));
   const expectedCount = selectedUntranslated.size;
   let parsed: any[] = [];
   let errors: string[] = [];
@@ -269,7 +301,7 @@ export function onApplyTranslation(options: ApplyTranslationOptions = {}): void 
     l.trans_message = it.msg;
     l.is_translated = !!(it.msg || state.disableEmptyLineValidation);
     if (it.name && !ignoreNames) l.trans_name = it.name;
-    state.selectedLines.delete(l.line_num);
+    if (!selectedLineNums) state.selectedLines.delete(l.line_num);
   }
   (ui.pasteArea as HTMLTextAreaElement).value = '';
   refreshAll();
@@ -286,15 +318,7 @@ export async function onUndoLastApply(): Promise<void> {
   if (snapshot.fileAction) {
     // Push current state to redoStack (full line snapshot for file actions)
     state.redoStack.push({
-      lines: state.lines.map(l => ({
-        line_num: l.line_num,
-        trans_name: l.trans_name,
-        trans_message: l.trans_message,
-        is_translated: l.is_translated,
-        _hidden: l._hidden,
-        _glossary_extracted: l._glossary_extracted,
-        _ai_checked: l._ai_checked,
-      })),
+      lines: state.lines.map(snapshotLine),
       fileAction: {
         type: snapshot.fileAction.type,
         files: snapshot.fileAction.files,
@@ -302,6 +326,8 @@ export async function onUndoLastApply(): Promise<void> {
         newImportedFiles: snapshot.fileAction.newImportedFiles || [...state.importedFiles],
         prevFileOrder: [...state.fileOrder],
         newFileOrder: snapshot.fileAction.newFileOrder || [...state.fileOrder],
+        prevOrder: snapshot.fileAction.prevOrder || [...state.fileOrder],
+        newOrder: snapshot.fileAction.newOrder || snapshot.fileAction.newFileOrder || [...state.fileOrder],
         removedLines: snapshot.fileAction.removedLines,
         addedLines: snapshot.fileAction.addedLines,
       },
@@ -320,29 +346,14 @@ export async function onUndoLastApply(): Promise<void> {
   
   // Push current state to redoStack
   state.redoStack.push({
-    lines: state.lines.map(l => ({
-      line_num: l.line_num,
-      trans_name: l.trans_name,
-      trans_message: l.trans_message,
-      is_translated: l.is_translated,
-      _hidden: l._hidden,
-      _glossary_extracted: l._glossary_extracted,
-      _ai_checked: l._ai_checked,
-    }))
+    lines: state.lines.map(snapshotLine)
   });
 
   const snap = state.undoStack.pop();
   if (!snap) return;
   for (const saved of snap.lines) {
     const l = state.lineByNum.get(saved.line_num);
-    if (l) {
-      l.trans_name = saved.trans_name;
-      l.trans_message = saved.trans_message;
-      l.is_translated = saved.is_translated;
-      l._hidden = saved._hidden;
-      l._glossary_extracted = saved._glossary_extracted;
-      l._ai_checked = saved._ai_checked;
-    }
+    if (l) restoreLineSnapshot(l, saved);
   }
   refreshAll();
   queueAutoSave();
@@ -356,8 +367,20 @@ export async function onRedoLastUndo(): Promise<void> {
   
   // Handle file-level redo
   if (snapshot.fileAction) {
-    // Push current state to undoStack but WITHOUT clearing redoStack
-    pushUndoSnapshot(false);
+    // Preserve the file action so Undo after Redo can reverse the operation.
+    state.undoStack.push({
+      lines: [],
+      fileAction: {
+        ...snapshot.fileAction,
+        files: [...snapshot.fileAction.files],
+        prevImportedFiles: snapshot.fileAction.prevImportedFiles ? [...snapshot.fileAction.prevImportedFiles] : undefined,
+        newImportedFiles: snapshot.fileAction.newImportedFiles ? [...snapshot.fileAction.newImportedFiles] : undefined,
+        prevFileOrder: snapshot.fileAction.prevFileOrder ? [...snapshot.fileAction.prevFileOrder] : undefined,
+        newFileOrder: snapshot.fileAction.newFileOrder ? [...snapshot.fileAction.newFileOrder] : undefined,
+        prevOrder: snapshot.fileAction.prevOrder ? [...snapshot.fileAction.prevOrder] : undefined,
+        newOrder: snapshot.fileAction.newOrder ? [...snapshot.fileAction.newOrder] : undefined,
+      },
+    });
     
     // Apply the redo
     const { redoFileAction } = await import('./file-list');
@@ -377,14 +400,7 @@ export async function onRedoLastUndo(): Promise<void> {
   if (!snap) return;
   for (const saved of snap.lines) {
     const l = state.lineByNum.get(saved.line_num);
-    if (l) {
-      l.trans_name = saved.trans_name;
-      l.trans_message = saved.trans_message;
-      l.is_translated = saved.is_translated;
-      l._hidden = saved._hidden;
-      l._glossary_extracted = saved._glossary_extracted;
-      l._ai_checked = saved._ai_checked;
-    }
+    if (l) restoreLineSnapshot(l, saved);
   }
   refreshAll();
   queueAutoSave();
@@ -393,6 +409,7 @@ export async function onRedoLastUndo(): Promise<void> {
 
 export function applyAgentTranslations(updates: {num: number, trans_message: string, trans_name?: string}[]): number {
   if (!updates || !updates.length) return 0;
+  if (updates.some(it => !state.lineByNum.has(it.num))) return 0;
   pushUndoSnapshot();
   let applied = 0;
   for (const it of updates) {

@@ -14,7 +14,79 @@ import { base64ToArrayBuffer, joinLinesToBuffer, arrayBufferToBase64, latin1Byte
 import { WINDOWS_FILE_ORDER_COLLATOR, APP_VERSION } from './constants';
 import { flashHint } from './render';
 import { getOpfsRoot } from './state';
+import { waitForLucaDataLoad } from './project';
 import type { Line } from './types';
+
+function writeTextNodeWithBreaks(node: Text, text: string): void {
+  if (!text.includes('\n')) {
+    node.data = text;
+    return;
+  }
+  const fragment = document.createDocumentFragment();
+  const parts = text.split('\n');
+  parts.forEach((part, index) => {
+    if (index > 0) fragment.appendChild(document.createElement('br'));
+    fragment.appendChild(document.createTextNode(part));
+  });
+  node.parentNode?.replaceChild(fragment, node);
+}
+
+function replaceElementTextPreservingInlineStructure(el: Element, storedText: string): void {
+  const text = unescapeStoredNewlines(storedText);
+
+  // Ruby readings belong to the original language. Keeping them attached to
+  // translated text produces incorrect annotations, so flatten ruby nodes to
+  // their base text before distributing the translation.
+  const rubyNodes = Array.from(el.querySelectorAll('ruby')).reverse();
+  for (const ruby of rubyNodes) {
+    const baseWalker = document.createTreeWalker(ruby, NodeFilter.SHOW_TEXT);
+    const baseParts: string[] = [];
+    let baseNode: Node | null;
+    while ((baseNode = baseWalker.nextNode())) {
+      const parent = (baseNode as Text).parentElement;
+      if (!parent?.closest('rt, rp')) baseParts.push((baseNode as Text).data);
+    }
+    ruby.replaceWith(document.createTextNode(baseParts.join('')));
+  }
+
+  const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+  const textNodes: Text[] = [];
+  let node: Node | null;
+  while ((node = walker.nextNode())) {
+    const parent = (node as Text).parentElement;
+    if (parent?.closest('rt, rp, script, style')) continue;
+    textNodes.push(node as Text);
+  }
+
+  if (!textNodes.length) {
+    el.textContent = text;
+    return;
+  }
+  if (textNodes.length === 1) {
+    writeTextNodeWithBreaks(textNodes[0], text);
+    return;
+  }
+
+  // Keep the source's inline elements (em, ruby, links, etc.) and distribute
+  // the translated text across their original text-node proportions. This is
+  // only a best-effort mapping, but avoids flattening the inline structure.
+  const sourceLength = textNodes.reduce((sum, textNode) => sum + textNode.data.length, 0);
+  if (!sourceLength) {
+    textNodes[0].data = text;
+    for (let i = 1; i < textNodes.length; i++) textNodes[i].data = '';
+    return;
+  }
+  let offset = 0;
+  let sourceOffset = 0;
+  for (let i = 0; i < textNodes.length; i++) {
+    sourceOffset += textNodes[i].data.length;
+    const end = i === textNodes.length - 1
+      ? text.length
+      : Math.round(text.length * sourceOffset / sourceLength);
+    writeTextNodeWithBreaks(textNodes[i], text.slice(offset, end));
+    offset = end;
+  }
+}
 
 export function onCopyForAi(ctxLines: Line[]): void {
   const ctxOut: string[] = [];
@@ -48,6 +120,9 @@ export function confirmExportWithUntranslatedReport(): boolean {
 export async function onExport(): Promise<void> {
   if (!state.lines.length) return;
   if (!confirmExportWithUntranslatedReport()) return;
+  const exportProjectId = state.currentProjectId;
+  if (!exportProjectId) return;
+  const exportStillActive = () => state.currentProjectId === exportProjectId;
   
   if (state.projectType === 'epub' && state.epubSourceId) {
     try {
@@ -57,6 +132,7 @@ export async function onExport(): Promise<void> {
       const fh = await (root as any).getFileHandle(state.epubSourceId);
       const f = await fh.getFile();
       const zip = await (window as any).JSZip.loadAsync(f);
+      if (!exportStillActive()) return;
       
       const linesByFile: Record<string, Line[]> = {};
       state.lines.forEach(l => {
@@ -67,6 +143,7 @@ export async function onExport(): Promise<void> {
       const tagsSelector = state.epubTags || 'p';
 
       for (const [href, fLines] of Object.entries(linesByFile)) {
+        if (!exportStillActive()) return;
         const zf = zip.file(href);
         if (!zf) continue;
         const html = await zf.async('text');
@@ -80,7 +157,7 @@ export async function onExport(): Promise<void> {
           if ((el.textContent || '').replace(/\r?\n/g, ' ').trim() === '') continue;
           const l = fLines[lineIdx++];
           if (l && isTranslated(l)) {
-            el.textContent = l.trans_message || '';
+            replaceElementTextPreservingInlineStructure(el, l.trans_message || '');
           }
         }
         
@@ -96,6 +173,7 @@ export async function onExport(): Promise<void> {
         zip.file('mimetype', mimeData, { compression: 'STORE' });
       }
 
+      if (!exportStillActive()) return;
       const blob = await zip.generateAsync({
         type: 'blob',
         mimeType: 'application/epub+zip',
@@ -103,6 +181,7 @@ export async function onExport(): Promise<void> {
         compressionOptions: { level: 9 }
       });
 
+      if (!exportStillActive()) return;
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
       const safeName = state.projectName.replace(/[<>:"\/\\|?*]/g, '_').trim() || 'export';
@@ -116,6 +195,8 @@ export async function onExport(): Promise<void> {
     }
   } else if (state.projectType === 'luca') {
     try {
+      await waitForLucaDataLoad(exportProjectId);
+      if (state.currentProjectId !== exportProjectId) return;
       flashHint('Mengekspor TXT Luca...', true);
       document.body.style.cursor = 'wait';
       await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
@@ -154,6 +235,7 @@ export async function onExport(): Promise<void> {
       const entries = Array.from(g.entries());
       const res: any[] = [];
       for (let fileIdx = 0; fileIdx < entries.length; fileIdx++) {
+        if (!exportStillActive()) return;
         const [fileName, lns] = entries[fileIdx];
         const rawLines = state.lucaRawFiles[fileName] ? [...state.lucaRawFiles[fileName]] : [];
         const outLines = rawLines.length > 0 ? [...rawLines] : [];
@@ -240,10 +322,12 @@ export async function onExport(): Promise<void> {
         }
         if (fileIdx % 2 === 1) await new Promise((r) => setTimeout(r, 0));
       }
+      if (!exportStillActive()) return;
       if ((window as any).JSZip && res.length > 1) {
         const zip = new (window as any).JSZip();
         res.forEach(f => zip.file(`SCRIPT.PAK/${f.fn}`, f.content));
         const b = await zip.generateAsync({ type: 'blob' });
+        if (!exportStillActive()) return;
         const a = document.createElement('a');
         a.href = URL.createObjectURL(b);
         const safeName = state.projectName.replace(/[<>:"\/\\|?*]/g, '_').trim() || 'export';
@@ -251,13 +335,14 @@ export async function onExport(): Promise<void> {
         a.click();
         flashHint('Berhasil mengekspor ZIP Luca!');
       } else {
-        res.forEach(f => {
+        for (const f of res) {
+          if (!exportStillActive()) return;
           const b = new Blob([f.content], { type: f.binary ? 'application/octet-stream' : 'text/plain;charset=utf-8' });
           const a = document.createElement('a');
           a.href = URL.createObjectURL(b);
           a.download = f.fn;
           a.click();
-        });
+        }
         flashHint('Berhasil mengekspor TXT Luca!');
       }
     } finally {
@@ -288,19 +373,21 @@ export async function onExport(): Promise<void> {
       const zip = new (window as any).JSZip();
       res.forEach(f => zip.file(f.fn, f.content));
       const b = await zip.generateAsync({ type: 'blob' });
+      if (!exportStillActive()) return;
       const a = document.createElement('a');
       a.href = URL.createObjectURL(b);
       const safeName = state.projectName.replace(/[<>:"\/\\|?*]/g, '_').trim() || 'export';
       a.download = `${safeName}_export.zip`;
       a.click();
     } else {
-      res.forEach(f => {
+      for (const f of res) {
+        if (!exportStillActive()) return;
         const b = new Blob([f.content], { type: 'application/json' });
         const a = document.createElement('a');
         a.href = URL.createObjectURL(b);
         a.download = f.fn;
         a.click();
-      });
+      }
     }
   }
 }

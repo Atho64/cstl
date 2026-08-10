@@ -198,6 +198,7 @@ export async function onAgentTranslate(): Promise<void> {
 
       chunkIndex++;
       const batch = untranslatedLines.slice(0, batchSize);
+      const batchState = new Map(batch.map(l => [l.line_num, `${l.trans_name ?? ''}\u0000${l.trans_message ?? ''}\u0000${l.is_translated}`]));
 
       state.selectedLines.clear();
       for (const l of batch) state.selectedLines.add(l.line_num);
@@ -249,6 +250,7 @@ export async function onAgentTranslate(): Promise<void> {
         } catch (e: any) {
           throw new Error(`Agent API error: ${e.message}`);
         }
+        if (!isAgentTranslating) break;
 
         let response: AgentResponse;
         try {
@@ -271,15 +273,64 @@ export async function onAgentTranslate(): Promise<void> {
         }
 
         if (response.action === 'commit') {
-          if (response.translations && response.translations.length > 0) {
-            const updates = response.translations.map(t => ({
-              num: t.id,
-              trans_message: t.trans_message,
-              trans_name: t.trans_name
-            }));
-            const applied = applyAgentTranslations(updates);
-            console.log(`Agent chunk ${chunkIndex}: committed ${applied} translations`);
+          const batchIds = new Set(batch.map(l => l.line_num));
+          const translations = Array.isArray(response.translations) ? response.translations : [];
+          const invalidIds: number[] = [];
+          const seenIds = new Set<number>();
+          const updates: { num: number; trans_message: string; trans_name?: string }[] = [];
+
+          for (const t of translations) {
+            const rawId: unknown = t?.id;
+            const id = typeof rawId === 'number'
+              ? rawId
+              : typeof rawId === 'string' && rawId.trim() !== ''
+                ? Number(rawId)
+                : NaN;
+            const validName = t?.trans_name == null || typeof t.trans_name === 'string';
+            if (!Number.isInteger(id) || !batchIds.has(id) || seenIds.has(id) || !validName || typeof t?.trans_message !== 'string' || !t.trans_message.trim()) {
+              if (Number.isInteger(id)) invalidIds.push(id);
+              continue;
+            }
+            seenIds.add(id);
+            const update: { num: number; trans_message: string; trans_name?: string } = { num: id, trans_message: t.trans_message };
+            if (typeof t.trans_name === 'string') update.trans_name = t.trans_name;
+            updates.push(update);
           }
+
+          if (!updates.length || invalidIds.length || updates.length !== translations.length) {
+            messages.push({ role: 'assistant', content: responseText });
+            messages.push({
+              role: 'user',
+              content: `Error: commit berisi ID tidak valid, duplikat, trans_name bukan string, atau trans_message kosong. Batch ID valid: ${[...batchIds].join(', ')}.`,
+            });
+            continue;
+          }
+          if (!seenIds.size || seenIds.size > batchIds.size) {
+            messages.push({ role: 'assistant', content: responseText });
+            messages.push({
+              role: 'user',
+              content: `Error: commit harus berisi 1..${batchIds.size} ID unik dari batch ini.`,
+            });
+            continue;
+          }
+
+          const hasConflict = batch.some(line => {
+            const current = state.lineByNum.get(line.line_num);
+            return !current || batchState.get(line.line_num) !== `${current.trans_name ?? ''}\u0000${current.trans_message ?? ''}\u0000${current.is_translated}`;
+          });
+          if (hasConflict) {
+            messages.push({ role: 'assistant', content: responseText });
+            messages.push({ role: 'user', content: 'Error: salah satu baris berubah saat Agent bekerja. Jangan timpa perubahan terbaru; ulangi batch ini.' });
+            continue;
+          }
+
+          const applied = applyAgentTranslations(updates);
+          if (applied !== updates.length) {
+            messages.push({ role: 'assistant', content: responseText });
+            messages.push({ role: 'user', content: 'Error: tidak semua terjemahan commit berhasil diterapkan. Ulangi commit untuk batch yang sama.' });
+            continue;
+          }
+          console.log(`Agent chunk ${chunkIndex}: committed ${applied} translations`);
 
           if (response.glossary_suggestions) {
             for (const s of response.glossary_suggestions) {
@@ -309,8 +360,8 @@ export async function onAgentTranslate(): Promise<void> {
         messages.push({ role: 'user', content: `Error: Unknown action "${response.action}". Use "tool_calls" or "commit".` });
       }
 
-      if (!committed) {
-        console.warn(`Agent chunk ${chunkIndex} did not commit after ${maxTurns} turns, moving to next batch.`);
+      if (!committed && isAgentTranslating) {
+        throw new Error(`Agent gagal menyelesaikan batch ${chunkIndex} setelah ${maxTurns} giliran.`);
       }
 
       // RPM delay

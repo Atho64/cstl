@@ -267,6 +267,20 @@ export function onDeleteProfile(): void {
 
 // ─── Model Fetcher ────────────────────────────────────────────────────────────
 
+function appendQueryParams(rawUrl: string, values: Record<string, string>, overwrite = false): string {
+  const hashIndex = rawUrl.indexOf('#');
+  const hash = hashIndex >= 0 ? rawUrl.slice(hashIndex) : '';
+  const withoutHash = hashIndex >= 0 ? rawUrl.slice(0, hashIndex) : rawUrl;
+  const queryIndex = withoutHash.indexOf('?');
+  const base = queryIndex >= 0 ? withoutHash.slice(0, queryIndex) : withoutHash;
+  const params = new URLSearchParams(queryIndex >= 0 ? withoutHash.slice(queryIndex + 1) : '');
+  for (const [key, value] of Object.entries(values)) {
+    if (overwrite || !params.has(key)) params.set(key, value);
+  }
+  const query = params.toString();
+  return base + (query ? `?${query}` : '') + hash;
+}
+
 export async function onFetchModels(): Promise<void> {
   const apiType = (ui.apiTypeSelect as HTMLSelectElement)?.value || state.aiApiType || 'openai';
   const apiKey = (ui.apiKeyInput as HTMLInputElement)?.value?.trim() || state.aiApiKey;
@@ -291,7 +305,7 @@ export async function onFetchModels(): Promise<void> {
 
     if (apiType === 'gemini') {
       const baseUrl = apiUrl || 'https://generativelanguage.googleapis.com/v1beta/models';
-      const url = baseUrl + '?key=' + apiKey;
+      const url = appendQueryParams(baseUrl, { key: apiKey }, true);
       const res = await fetch(url);
       if (!res.ok) {
         const detail = await res.text().catch(() => '');
@@ -559,6 +573,7 @@ export async function onAutoTranslate(): Promise<void> {
 
         let rawResult = await fetchWithRetry(async () => {
           const result = await fetchApiResult(prompt);
+          if (!isAutoTranslating) throw new Error('Dibatalkan oleh pengguna.');
           (ui.pasteArea as HTMLTextAreaElement).value = result;
           try {
             Translate.onApplyTranslation({ suppressAlerts: true });
@@ -596,10 +611,7 @@ export async function onAutoTranslate(): Promise<void> {
         const glossaryBlock = getGlossaryPrompt('');
 
         const buildSubPrompt = (subBatch: typeof sel): string => {
-          // Temporarily set selectedLines to just this sub-batch
-          state.selectedLines.clear();
-          for (const l of subBatch) state.selectedLines.add(l.line_num);
-          const subText = buildSelectedTranslationExport(false);
+          const subText = buildSelectedTranslationExport(false, new Set(subBatch.map(l => l.line_num)));
 
           let contextBlock = '';
           if (state.contextLines > 0) {
@@ -636,49 +648,38 @@ export async function onAutoTranslate(): Promise<void> {
           return sections.join('\n\n');
         };
 
-        // Build all prompts first (while selectedLines is set per sub-batch)
+        // Build all prompts without changing the user's selection.
         const subPrompts = subBatches.map(sb => ({ batch: sb, prompt: buildSubPrompt(sb) }));
 
-        // Restore full selection for UI
-        state.selectedLines.clear();
-        for (const l of sel) state.selectedLines.add(l.line_num);
-
-        // Send all sub-batches concurrently
-        // NOTE: selectedLines adalah shared state. Karena sub-batch jalan paralel,
-        // kita tidak boleh ubah selectedLines saat apply — onApplyTranslation baca
-        // pasteArea (teks hasil) DAN selectedLines (baris target). Solusinya:
-        // apply hasil sequential setelah semua fetch selesai, bukan di dalam paralel.
+        // Fetch and apply each sub-batch inside the retry callback. An invalid
+        // response therefore retries instead of being silently skipped.
         const fetchResults = await Promise.allSettled(subPrompts.map(async (sp, idx) => {
           if (!isAutoTranslating) throw new Error('Dibatalkan oleh pengguna.');
           const result = await fetchWithRetry(async () => {
-            return await fetchApiResult(sp.prompt);
+            const attemptResult = await fetchApiResult(sp.prompt);
+            if (!isAutoTranslating) throw new Error('Dibatalkan oleh pengguna.');
+            const pasteArea = ui.pasteArea as HTMLTextAreaElement;
+            const prevVal = pasteArea.value;
+            pasteArea.value = attemptResult;
+            try {
+              Translate.onApplyTranslation({
+                suppressAlerts: true,
+                selectedLineNums: new Set(sp.batch.map(l => l.line_num)),
+              });
+            } catch (err: any) {
+              if (err instanceof TranslationApplyError) throw createRetryableAiFormatError(err);
+              throw err;
+            } finally {
+              pasteArea.value = prevVal;
+            }
+            return attemptResult;
           }, (retry) => {
             btn.textContent = `Paralel ${idx + 1}/${subPrompts.length}: ${formatRetryLabel(retry)}... (Klik Stop)`;
           }, () => !isAutoTranslating);
           return { sp, result };
         }));
 
-        // Apply hasil sequential (tidak paralel) supaya selectedLines tidak race
-        for (const r of fetchResults) {
-          if (r.status !== 'fulfilled') continue;
-          const { sp, result } = r.value;
-          if (!isAutoTranslating) break;
-          state.selectedLines.clear();
-          for (const l of sp.batch) state.selectedLines.add(l.line_num);
-          (ui.pasteArea as HTMLTextAreaElement).value = result;
-          try {
-            Translate.onApplyTranslation({ suppressAlerts: true });
-          } catch (err: any) {
-            if (err instanceof TranslationApplyError) {
-              // skip, lanjut sub-batch berikutnya
-              console.warn(`Sub-batch apply gagal: ${err.message}`);
-            } else {
-              throw err;
-            }
-          }
-        }
-
-        // Restore full selection
+        // Keep the UI selection representing the whole visible batch.
         state.selectedLines.clear();
         for (const l of sel) state.selectedLines.add(l.line_num);
 
@@ -829,6 +830,7 @@ async function fetchAnthropicWithConfig(prompt: string, config: ApiConfig): Prom
       'x-api-key': config.key,
       'Authorization': `Bearer ${config.key}`,
       'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true',
     },
     body: JSON.stringify(body),
   });
@@ -859,15 +861,11 @@ async function fetchAnthropicWithConfig(prompt: string, config: ApiConfig): Prom
 
 async function fetchGeminiWithConfig(prompt: string, config: ApiConfig): Promise<string> {
   const model = config.model || 'gemini-1.5-flash';
-  let url = config.url;
-  if (!url) {
-    url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${config.key}`;
-  } else if (!url.includes('?key=')) {
-    url += `?key=${config.key}`;
-  }
+  let url = (config.url || '').trim() || `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+  url = url.replace(':generateContent', state.aiStreaming ? ':streamGenerateContent' : ':generateContent');
+  url = appendQueryParams(url, { key: config.key }, false);
   if (state.aiStreaming) {
-    url = url.replace(':generateContent', ':streamGenerateContent');
-    url += url.includes('?') ? '&alt=sse' : '?alt=sse';
+    url = appendQueryParams(url, { alt: 'sse' }, true);
   }
 
   const genConfig: any = {};
@@ -1089,6 +1087,7 @@ export async function onAutoAiCheck(): Promise<void> {
   const btn = ui.btnAutoAiCheck as HTMLButtonElement;
   if (isAutoAiCheck) {
     isAutoAiCheck = false;
+    resolveReviewAction('stop');
     btn.textContent = 'Menghentikan...';
     btn.classList.remove('btn-danger');
     btn.classList.add('btn-success');
@@ -1153,8 +1152,18 @@ export async function onAutoAiCheck(): Promise<void> {
       (ui.pasteAiCheckArea as HTMLTextAreaElement).value = rawResult;
 
       const { onParseAiCheck, onApplyAiCheckCorrections, renderAiCheckCorrections } = await import('./ai-check');
-      onParseAiCheck();
+      if (!onParseAiCheck(new Set(batchLines.map(l => l.line_num)))) {
+        // A rejected/malformed response must not advance this batch as checked.
+        isAutoAiCheck = false;
+        break;
+      }
       autoAiCheckStats.totalCorrections += state.aiCheckCorrections.length;
+      // One undo must cover both corrections and the checked flags, including
+      // batches with no corrections or batches skipped in review mode.
+      const { pushUndoSnapshot } = await import('./render');
+      pushUndoSnapshot();
+
+      if (!isAutoAiCheck) break;
 
       if (reviewMode && state.aiCheckCorrections.length > 0) {
         // Pause for review — show corrections, wait for user to apply or skip
@@ -1170,7 +1179,7 @@ export async function onAutoAiCheck(): Promise<void> {
           break;
         }
         if (reviewResult === 'apply') {
-          const { applied, categories } = onApplyAiCheckCorrections();
+          const { applied, categories } = onApplyAiCheckCorrections(false);
           autoAiCheckStats.totalApplied += applied;
           for (const [cat, count] of categories) {
             autoAiCheckStats.byCategory.set(cat, (autoAiCheckStats.byCategory.get(cat) || 0) + count);
@@ -1180,7 +1189,7 @@ export async function onAutoAiCheck(): Promise<void> {
         btn.classList.add('btn-danger');
       } else {
         // Auto-apply (original behavior)
-        const { applied, categories } = onApplyAiCheckCorrections();
+        const { applied, categories } = onApplyAiCheckCorrections(false);
         autoAiCheckStats.totalApplied += applied;
         for (const [cat, count] of categories) {
           autoAiCheckStats.byCategory.set(cat, (autoAiCheckStats.byCategory.get(cat) || 0) + count);

@@ -15,7 +15,7 @@
 import { state, ui } from './state';
 import { openModal, closeModal, queueAutoSave } from './project';
 import { onImportFileChange } from './import-source';
-import { rebuildDisplayState, renderPreviewRows, refreshAll, pushUndoSnapshot } from './render';
+import { rebuildDisplayState, renderPreviewRows, refreshAll } from './render';
 import type { FileActionSnapshot, Line } from './types';
 import { windowsFileOrderCompare } from './string-utils';
 
@@ -296,7 +296,7 @@ export function onFileDragEnd(e: DragEvent): void {
   const newOrder = Array.from(items).map(item => item.dataset.file as string);
 
   // Only push undo snapshot if order actually changed
-  const oldOrder = [...state.fileOrder];
+  const oldOrder = getFileDisplayOrder();
   if (JSON.stringify(oldOrder) !== JSON.stringify(newOrder)) {
     state.fileOrder = newOrder;
 
@@ -320,8 +320,9 @@ export function onFileDragEnd(e: DragEvent): void {
     if (ui.btnUndo) (ui.btnUndo as HTMLButtonElement).disabled = false;
     if (state.undoStack.length > 100) state.undoStack.shift();
 
-    // Apply the new order to the display
+    // Apply the new order to the display and persist it.
     applyFileOrder();
+    queueAutoSave();
   }
 }
 

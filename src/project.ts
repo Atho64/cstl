@@ -353,7 +353,7 @@ export function renderDashboardProjects(): void {
     actions.append(
       createProjectButton('Buka', 'btn btn-primary btn-sm', async function() {
         this.disabled = true; this.textContent = 'Membuka...';
-        openProject(p.id, await fetchProjectData(p.id));
+        await openProject(p.id, await fetchProjectData(p.id));
         this.disabled = false; this.textContent = 'Buka';
       }),
       createProjectButton('Ubah Nama', 'btn btn-outline btn-sm', async function() {
@@ -406,7 +406,7 @@ export async function createNewProject(): Promise<void> {
     const writable = await fileHandle.createWritable();
     await writable.write(JSON.stringify(initialData));
     await writable.close();
-    openProject(id, initialData);
+    await openProject(id, initialData);
   } catch (e: any) {
     alert('Gagal membuat proyek: ' + e.message);
   }
@@ -457,7 +457,15 @@ export async function backupDashboardProject(name: string, data: any, id: string
   // Merge lucaRawBuffers from separate OPFS file if available
   if (backupData.projectType === 'luca') {
     const lucaData = await loadLucaDataFromOpfs(id);
-    if (lucaData) {
+    if (!lucaData) {
+      const sidecarExists = await (async () => {
+        try { const root = await getOpfsRoot(); await root.getFileHandle(id.replace(PROJECT_EXT, '_luca.json')); return true; } catch { return false; }
+      })();
+      if (sidecarExists) {
+        alert('Backup Luca dibatalkan: sidecar corrupt dan tidak dapat dibaca.');
+        return;
+      }
+    } else {
       backupData.lucaRawFiles = lucaData.lucaRawFiles || {};
       backupData.lucaRawBuffers = lucaData.lucaRawBuffers || {};
     }
@@ -479,29 +487,63 @@ export async function backupDashboardProject(name: string, data: any, id: string
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 
-function buildCurrentProjectBackupData(): Record<string, any> {
+function getProofreadSettings(): Record<string, any> {
+  return {
+    scope: (ui.proofreadScope as HTMLSelectElement)?.value,
+    regex: (ui.proofreadRegexCheck as HTMLInputElement)?.checked,
+    case: (ui.proofreadCaseCheck as HTMLInputElement)?.checked,
+    preserveCase: (ui.proofreadPreserveCaseCheck as HTMLInputElement)?.checked,
+    exact: (ui.proofreadExactCheck as HTMLInputElement)?.checked,
+    translatedOnly: (ui.proofreadTranslatedOnlyCheck as HTMLInputElement)?.checked,
+    jump: (ui.proofreadJumpCheck as HTMLInputElement)?.checked,
+  };
+}
+
+/** Build the complete project payload shared by autosave, close, and backup. */
+function buildProjectPersistenceData(): Record<string, any> {
   return {
     version: APP_VERSION, projectName: state.projectName, projectType: state.projectType,
     source_lang: state.sourceLang, target_lang: state.targetLang,
     translationMode: state.translationMode || 'ai', jsonRefLang: state.jsonRefLang || '',
     epubTags: state.epubTags, epubSourceId: state.epubSourceId,
-    lucaExportLang: state.lucaExportLang, luca_profile: state.lucaProfile || DEFAULT_LUCA_PROFILE,
+    lucaExportLang: state.lucaExportLang,
+    luca_profile: state.lucaProfile || DEFAULT_LUCA_PROFILE,
     luca_mc_display_name: state.lucaMcDisplayName || DEFAULT_LUCA_MC_DISPLAY_NAME,
-    regex_filter: state.regexFilter, disable_empty_line_validation: state.disableEmptyLineValidation,
+    regex_filter: state.regexFilter, pre_replace_rules: state.preReplaceRules,
+    post_replace_rules: state.postReplaceRules,
+    disable_empty_line_validation: state.disableEmptyLineValidation,
     check_kana_residue: state.checkKanaResidue, check_similarity: state.checkSimilarity,
-    similarity_threshold: state.similarityThreshold, imported_files: state.importedFiles,
-    file_order: state.fileOrder, lines: state.lines, prompt_header: state.aiInstructionHeader,
+    check_linebreak: state.checkLinebreak, check_length_ratio: state.checkLengthRatio,
+    length_ratio_threshold: state.lengthRatioThreshold, check_language: state.checkLanguage,
+    check_punctuation: state.checkPunctuation, check_untrans_name: state.checkUntransName,
+    enable_uncertain_marking: state.enableUncertainMarking,
+    safe_tags_for_chatgpt: state.safeTagsForChatgpt, agent_max_turns: state.agentMaxTurns,
+    show_furigana: state.showFurigana, furigana_type: state.furiganaType || 'hiragana',
+    font_size: state.fontSize, enable_dictionary: state.enableDictionary,
+    dictionary_engine: state.dictionaryEngine, dictionary_prompt: state.dictionaryPrompt,
+    similarity_threshold: state.similarityThreshold,
+    imported_files: state.importedFiles, file_order: state.fileOrder, lines: state.lines,
+    prompt_header: state.aiInstructionHeader,
     ai_translation_format: state.aiTranslationFormat || DEFAULT_AI_TRANSLATION_FORMAT,
     glossary_prompt: state.glossaryPrompt, ai_check_prompt: state.aiCheckPrompt,
-    agent_prompt: state.agentPrompt, glossary_text: state.glossaryText,
-    context_lines: state.contextLines, context_type: state.contextType,
-    selection_batch_size: state.selectionBatchSize, glossary_batch_size: state.glossaryBatchSize,
-    ai_check_batch_size: state.aiCheckBatchSize,
+    agent_prompt: state.agentPrompt, dict_history: getDictHistory(),
+    paste_area: (ui.pasteArea as HTMLTextAreaElement)?.value || '',
+    paste_glossary_area: (ui.pasteGlossaryArea as HTMLTextAreaElement)?.value || '',
+    paste_ai_check_area: (ui.pasteAiCheckArea as HTMLTextAreaElement)?.value || '',
+    glossary_text: state.glossaryText, context_lines: state.contextLines,
+    context_type: state.contextType, selection_batch_size: state.selectionBatchSize,
+    glossary_batch_size: state.glossaryBatchSize, ai_check_batch_size: state.aiCheckBatchSize,
     selection_batch_prev_shortcut: state.selectionBatchPrevShortcut,
     selection_batch_next_shortcut: state.selectionBatchNextShortcut,
+    enableBackgroundChaining: state.enableBackgroundChaining,
+    currentBackground: state.currentBackground,
     enable_logging: state.projectLoggingEnabled,
-    enableBackgroundChaining: state.enableBackgroundChaining, currentBackground: state.currentBackground,
+    proofread_settings: getProofreadSettings(),
   };
+}
+
+function buildCurrentProjectBackupData(): Record<string, any> {
+  return buildProjectPersistenceData();
 }
 
 export async function backupCurrentProject(): Promise<void> {
@@ -523,6 +565,7 @@ export async function backupAllProjectsAsZip(): Promise<void> {
   try {
     flashHint('Menyiapkan backup semua proyek...', true);
     const zip = new (window as any).JSZip();
+    const usedBackupNames = new Set<string>();
     for (let index = 0; index < projects.length; index++) {
       const p = projects[index];
       if (button) button.textContent = `Backup ${index + 1}/${projects.length}...`;
@@ -531,13 +574,29 @@ export async function backupAllProjectsAsZip(): Promise<void> {
       const backupData = JSON.parse(JSON.stringify(data));
       if (backupData.projectType === 'luca') {
         const lucaData = await loadLucaDataFromOpfs(p.id);
-        if (lucaData) Object.assign(backupData, lucaData);
+        if (!lucaData) {
+          const sidecarExists = await (async () => {
+            try { const root = await getOpfsRoot(); await root.getFileHandle(p.id.replace(PROJECT_EXT, '_luca.json')); return true; } catch { return false; }
+          })();
+          if (sidecarExists) {
+            throw new Error(`Data mentah Luca untuk proyek "${p.name}" tidak dapat dibaca — sidecar corrupt, backup semua dibatalkan.`);
+          }
+        } else {
+          Object.assign(backupData, lucaData);
+        }
       }
       if (backupData.projectType === 'epub' && backupData.epubSourceId) {
         try { backupData.epub_source = await readEpubSourceForBackup(backupData.epubSourceId); } catch (_) {}
       }
       const safeName = String(p.name || p.id).replace(/[^a-z0-9._-]/gi, '_').toLowerCase();
-      zip.file(`${safeName}_backup${PROJECT_EXT}`, JSON.stringify(backupData));
+      const baseEntryName = `${safeName}_backup${PROJECT_EXT}`;
+      let entryName = baseEntryName;
+      let suffix = 2;
+      while (usedBackupNames.has(entryName)) {
+        entryName = `${safeName}_${suffix++}_backup${PROJECT_EXT}`;
+      }
+      usedBackupNames.add(entryName);
+      zip.file(entryName, JSON.stringify(backupData));
     }
     const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
     const href = URL.createObjectURL(blob);
@@ -589,6 +648,14 @@ export async function loadLucaDataFromOpfs(id: string): Promise<any> {
 let activeAutoSavePromise: Promise<void> | null = null;
 let projectRevision = 0;
 let isClosingProject = false;
+let projectLoadGeneration = 0;
+let activeLucaDataProjectId: string | null = null;
+let activeLucaDataLoad: Promise<void> = Promise.resolve();
+
+export function waitForLucaDataLoad(projectId: string | null = state.currentProjectId): Promise<void> {
+  if (!projectId || projectId !== activeLucaDataProjectId) return Promise.resolve();
+  return activeLucaDataLoad;
+}
 
 export function queueAutoSave(): void {
   const projectId = state.currentProjectId;
@@ -596,51 +663,15 @@ export function queueAutoSave(): void {
   projectRevision++;
   if (isClosingProject) return;
   clearTimeout(getSaveTimeout()!);
+  const saveGeneration = projectLoadGeneration;
   const timeout = setTimeout(async () => {
-    const data = {
-      version: APP_VERSION, projectName: state.projectName, projectType: state.projectType,
-      source_lang: state.sourceLang, target_lang: state.targetLang,
-      translationMode: state.translationMode || 'ai', jsonRefLang: state.jsonRefLang || '',
-      epubTags: state.epubTags, epubSourceId: state.epubSourceId,
-      lucaExportLang: state.lucaExportLang,
-      luca_profile: state.lucaProfile || DEFAULT_LUCA_PROFILE,
-      luca_mc_display_name: state.lucaMcDisplayName || DEFAULT_LUCA_MC_DISPLAY_NAME,
-      regex_filter: state.regexFilter, pre_replace_rules: state.preReplaceRules, post_replace_rules: state.postReplaceRules, disable_empty_line_validation: state.disableEmptyLineValidation,
-      check_kana_residue: state.checkKanaResidue, check_similarity: state.checkSimilarity, check_linebreak: state.checkLinebreak, check_length_ratio: state.checkLengthRatio, length_ratio_threshold: state.lengthRatioThreshold, check_language: state.checkLanguage, check_punctuation: state.checkPunctuation, check_untrans_name: state.checkUntransName, enable_uncertain_marking: state.enableUncertainMarking, safe_tags_for_chatgpt: state.safeTagsForChatgpt, agent_max_turns: state.agentMaxTurns,
-      show_furigana: state.showFurigana,
-      furigana_type: state.furiganaType || 'hiragana',
-      font_size: state.fontSize,
-      enable_dictionary: state.enableDictionary,
-      dictionary_engine: state.dictionaryEngine,
-      dictionary_prompt: state.dictionaryPrompt,
-      similarity_threshold: state.similarityThreshold,
-      imported_files: state.importedFiles, file_order: state.fileOrder, lines: state.lines,
-      prompt_header: state.aiInstructionHeader,
-      ai_translation_format: state.aiTranslationFormat || DEFAULT_AI_TRANSLATION_FORMAT,
-      glossary_prompt: state.glossaryPrompt, ai_check_prompt: state.aiCheckPrompt,
-      agent_prompt: state.agentPrompt,
-      dict_history: getDictHistory(),
-      paste_area: (ui.pasteArea as HTMLTextAreaElement)?.value || '',
-      paste_glossary_area: (ui.pasteGlossaryArea as HTMLTextAreaElement)?.value || '',
-      paste_ai_check_area: (ui.pasteAiCheckArea as HTMLTextAreaElement)?.value || '',
-      glossary_text: state.glossaryText, context_lines: state.contextLines,
-      context_type: state.contextType, selection_batch_size: state.selectionBatchSize,
-      glossary_batch_size: state.glossaryBatchSize, ai_check_batch_size: state.aiCheckBatchSize,
-      selection_batch_prev_shortcut: state.selectionBatchPrevShortcut,
-      selection_batch_next_shortcut: state.selectionBatchNextShortcut,
-      enableBackgroundChaining: state.enableBackgroundChaining,
-      currentBackground: state.currentBackground,
-      enable_logging: state.projectLoggingEnabled,
-      proofread_settings: {
-        scope: (ui.proofreadScope as HTMLSelectElement)?.value,
-        regex: (ui.proofreadRegexCheck as HTMLInputElement)?.checked,
-        case: (ui.proofreadCaseCheck as HTMLInputElement)?.checked,
-        preserveCase: (ui.proofreadPreserveCaseCheck as HTMLInputElement)?.checked,
-        exact: (ui.proofreadExactCheck as HTMLInputElement)?.checked,
-        translatedOnly: (ui.proofreadTranslatedOnlyCheck as HTMLInputElement)?.checked,
-        jump: (ui.proofreadJumpCheck as HTMLInputElement)?.checked
-      }
-    };
+    // A delayed save must never serialize the state of a newer project under
+    // the ID captured when this save was queued.
+    if (state.currentProjectId !== projectId || projectLoadGeneration !== saveGeneration) {
+      if (getSaveTimeout() === timeout) setSaveTimeout(null);
+      return;
+    }
+    const data = buildProjectPersistenceData();
     const previousSave = activeAutoSavePromise;
     const savePromise = (previousSave ? previousSave.catch(() => {}) : Promise.resolve())
       .then(() => saveProjectToOpfs(projectId, data));
@@ -661,7 +692,9 @@ export function queueAutoSave(): void {
 }
 
 // ─── Open / Close project ─────────────────────────────────────────────────────
-export function openProject(id: string, data: any): void {
+export async function openProject(id: string, data: any): Promise<void> {
+  const loadGeneration = ++projectLoadGeneration;
+  const isCurrentLoad = () => state.currentProjectId === id && projectLoadGeneration === loadGeneration;
   state.currentProjectId = id;
   state.projectName = data.projectName || 'Unknown Project';
   state.projectType = data.projectType || 'json';
@@ -676,26 +709,37 @@ export function openProject(id: string, data: any): void {
   state.lucaExportLang = data.lucaExportLang || 'en';
   state.lucaProfile = data.luca_profile || DEFAULT_LUCA_PROFILE;
   state.lucaMcDisplayName = data.luca_mc_display_name || DEFAULT_LUCA_MC_DISPLAY_NAME;
-  // Load lucaRawBuffers: try separate OPFS file first, then fallback to embedded (old format)
+  // Load Luca sidecar before rendering or recovering legacy raw fields. The
+  // generation guard prevents a slower previous project from touching state.
   state.lucaRawFiles = {};
   state.lucaRawBuffers = {};
   clearLucaFileLineBytesCache();
-  loadLucaDataFromOpfs(id).then(lucaData => {
+  const lucaDataLoad = (async () => {
+    const lucaData = await loadLucaDataFromOpfs(id);
+    if (!isCurrentLoad()) return;
     if (lucaData) {
       state.lucaRawFiles = lucaData.lucaRawFiles || {};
       state.lucaRawBuffers = lucaData.lucaRawBuffers || {};
-    } else if (data.lucaRawBuffers && Object.keys(data.lucaRawBuffers).length > 0) {
-      // Migrate old format: save to separate file and clear from main save
-      state.lucaRawFiles = data.lucaRawFiles || {};
-      state.lucaRawBuffers = data.lucaRawBuffers || {};
-      saveLucaDataToOpfs(id, { lucaRawFiles: state.lucaRawFiles, lucaRawBuffers: state.lucaRawBuffers })
-        .then(() => queueAutoSave())
-        .catch(err => {
-          console.error('Failed to migrate Luca project data', err);
-          flashHint('Gagal memigrasikan data mentah Luca ke storage!');
-        });
+      return;
     }
-  });
+
+    const hasEmbeddedLucaData = (data.lucaRawFiles && Object.keys(data.lucaRawFiles).length > 0)
+      || (data.lucaRawBuffers && Object.keys(data.lucaRawBuffers).length > 0);
+    if (!hasEmbeddedLucaData) return;
+
+    // Migrate old format: save to separate file and clear it from the main save.
+    state.lucaRawFiles = data.lucaRawFiles || {};
+    state.lucaRawBuffers = data.lucaRawBuffers || {};
+    try {
+      await saveLucaDataToOpfs(id, { lucaRawFiles: state.lucaRawFiles, lucaRawBuffers: state.lucaRawBuffers });
+      if (isCurrentLoad()) queueAutoSave();
+    } catch (err) {
+      console.error('Failed to migrate Luca project data', err);
+      if (isCurrentLoad()) flashHint('Gagal memigrasikan data mentah Luca ke storage!');
+    }
+  })();
+  activeLucaDataProjectId = id;
+  activeLucaDataLoad = lucaDataLoad;
   state.regexFilter = data.regex_filter || '';
   state.preReplaceRules = data.pre_replace_rules || '';
   state.postReplaceRules = data.post_replace_rules || '';
@@ -723,7 +767,6 @@ export function openProject(id: string, data: any): void {
   state.similarityThreshold = (typeof data.similarity_threshold === 'number' && data.similarity_threshold > 0 && data.similarity_threshold < 1)
     ? data.similarity_threshold : 0.7;
   state.lines = (data.lines || []).map(normalizeLineDict);
-  recoverLucaRawFields();
   state.importedFiles = data.imported_files || [];
   state.fileOrder = data.file_order || [];
   state.aiInstructionHeader = data.prompt_header || DEFAULT_PROMPT_HEADER;
@@ -762,6 +805,13 @@ export function openProject(id: string, data: any): void {
   if (ui.pasteAiCheckArea) (ui.pasteAiCheckArea as HTMLTextAreaElement).value = data.paste_ai_check_area || '';
   if (ui.aiCheckResults) (ui.aiCheckResults as HTMLElement).textContent = '';
   setDictHistory(data.dict_history || []);
+
+  await lucaDataLoad;
+  if (!isCurrentLoad()) return;
+  // Legacy recovery must see the asynchronously loaded raw sidecar, and all
+  // other project settings above must be ready before recovery queues a save.
+  recoverLucaRawFields();
+
   import('./ai-agent').then(({ loadChatHistory, renderChatHistory, loadAllAgentMemories }) => {
     loadAllAgentMemories();
     loadChatHistory();
@@ -795,53 +845,11 @@ export async function closeProject(): Promise<void> {
       // The final close-time save below retries with the latest project state.
     }
   }
-  const buildData = (): Record<string, any> => ({
-      version: APP_VERSION, projectName: state.projectName, projectType: state.projectType,
-      source_lang: state.sourceLang, target_lang: state.targetLang,
-      translationMode: state.translationMode || 'ai', jsonRefLang: state.jsonRefLang || '',
-      epubTags: state.epubTags, epubSourceId: state.epubSourceId,
-      lucaExportLang: state.lucaExportLang, luca_profile: state.lucaProfile || DEFAULT_LUCA_PROFILE,
-      luca_mc_display_name: state.lucaMcDisplayName || DEFAULT_LUCA_MC_DISPLAY_NAME,
-      regex_filter: state.regexFilter, pre_replace_rules: state.preReplaceRules, post_replace_rules: state.postReplaceRules, disable_empty_line_validation: state.disableEmptyLineValidation,
-      check_kana_residue: state.checkKanaResidue, check_similarity: state.checkSimilarity, check_linebreak: state.checkLinebreak, check_length_ratio: state.checkLengthRatio, length_ratio_threshold: state.lengthRatioThreshold, check_language: state.checkLanguage, check_punctuation: state.checkPunctuation, check_untrans_name: state.checkUntransName, enable_uncertain_marking: state.enableUncertainMarking, safe_tags_for_chatgpt: state.safeTagsForChatgpt, agent_max_turns: state.agentMaxTurns,
-      show_furigana: state.showFurigana,
-      furigana_type: state.furiganaType || 'hiragana',
-      font_size: state.fontSize,
-      enable_dictionary: state.enableDictionary,
-      dictionary_engine: state.dictionaryEngine,
-      dictionary_prompt: state.dictionaryPrompt,
-      similarity_threshold: state.similarityThreshold,
-      imported_files: state.importedFiles, file_order: state.fileOrder, lines: state.lines,
-      prompt_header: state.aiInstructionHeader,
-      ai_translation_format: state.aiTranslationFormat || DEFAULT_AI_TRANSLATION_FORMAT,
-      glossary_prompt: state.glossaryPrompt, ai_check_prompt: state.aiCheckPrompt,
-      agent_prompt: state.agentPrompt,
-      dict_history: getDictHistory(),
-      paste_area: (ui.pasteArea as HTMLTextAreaElement)?.value || '',
-      paste_glossary_area: (ui.pasteGlossaryArea as HTMLTextAreaElement)?.value || '',
-      paste_ai_check_area: (ui.pasteAiCheckArea as HTMLTextAreaElement)?.value || '',
-      glossary_text: state.glossaryText, context_lines: state.contextLines, context_type: state.contextType,
-      selection_batch_size: state.selectionBatchSize, glossary_batch_size: state.glossaryBatchSize,
-      ai_check_batch_size: state.aiCheckBatchSize,
-      selection_batch_prev_shortcut: state.selectionBatchPrevShortcut,
-      selection_batch_next_shortcut: state.selectionBatchNextShortcut,
-      enableBackgroundChaining: state.enableBackgroundChaining,
-      currentBackground: state.currentBackground,
-      enable_logging: state.projectLoggingEnabled,
-      proofread_settings: {
-        scope: (ui.proofreadScope as HTMLSelectElement)?.value,
-        regex: (ui.proofreadRegexCheck as HTMLInputElement)?.checked,
-        case: (ui.proofreadCaseCheck as HTMLInputElement)?.checked,
-        preserveCase: (ui.proofreadPreserveCaseCheck as HTMLInputElement)?.checked,
-        exact: (ui.proofreadExactCheck as HTMLInputElement)?.checked,
-        translatedOnly: (ui.proofreadTranslatedOnlyCheck as HTMLInputElement)?.checked,
-        jump: (ui.proofreadJumpCheck as HTMLInputElement)?.checked,
-      },
-    });
+
   try {
     while (true) {
       const revision = projectRevision;
-      await saveProjectToOpfs(projectId, buildData());
+      await saveProjectToOpfs(projectId, buildProjectPersistenceData());
       if (revision === projectRevision) break;
     }
     finishClose();
@@ -893,24 +901,51 @@ export async function onRestoreProject(ev: Event): Promise<void> {
         }
       }
     }
-    const safeData: Record<string, any> = {
+    // Preserve every field already supported by autosave, while keeping the
+    // large Luca/EPUB payloads in their dedicated sidecar files.
+    const safeData: Record<string, any> = JSON.parse(JSON.stringify(p));
+    delete safeData.epub_source;
+    delete safeData.lucaRawFiles;
+    delete safeData.lucaRawBuffers;
+    Object.assign(safeData, {
       version: APP_VERSION, projectName: name, projectType: p.projectType || 'json',
+      source_lang: p.source_lang || 'Japanese', target_lang: p.target_lang || 'Indonesian',
       translationMode: p.translationMode || 'ai', jsonRefLang: p.jsonRefLang || '',
       epubTags: p.epubTags || 'p', epubSourceId: restoredEpubSourceId,
-      lucaExportLang: p.lucaExportLang || 'en', luca_profile: p.luca_profile || DEFAULT_LUCA_PROFILE,
+      lucaExportLang: p.lucaExportLang || 'en',
+      luca_profile: p.luca_profile || DEFAULT_LUCA_PROFILE,
+      luca_mc_display_name: p.luca_mc_display_name || DEFAULT_LUCA_MC_DISPLAY_NAME,
       updatedAt: Date.now(), regex_filter: p.regex_filter || '',
+      pre_replace_rules: p.pre_replace_rules || '', post_replace_rules: p.post_replace_rules || '',
       disable_empty_line_validation: !!p.disable_empty_line_validation,
       check_kana_residue: !!p.check_kana_residue, check_similarity: !!p.check_similarity,
+      check_linebreak: p.check_linebreak !== undefined ? !!p.check_linebreak : false,
+      check_length_ratio: !!p.check_length_ratio,
+      length_ratio_threshold: (typeof p.length_ratio_threshold === 'number' && p.length_ratio_threshold > 0) ? p.length_ratio_threshold : 2.5,
+      check_language: p.check_language !== undefined ? !!p.check_language : false,
+      check_punctuation: p.check_punctuation !== undefined ? !!p.check_punctuation : false,
+      check_untrans_name: !!p.check_untrans_name,
+      enable_uncertain_marking: !!p.enable_uncertain_marking,
+      safe_tags_for_chatgpt: p.safe_tags_for_chatgpt !== undefined ? !!p.safe_tags_for_chatgpt : false,
+      agent_max_turns: (typeof p.agent_max_turns === 'number' && p.agent_max_turns >= 3) ? p.agent_max_turns : 10,
+      show_furigana: !!p.show_furigana,
+      furigana_type: p.furigana_type || 'hiragana',
+      font_size: typeof p.font_size === 'number' ? p.font_size : 14,
+      enable_dictionary: !!p.enable_dictionary,
+      dictionary_engine: p.dictionary_engine === 'jisho' ? 'jisho' : 'llm',
+      dictionary_prompt: p.dictionary_prompt || 'Jelaskan arti kata "{word}" dalam konteks kalimat "{context}". Berikan bentuk dasar, cara baca (hiragana/romaji), kelas kata, dan terjemahan/penjelasan singkat dalam bahasa Indonesia.',
       similarity_threshold: (typeof p.similarity_threshold === 'number' && p.similarity_threshold > 0 && p.similarity_threshold < 1) ? p.similarity_threshold : 0.7,
-      imported_files: p.imported_files || [],
-      file_order: p.file_order || [],
+      imported_files: p.imported_files || [], file_order: p.file_order || [],
       lines: (p.lines || []).map(normalizeLineDict),
       prompt_header: p.prompt_header || DEFAULT_PROMPT_HEADER,
       ai_translation_format: p.ai_translation_format != null ? normalizeAiTranslationFormat(p.ai_translation_format) : DEFAULT_AI_TRANSLATION_FORMAT,
       glossary_prompt: p.glossary_prompt || DEFAULT_GLOSSARY_PROMPT,
       ai_check_prompt: p.ai_check_prompt || DEFAULT_AI_CHECK_PROMPT,
       agent_prompt: p.agent_prompt || DEFAULT_AGENT_PROMPT,
-      glossary_text: p.glossary_text || '', context_lines: p.context_lines !== undefined ? p.context_lines : 10,
+      dict_history: p.dict_history || [],
+      paste_area: p.paste_area || '', paste_glossary_area: p.paste_glossary_area || '',
+      paste_ai_check_area: p.paste_ai_check_area || '', glossary_text: p.glossary_text || '',
+      context_lines: p.context_lines !== undefined ? p.context_lines : 10,
       context_type: p.context_type || 'raw',
       selection_batch_size: normalizeSelectionBatchSize(p.selection_batch_size),
       glossary_batch_size: normalizeSelectionBatchSize(p.glossary_batch_size, DEFAULT_GLOSSARY_BATCH_SIZE),
@@ -918,12 +953,13 @@ export async function onRestoreProject(ev: Event): Promise<void> {
       selection_batch_prev_shortcut: normalizeShortcutString(p.selection_batch_prev_shortcut, DEFAULT_SELECTION_BATCH_PREV_SHORTCUT),
       selection_batch_next_shortcut: normalizeShortcutString(p.selection_batch_next_shortcut, DEFAULT_SELECTION_BATCH_NEXT_SHORTCUT),
       enableBackgroundChaining: !!p.enableBackgroundChaining,
-      currentBackground: p.currentBackground || '',
-      enable_logging: !!p.enable_logging,
-    };
+      currentBackground: p.currentBackground || '', enable_logging: !!p.enable_logging,
+      proofread_settings: p.proofread_settings || {},
+    });
     await saveProjectToOpfs(id, safeData);
-    if (p.lucaRawBuffers && Object.keys(p.lucaRawBuffers).length > 0) {
-      await saveLucaDataToOpfs(id, { lucaRawFiles: p.lucaRawFiles || {}, lucaRawBuffers: p.lucaRawBuffers });
+    if ((p.lucaRawFiles && Object.keys(p.lucaRawFiles).length > 0)
+      || (p.lucaRawBuffers && Object.keys(p.lucaRawBuffers).length > 0)) {
+      await saveLucaDataToOpfs(id, { lucaRawFiles: p.lucaRawFiles || {}, lucaRawBuffers: p.lucaRawBuffers || {} });
     }
     loadDashboardProjects();
     alert(`Proyek "${name}" berhasil dipulihkan!${restoreNote}`);

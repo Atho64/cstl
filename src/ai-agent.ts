@@ -1,4 +1,4 @@
-import { state, ui } from './state';
+import { state, ui, isTranslated } from './state';
 import { applyAgentTranslations, clearAgentTranslations, onUndoLastApply, onRedoLastUndo } from './translate';
 import { stripThinkingTags, parseBackupKeys, shouldTryNextKey, shuffleArray } from './auto-translate';
 import { queueAutoSave } from './project';
@@ -131,28 +131,54 @@ async function readSseDataLines(
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
+  const rawLines: string[] = [];
+  let sawSseData = false;
+
+  const handleLine = (line: string) => {
+    if (line.endsWith('\r')) line = line.slice(0, -1);
+    if (line.startsWith('data:')) {
+      sawSseData = true;
+      const data = line.slice(5).trimStart();
+      if (data && data !== '[DONE]') onEvent(data);
+    } else if (!sawSseData && line.trim()) {
+      // Some gateways return plain JSON or NDJSON despite a streaming request.
+      rawLines.push(line);
+    }
+  };
+
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
     buffer += decoder.decode(value, { stream: true });
-    // Normalize CRLF; process complete lines
     buffer = buffer.replace(/\r\n/g, '\n');
     let nl: number;
     while ((nl = buffer.indexOf('\n')) >= 0) {
-      let line = buffer.slice(0, nl);
+      handleLine(buffer.slice(0, nl));
       buffer = buffer.slice(nl + 1);
-      if (line.endsWith('\r')) line = line.slice(0, -1);
-      if (!line.startsWith('data:')) continue;
-      const data = line.slice(5).trimStart();
-      if (!data || data === '[DONE]') continue;
-      onEvent(data);
     }
   }
-  // leftover
-  const tail = buffer.trim();
-  if (tail.startsWith('data:')) {
-    const data = tail.slice(5).trimStart();
-    if (data && data !== '[DONE]') onEvent(data);
+  buffer += decoder.decode();
+  if (buffer) handleLine(buffer);
+
+  if (sawSseData) return;
+  const rawText = rawLines.join('\n').trim();
+  if (!rawText || rawText === '[DONE]') return;
+  try {
+    // Emit one complete JSON document (including pretty-printed JSON).
+    JSON.parse(rawText);
+    onEvent(rawText);
+  } catch {
+    // Otherwise treat the body as newline-delimited JSON.
+    for (const line of rawLines) {
+      const data = line.trim();
+      if (!data || data === '[DONE]') continue;
+      try {
+        JSON.parse(data);
+        onEvent(data);
+      } catch {
+        // Ignore non-JSON gateway noise.
+      }
+    }
   }
 }
 
@@ -359,6 +385,7 @@ async function chatCompletionAnthropic(
       'x-api-key': config.key,
       'Authorization': `Bearer ${config.key}`,
       'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true',
       'Accept': 'text/event-stream',
     },
     body: JSON.stringify(body),
@@ -494,13 +521,16 @@ async function chatCompletionGemini(
   // Some gateways stream raw NDJSON without "data:" prefix — also handle via buffer path in readSse
   await readSseDataLines(res, (data) => {
     try {
-      const chunk = JSON.parse(data);
-      const parts: any[] = chunk.candidates?.[0]?.content?.parts || [];
-      const piece = parts.filter((p: any) => !p.thought).map((p: any) => p.text || '').join('');
-      if (piece) {
-        full += piece;
-        const display = state.aiFilterThinkingOutput ? stripThinkingTags(full) : full;
-        onDelta?.(piece, display);
+      const parsed = JSON.parse(data);
+      const chunks = Array.isArray(parsed) ? parsed : [parsed];
+      for (const chunk of chunks) {
+        const parts: any[] = chunk.candidates?.[0]?.content?.parts || [];
+        const piece = parts.filter((p: any) => !p.thought).map((p: any) => p.text || '').join('');
+        if (piece) {
+          full += piece;
+          const display = state.aiFilterThinkingOutput ? stripThinkingTags(full) : full;
+          onDelta?.(piece, display);
+        }
       }
     } catch {
       // ignore
@@ -1137,18 +1167,9 @@ async function buildTranslatePrompt(lineNums: number[], instruction?: string): P
   const { getGlossaryPrompt } = await import('./glossary');
   const { DEFAULT_PROMPT_HEADER } = await import('./constants');
 
-  const prevSelection = new Set(state.selectedLines);
-  state.selectedLines.clear();
-  for (const n of lineNums) state.selectedLines.add(n);
-  let joinedText = '';
-  let glossaryBlock = '';
-  try {
-    joinedText = buildSelectedTranslationExport(false);
-    glossaryBlock = getGlossaryPrompt(joinedText);
-  } finally {
-    state.selectedLines.clear();
-    prevSelection.forEach(n => state.selectedLines.add(n));
-  }
+  const selectedLineNums = new Set(lineNums);
+  const joinedText = buildSelectedTranslationExport(false, selectedLineNums);
+  const glossaryBlock = getGlossaryPrompt(joinedText);
 
   const baseHeader = applyPromptVariables((state.aiInstructionHeader || DEFAULT_PROMPT_HEADER).trim());
   const extra = instruction ? `\n\nInstruction: ${instruction}` : '';
@@ -1160,6 +1181,8 @@ async function buildTranslatePrompt(lineNums: number[], instruction?: string): P
 }
 
 /** Helper: run one translate worker for a chunk of line nums. Returns a status string. */
+let delegatedApplyQueue: Promise<void> = Promise.resolve();
+
 async function runTranslateWorker(lineNums: number[], instruction?: string): Promise<string> {
   const { fetchApiResult } = await import('./auto-translate');
   const Translate = await import('./translate');
@@ -1168,24 +1191,38 @@ async function runTranslateWorker(lineNums: number[], instruction?: string): Pro
   const prompt = await buildTranslatePrompt(lineNums, instruction);
   const result = await fetchApiResult(prompt);
 
-  // Apply: temporarily set pasteArea value then call onApplyTranslation
-  const prevVal = (ui.pasteArea as HTMLTextAreaElement)?.value ?? '';
-  if (ui.pasteArea) (ui.pasteArea as HTMLTextAreaElement).value = result;
-  try {
-    Translate.onApplyTranslation({ suppressAlerts: true });
-  } catch (err: any) {
-    if (ui.pasteArea) (ui.pasteArea as HTMLTextAreaElement).value = prevVal;
-    throw new Error(`Apply error: ${err.message}`);
-  }
-  if (ui.pasteArea) (ui.pasteArea as HTMLTextAreaElement).value = prevVal;
+  // The parser uses the shared paste area, so serialize only the apply step.
+  const applyTask = delegatedApplyQueue.then(() => {
+    const prevVal = (ui.pasteArea as HTMLTextAreaElement)?.value ?? '';
+    if (ui.pasteArea) (ui.pasteArea as HTMLTextAreaElement).value = result;
+    try {
+      Translate.onApplyTranslation({ suppressAlerts: true, selectedLineNums: new Set(lineNums) });
+    } catch (err: any) {
+      throw new Error(`Apply error: ${err.message}`);
+    } finally {
+      if (ui.pasteArea) (ui.pasteArea as HTMLTextAreaElement).value = prevVal;
+    }
+  });
+  delegatedApplyQueue = applyTask.catch(() => {});
+  await applyTask;
   return `${lineNums.length} baris (${lineNums[0]}–${lineNums[lineNums.length - 1]})`;
 }
 
 async function delegateTranslate(lineNums: number[], instruction?: string): Promise<string> {
-  const nums = Array.isArray(lineNums) ? lineNums.filter(n => n > 0) : [];
-  if (!nums.length) return 'Error: lineNums tidak boleh kosong.';
-  const lines = nums.map(n => state.lineByNum.get(n)).filter(l => l);
-  if (!lines.length) return 'Error: tidak ada baris yang ditemukan.';
+  if (!Array.isArray(lineNums) || lineNums.length === 0) return 'Error: lineNums tidak boleh kosong.';
+  const hasInvalidInput = lineNums.some(n => {
+    if (typeof n === 'number') return !Number.isInteger(n) || n <= 0;
+    return typeof n !== 'string' || !/^\s*\d+\s*$/.test(n);
+  });
+  if (hasInvalidInput) return 'Error: lineNums harus berisi nomor baris yang valid.';
+  const requested = [...new Set(lineNums.map(n => Number(n)))];
+  const invalid = requested.filter(n => {
+    const line = state.lineByNum.get(n);
+    return !line || line._hidden || isTranslated(line);
+  });
+  if (invalid.length) return `Error: lineNums tidak valid untuk diterjemahkan: ${invalid.join(', ')}.`;
+  const nums = requested;
+  const lines = nums.map(n => state.lineByNum.get(n)).filter((l): l is Line => !!l);
 
   const chunkSize = state.selectionBatchSize || 25;
   const workers = Math.max(1, state.subagentWorkers || 3);
@@ -1285,7 +1322,9 @@ async function delegateParallelTranslate(
   const end = Number(endLine) || start;
   if (start > end) return 'Error: startLine harus <= endLine.';
 
-  const targetLines = state.lines.filter(l => l.line_num >= start && l.line_num <= end);
+  const targetLines = state.lines.filter(l =>
+    l.line_num >= start && l.line_num <= end && !l._hidden && !isTranslated(l)
+  );
   if (!targetLines.length) return `Error: tidak ada baris di rentang ${start}–${end}.`;
 
   const chunkSize = state.selectionBatchSize || 25;

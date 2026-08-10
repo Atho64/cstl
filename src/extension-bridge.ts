@@ -28,6 +28,9 @@ import {
   onApplyAiCheckCorrections,
 } from './ai-check';
 import { queueAutoSave } from './project';
+import JSZip from 'jszip';
+
+(window as any).JSZip = JSZip;
 
 const SOURCE_APP = 'cstl-app';
 const SOURCE_EXT = 'cstl-extension';
@@ -322,7 +325,16 @@ export async function pingExtension(): Promise<boolean> {
 }
 
 function syncSettingsUi(): void {
-  // Settings are now managed via the extension popup — nothing to sync on the page.
+  // The extension bridge owns this cache because ui-init does not need the
+  // checkbox for the regular AI Check flow.
+  if (!ui.settingsAiCheckReviewMode) {
+    ui.settingsAiCheckReviewMode = document.getElementById('settingsAiCheckReviewMode');
+  }
+}
+
+function isAiCheckReviewModeEnabled(): boolean {
+  syncSettingsUi();
+  return (ui.settingsAiCheckReviewMode as HTMLInputElement | undefined)?.checked ?? false;
 }
 
 export async function applyLocalSettingsToExtension(): Promise<void> {
@@ -728,7 +740,7 @@ async function runAiCheckFullAuto(): Promise<void> {
     if (!ok) { flashHint('Extension belum terpasang.'); return; }
   }
   await applyLocalSettingsToExtension();
-  const reviewMode = (ui.settingsAiCheckReviewMode as HTMLInputElement | undefined)?.checked ?? false;
+  const reviewMode = isAiCheckReviewModeEnabled();
 
   const batchSize = Math.max(1, state.aiCheckBatchSize || 50);
   const allLines = state.lines.filter(l =>

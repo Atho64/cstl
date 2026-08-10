@@ -101,18 +101,18 @@ export function formatLineForAiExportJsonl(line: Line): string {
   return JSON.stringify(obj);
 }
 
-export function getSelectedTranslationText(includeTranslated = true): string {
-  const sel = state.lines.filter(l => state.selectedLines.has(l.line_num) && (includeTranslated || !isTranslated(l)));
+export function getSelectedTranslationText(includeTranslated = true, lineNums?: ReadonlySet<number>): string {
+  const sel = state.lines.filter(l => (lineNums ? lineNums.has(l.line_num) : state.selectedLines.has(l.line_num)) && (includeTranslated || !isTranslated(l)));
   const fmt = normalizeAiTranslationFormat(state.aiTranslationFormat);
   if (fmt === AI_TRANSLATION_FORMAT_BLOCK)  return sel.map(formatLineForAiExport).join('\n\n');
   if (fmt === AI_TRANSLATION_FORMAT_XML)    return sel.map(formatLineForAiExportXml).join('\n');
   if (fmt === AI_TRANSLATION_FORMAT_JSONL)  return sel.map(formatLineForAiExportJsonl).join('\n');
   if (fmt === AI_TRANSLATION_FORMAT_JSON_ARRAY) return sel.map(formatLineForAiExportJsonArray).join('\n');
-  return getSelectedTranslationPlainText(includeTranslated);
+  return getSelectedTranslationPlainText(includeTranslated, lineNums);
 }
 
-export function getSelectedTranslationPlainText(includeTranslated = true): string {
-  const sel = state.lines.filter(l => state.selectedLines.has(l.line_num) && (includeTranslated || !isTranslated(l)));
+export function getSelectedTranslationPlainText(includeTranslated = true, lineNums?: ReadonlySet<number>): string {
+  const sel = state.lines.filter(l => (lineNums ? lineNums.has(l.line_num) : state.selectedLines.has(l.line_num)) && (includeTranslated || !isTranslated(l)));
   return sel.map(l => {
     const dN = applyReplaceRules(l.name || '', state.preReplaceRules, 'name') || l.name || '';
     let msg = unescapeStoredNewlines(l.message);
@@ -121,8 +121,8 @@ export function getSelectedTranslationPlainText(includeTranslated = true): strin
   }).join('\n');
 }
 
-export function buildSelectedTranslationExport(includeTranslated = true): string {
-  const body = getSelectedTranslationText(includeTranslated);
+export function buildSelectedTranslationExport(includeTranslated = true, lineNums?: ReadonlySet<number>): string {
+  const body = getSelectedTranslationText(includeTranslated, lineNums);
   if (!body) return '';
   const fmt = normalizeAiTranslationFormat(state.aiTranslationFormat);
   if (fmt === AI_TRANSLATION_FORMAT_XML) {
@@ -309,15 +309,20 @@ export function parseTranslationNumberedPaste(text: string): { parsed: ParsedTra
     let name: string | null = null;
     let msg = match[2].trim();
     const rawMsg = msg;
-    const colonIdx = msg.indexOf(':');
-    const jpColonIdx = msg.indexOf('：');
-    let splitIdx = -1;
-    if (colonIdx !== -1 && jpColonIdx !== -1) splitIdx = Math.min(colonIdx, jpColonIdx);
-    else if (colonIdx !== -1) splitIdx = colonIdx;
-    else if (jpColonIdx !== -1) splitIdx = jpColonIdx;
-    if (splitIdx !== -1) {
-      name = msg.substring(0, splitIdx).trim();
-      msg = msg.substring(splitIdx + 1).trim();
+    // A colon is a speaker separator only when the source line has a speaker.
+    // Otherwise ordinary text such as "Time: 12:30" must stay in the message.
+    const sourceLine = state.lineByNum.get(num);
+    if (sourceLine?.name) {
+      const colonIdx = msg.indexOf(':');
+      const jpColonIdx = msg.indexOf('：');
+      let splitIdx = -1;
+      if (colonIdx !== -1 && jpColonIdx !== -1) splitIdx = Math.min(colonIdx, jpColonIdx);
+      else if (colonIdx !== -1) splitIdx = colonIdx;
+      else if (jpColonIdx !== -1) splitIdx = jpColonIdx;
+      if (splitIdx > 0) {
+        name = msg.substring(0, splitIdx).trim();
+        msg = msg.substring(splitIdx + 1).trim();
+      }
     }
     parsed.push({ num, name, msg: escapeStoredNewlines(msg), rawMsg });
   }

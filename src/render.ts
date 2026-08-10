@@ -335,12 +335,22 @@ export function pushUndoSnapshot(clearRedo = true): void {
   state.undoStack.push({
     lines: state.lines.map(l => ({
       line_num: l.line_num,
+      file: l.file,
+      name: l.name,
+      message: l.message,
       trans_name: l.trans_name,
       trans_message: l.trans_message,
       is_translated: l.is_translated,
       _hidden: l._hidden,
       _glossary_extracted: l._glossary_extracted,
       _ai_checked: l._ai_checked,
+      _ai_confirmed: l._ai_confirmed,
+      luca_command: l.luca_command,
+      luca_pre: l.luca_pre,
+      luca_post: l.luca_post,
+      luca_text_prefix: l.luca_text_prefix,
+      epub_selector: l.epub_selector,
+      epub_id: l.epub_id,
     }))
   });
   if (state.undoStack.length > MAX_UNDO_STEPS) state.undoStack.shift();

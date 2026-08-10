@@ -152,6 +152,9 @@ export type WorkspaceTab = 'translate' | 'glossary' | 'aiCheck' | 'delete';
 
 export interface PartialLineSnapshot {
   line_num: number;
+  file?: string;
+  name?: string | null;
+  message?: string;
   trans_name: string | null;
   trans_message: string | null;
   is_translated: boolean;
@@ -159,6 +162,12 @@ export interface PartialLineSnapshot {
   _glossary_extracted?: boolean;
   _ai_checked?: boolean;
   _ai_confirmed?: boolean;
+  luca_command?: string;
+  luca_pre?: string;
+  luca_post?: string;
+  luca_text_prefix?: string | null;
+  epub_selector?: string;
+  epub_id?: string;
 }
 
 export interface UndoSnapshot {
