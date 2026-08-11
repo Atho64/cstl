@@ -357,17 +357,39 @@ export function pushUndoSnapshot(clearRedo = true): void {
   (ui.btnUndo as HTMLButtonElement).disabled = false;
 }
 
-// ─── Flash Hint ────────────────────────────────────────────────────────────────
+// ─── Flash Hint — top-center toast; inline copy-status only for non-toasted text ──
 
 export function flashHint(msg: string, keepAlive = false): void {
-  (ui.copyStatus as HTMLElement).textContent = msg;
-  (ui.copyStatus as HTMLElement).classList.remove('empty');
+  const bare = String(msg ?? '').trim();
+  const q = bare.toLowerCase();
+  const isStopLike = q.includes('dibatalkan') || q.includes('dihentikan') || q.includes('berhenti') || q.includes('canceled') || q.includes('cancelled') || bare.includes('Menghentikan');
+  const isWarnLike = isStopLike || q.includes('gagal') || q.includes('error') || q.includes('ditolak');
+  const isOkLike = q.startsWith('disalin') || q.startsWith('full auto selesai') || q.includes('selesai:') || q.includes('diterapkan') || q.includes('disimpan');
+  const kind: 'success' | 'info' | 'warn' | 'danger' = isWarnLike ? (q.includes('ditolak') || q.includes('gagal') ? 'danger' : 'warn') : isOkLike ? 'success' : 'info';
+  const looksLikeTransientToast =
+    q.startsWith('disalin ') ||
+    q.startsWith('dipilih ') ||
+    q.includes('disalin:') ||
+    /^nama\s+["\u201c]/.test(q) ||
+    q.includes(' full auto') ||
+    q.startsWith('full auto') ||
+    q.includes('auto glossary') ||
+    q.includes('auto ai check');
+
+  // Toast-worthy messages replace the inline hint (no duplication).
+  if (looksLikeTransientToast) {
+    void import('./notify').then(m => m.notify(bare, { kind, withSound: isStopLike })).catch(() => {});
+    return;
+  }
+
+  const el = ui.copyStatus as HTMLElement | undefined;
+  if (!el) return;
+  el.textContent = msg;
+  el.classList.remove('empty');
   const currentToken = incrementHintToken();
   if (!keepAlive) {
     setTimeout(() => {
-      if (getHintToken() === currentToken) {
-        (ui.copyStatus as HTMLElement).classList.add('empty');
-      }
+      if (getHintToken() === currentToken) el.classList.add('empty');
     }, 4000);
   }
 }
