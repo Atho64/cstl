@@ -132,15 +132,30 @@ export function bindEvents(): void {
     const isInsideImportMenu = target.closest('#dropdownImportMenu');
     if (isImportBtn) {
       e.preventDefault();
-      const rect = isImportBtn.getBoundingClientRect();
+      const btn = isImportBtn as HTMLElement;
       const menu = ui.dropdownImportMenu as HTMLElement;
-      menu.style.top = (rect.bottom + 4) + 'px';
-      menu.style.left = rect.left + 'px';
       const willShow = !menu.classList.contains('show');
-      menu.classList.toggle('show');
-      // Reset nested submenu whenever the main import menu is closed
-      if (!willShow && ui.dropdownImportOtherMenu) {
-        (ui.dropdownImportOtherMenu as HTMLElement).classList.remove('show');
+      document.querySelectorAll('.dropdown-content.show').forEach(el => { if (el !== menu) el.classList.remove('show'); });
+      document.querySelectorAll('.dropdown-toggle[aria-expanded="true"]').forEach(el => el.setAttribute('aria-expanded', 'false'));
+      if (willShow) {
+        menu.classList.add('show');
+        void menu.offsetWidth;
+        const rect = btn.getBoundingClientRect();
+        const mw = menu.offsetWidth || 220;
+        const mh = menu.offsetHeight || 220;
+        let top = rect.bottom + 6;
+        if (top + mh > window.innerHeight - 8) top = Math.max(8, rect.top - mh - 6);
+        menu.style.top = top + 'px';
+        let left = rect.left;
+        const maxLeft = window.innerWidth - mw - 8;
+        if (maxLeft < left) left = Math.max(8, maxLeft);
+        menu.style.left = left + 'px';
+        menu.style.right = 'auto';
+        btn.setAttribute('aria-expanded', 'true');
+      } else {
+        menu.classList.remove('show');
+        btn.setAttribute('aria-expanded', 'false');
+        if (ui.dropdownImportOtherMenu) (ui.dropdownImportOtherMenu as HTMLElement).classList.remove('show');
       }
     } else if (isImportOtherBtn) {
       e.preventDefault();
@@ -167,35 +182,92 @@ export function bindEvents(): void {
     const isDashboardSettingsBtn = target.closest('#btnDropdownDashboardSettings');
     if (isDashboardSettingsBtn) {
       e.preventDefault();
-      const rect = isDashboardSettingsBtn.getBoundingClientRect();
+      const btn = isDashboardSettingsBtn as HTMLElement;
       const menu = ui.dropdownDashboardSettingsMenu as HTMLElement;
-      menu.style.top = (rect.bottom + 4) + 'px';
-      menu.style.left = rect.left + 'px';
-      menu.classList.toggle('show');
-    } else {
+      const willShow = !menu.classList.contains('show');
+      document.querySelectorAll('.dropdown-content.show').forEach(el => { if (el !== menu) el.classList.remove('show'); });
+      document.querySelectorAll('.dropdown-toggle[aria-expanded="true"]').forEach(el => el.setAttribute('aria-expanded', 'false'));
+      if (willShow) {
+        menu.classList.add('show');
+        void menu.offsetWidth;
+        const rect = btn.getBoundingClientRect();
+        const mw = menu.offsetWidth || 220;
+        const mh = menu.offsetHeight || 88;
+        let top = rect.bottom + 6;
+        if (top + mh > window.innerHeight - 8) top = Math.max(8, rect.top - mh - 6);
+        menu.style.top = top + 'px';
+        let left = rect.right - mw;
+        const minLeft = 8;
+        const maxLeft = window.innerWidth - mw - 8;
+        left = Math.max(minLeft, Math.min(left, maxLeft));
+        menu.style.left = left + 'px';
+        menu.style.right = 'auto';
+        btn.setAttribute('aria-expanded', 'true');
+      } else {
+        menu.classList.remove('show');
+        btn.setAttribute('aria-expanded', 'false');
+      }
+    } else if (!target.closest('#dropdownDashboardSettingsMenu')) {
       if (ui.dropdownDashboardSettingsMenu) {
         (ui.dropdownDashboardSettingsMenu as HTMLElement).classList.remove('show');
+        const b = document.getElementById('btnDropdownDashboardSettings');
+        if (b) b.setAttribute('aria-expanded', 'false');
       }
     }
 
     const isSettingsBtn = target.closest('#btnDropdownSettings');
     if (isSettingsBtn) {
       e.preventDefault();
-      const rect = isSettingsBtn.getBoundingClientRect();
+      const btn = isSettingsBtn as HTMLElement;
       const menu = ui.dropdownSettingsMenu as HTMLElement;
-      menu.style.top = (rect.bottom + 4) + 'px';
-      let left = rect.left;
-      const maxLeft = window.innerWidth - menu.offsetWidth - 8;
-      if (left > maxLeft) left = Math.max(8, maxLeft);
-      menu.style.left = left + 'px';
-      menu.classList.toggle('show');
-    } else {
+      const willShow = !menu.classList.contains('show');
+      document.querySelectorAll('.dropdown-content.show').forEach(el => { if (el !== menu) el.classList.remove('show'); });
+      document.querySelectorAll('.dropdown-toggle[aria-expanded="true"]').forEach(el => el.setAttribute('aria-expanded', 'false'));
+      if (willShow) {
+        menu.classList.add('show');
+        void menu.offsetWidth;
+        const rect = btn.getBoundingClientRect();
+        const mw = menu.offsetWidth || 220;
+        const mh = menu.offsetHeight || 140;
+        let top = rect.bottom + 6;
+        if (top + mh > window.innerHeight - 8) top = Math.max(8, rect.top - mh - 6);
+        menu.style.top = top + 'px';
+        let left = rect.right - mw;
+        const minLeft = 8;
+        const maxLeft = window.innerWidth - mw - 8;
+        left = Math.max(minLeft, Math.min(left, maxLeft));
+        menu.style.left = left + 'px';
+        menu.style.right = 'auto';
+        btn.setAttribute('aria-expanded', 'true');
+      } else {
+        menu.classList.remove('show');
+        btn.setAttribute('aria-expanded', 'false');
+      }
+    } else if (!target.closest('#dropdownSettingsMenu')) {
       if (ui.dropdownSettingsMenu) {
         (ui.dropdownSettingsMenu as HTMLElement).classList.remove('show');
+        const b2 = document.getElementById('btnDropdownSettings');
+        if (b2) b2.setAttribute('aria-expanded', 'false');
       }
     }
   });
 
+  document.addEventListener('keydown', (e: KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      let closed = false;
+      document.querySelectorAll('.dropdown-content.show').forEach(el => { el.classList.remove('show'); closed = true; });
+      document.querySelectorAll('.dropdown-toggle[aria-expanded="true"]').forEach(el => el.setAttribute('aria-expanded', 'false'));
+      if (closed) e.preventDefault();
+    }
+  });
+  window.addEventListener('resize', () => {
+    document.querySelectorAll('.dropdown-content.show').forEach(el => el.classList.remove('show'));
+    document.querySelectorAll('.dropdown-toggle[aria-expanded="true"]').forEach(el => el.setAttribute('aria-expanded', 'false'));
+  });
+  window.addEventListener('scroll', () => {
+    document.querySelectorAll('.dropdown-content.show').forEach(el => el.classList.remove('show'));
+    document.querySelectorAll('.dropdown-toggle[aria-expanded="true"]').forEach(el => el.setAttribute('aria-expanded', 'false'));
+  }, true);
   document.addEventListener('keydown', onSelectionHistoryKeydown);
   document.addEventListener('keydown', (event) => {
     if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 's') return;
@@ -321,7 +393,7 @@ export function bindEvents(): void {
           rowEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
           const originalBg = rowEl.style.backgroundColor;
           rowEl.style.transition = 'background-color 0.3s ease';
-          rowEl.style.backgroundColor = 'rgba(59, 130, 246, 0.4)';
+          rowEl.style.backgroundColor = 'rgba(200, 78, 24, 0.28)';
           setTimeout(() => { rowEl.style.backgroundColor = originalBg; }, 800);
         }
       }, 50);
@@ -974,29 +1046,29 @@ interface ColorPalette {
 
 const PALETTES: Record<string, ColorPalette> = {
   indigo: {
-    '--bg': '#0a0e1a', '--bg-2': '#0d1220', '--panel': '#131826', '--panel-2': '#1a2030',
-    '--line': '#252d3f', '--line-2': '#2f3850', '--primary': '#6366f1', '--primary-hover': '#4f46e5',
-    '--primary-soft': 'rgba(99, 102, 241, 0.14)', '--accent': '#a855f7',
+    '--bg': '#0f0e0d', '--bg-2': '#161412', '--panel': '#1d1b19', '--panel-2': '#26231f',
+    '--line': '#332f2b', '--line-2': '#43403c', '--primary': '#c84e18', '--primary-hover': '#a93f12',
+    '--primary-soft': 'rgba(200, 78, 24, 0.14)', '--accent': '#b9975b',
   },
   ocean: {
-    '--bg': '#0f172a', '--bg-2': '#111c33', '--panel': '#1e293b', '--panel-2': '#243349',
-    '--line': '#334155', '--line-2': '#3e4d66', '--primary': '#3b82f6', '--primary-hover': '#2563eb',
-    '--primary-soft': 'rgba(59, 130, 246, 0.14)', '--accent': '#6366f1',
+    '--bg': '#0e1418', '--bg-2': '#121a1e', '--panel': '#182025', '--panel-2': '#1e2a30',
+    '--line': '#2a363c', '--line-2': '#34444c', '--primary': '#1e6b8a', '--primary-hover': '#16546e',
+    '--primary-soft': 'rgba(30,107,138,0.16)', '--accent': '#8fb4c0',
   },
   forest: {
-    '--bg': '#0a1410', '--bg-2': '#0d1a14', '--panel': '#122018', '--panel-2': '#1a2a20',
-    '--line': '#1f3a2b', '--line-2': '#2a4d39', '--primary': '#10b981', '--primary-hover': '#059669',
-    '--primary-soft': 'rgba(16, 185, 129, 0.14)', '--accent': '#34d399',
+    '--bg': '#0e1210', '--bg-2': '#121814', '--panel': '#181e1a', '--panel-2': '#1f2822',
+    '--line': '#2c352e', '--line-2': '#36443a', '--primary': '#3d6b4a', '--primary-hover': '#2f5239',
+    '--primary-soft': 'rgba(61,107,74,0.16)', '--accent': '#9ab89e',
   },
   sunset: {
-    '--bg': '#1a0f0a', '--bg-2': '#1f120c', '--panel': '#241510', '--panel-2': '#2e1c14',
-    '--line': '#3d231a', '--line-2': '#4d2d22', '--primary': '#f97316', '--primary-hover': '#ea580c',
-    '--primary-soft': 'rgba(249, 115, 22, 0.14)', '--accent': '#fb923c',
+    '--bg': '#14100e', '--bg-2': '#1a1410', '--panel': '#201a16', '--panel-2': '#2a211c',
+    '--line': '#352e28', '--line-2': '#443c34', '--primary': '#8a4a1a', '--primary-hover': '#6e3b15',
+    '--primary-soft': 'rgba(138,74,26,0.16)', '--accent': '#c9a47a',
   },
   rose: {
-    '--bg': '#140a12', '--bg-2': '#190c16', '--panel': '#1f1020', '--panel-2': '#281428',
-    '--line': '#3a1f3a', '--line-2': '#4a2a4a', '--primary': '#ec4899', '--primary-hover': '#db2777',
-    '--primary-soft': 'rgba(236, 72, 153, 0.14)', '--accent': '#f472b6',
+    '--bg': '#141012', '--bg-2': '#1a1416', '--panel': '#201a1c', '--panel-2': '#2a2024',
+    '--line': '#352a2e', '--line-2': '#44383c', '--primary': '#8b2d3a', '--primary-hover': '#6e2430',
+    '--primary-soft': 'rgba(139,45,58,0.16)', '--accent': '#c49aa0',
   },
 };
 

@@ -100,42 +100,42 @@ export function closeModal(el: HTMLElement): void {
 // ─── Dashboard default settings ───────────────────────────────────────────────
 export const DS_STORAGE_KEY = 'cstl_default_settings';
 
-// ─── Color palettes ───────────────────────────────────────────────────────────
+// ─── Color palettes — all ink/manuscript-grounded (no neon SaaS) ───────────────
 const PALETTES: Record<string, Record<string, string>> = {
   indigo: {
-    '--primary':       '#6366f1',
-    '--primary-hover': '#4f46e5',
-    '--primary-soft':  'rgba(99,102,241,0.14)',
-    '--accent':        '#a855f7',
-    '--shadow-glow':   '0 0 24px -6px rgba(99,102,241,0.45)',
+    '--primary':       '#c84e18',
+    '--primary-hover': '#a93f12',
+    '--primary-soft':  'rgba(200,78,24,0.14)',
+    '--accent':        '#b9975b',
+    '--shadow-glow':   '0 0 24px -6px rgba(200,78,24,0.28)',
   },
   ocean: {
-    '--primary':       '#0ea5e9',
-    '--primary-hover': '#0284c7',
-    '--primary-soft':  'rgba(14,165,233,0.14)',
-    '--accent':        '#06b6d4',
-    '--shadow-glow':   '0 0 24px -6px rgba(14,165,233,0.45)',
+    '--primary':       '#1e6b8a',
+    '--primary-hover': '#16546e',
+    '--primary-soft':  'rgba(30,107,138,0.16)',
+    '--accent':        '#8fb4c0',
+    '--shadow-glow':   '0 0 24px -6px rgba(30,107,138,0.30)',
   },
   forest: {
-    '--primary':       '#22c55e',
-    '--primary-hover': '#16a34a',
-    '--primary-soft':  'rgba(34,197,94,0.14)',
-    '--accent':        '#84cc16',
-    '--shadow-glow':   '0 0 24px -6px rgba(34,197,94,0.45)',
+    '--primary':       '#3d6b4a',
+    '--primary-hover': '#2f5239',
+    '--primary-soft':  'rgba(61,107,74,0.16)',
+    '--accent':        '#9ab89e',
+    '--shadow-glow':   '0 0 24px -6px rgba(61,107,74,0.30)',
   },
   sunset: {
-    '--primary':       '#f97316',
-    '--primary-hover': '#ea580c',
-    '--primary-soft':  'rgba(249,115,22,0.14)',
-    '--accent':        '#f59e0b',
-    '--shadow-glow':   '0 0 24px -6px rgba(249,115,22,0.45)',
+    '--primary':       '#8a4a1a',
+    '--primary-hover': '#6e3b15',
+    '--primary-soft':  'rgba(138,74,26,0.16)',
+    '--accent':        '#c9a47a',
+    '--shadow-glow':   '0 0 24px -6px rgba(138,74,26,0.28)',
   },
   rose: {
-    '--primary':       '#f43f5e',
-    '--primary-hover': '#e11d48',
-    '--primary-soft':  'rgba(244,63,94,0.14)',
-    '--accent':        '#ec4899',
-    '--shadow-glow':   '0 0 24px -6px rgba(244,63,94,0.45)',
+    '--primary':       '#8b2d3a',
+    '--primary-hover': '#6e2430',
+    '--primary-soft':  'rgba(139,45,58,0.16)',
+    '--accent':        '#c49aa0',
+    '--shadow-glow':   '0 0 24px -6px rgba(139,45,58,0.28)',
   },
 };
 

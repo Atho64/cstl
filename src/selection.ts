@@ -256,7 +256,8 @@ export function switchWorkspaceTab(tabName: WorkspaceTab): void {
     const tabEl = ui[item.tab] as HTMLElement;
     const viewEl = ui[item.view] as HTMLElement;
     const active = item.name === tabName;
-    
+    tabEl?.setAttribute('aria-selected', String(active));
+
     if (item.name === 'delete') {
       tabEl?.classList.toggle('btn-danger', active);
       tabEl?.classList.toggle('btn-outline', !active);

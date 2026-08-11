@@ -19,10 +19,12 @@ export function applyHtlMode(): void {
   const htl = isHtl();
   document.body.classList.toggle('htl-mode', htl);
 
-  for (const el of document.querySelectorAll<HTMLElement>('[data-htl-hide]')) {
+  for (const el of document.querySelectorAll<HTMLElement>('[data-htl-hide="true"]')) {
+    el.hidden = htl;
     el.style.display = htl ? 'none' : '';
   }
-  for (const el of document.querySelectorAll<HTMLElement>('[data-htl-show]')) {
+  for (const el of document.querySelectorAll<HTMLElement>('[data-htl-show="true"]')) {
+    el.hidden = !htl;
     el.style.display = htl ? 'block' : 'none';
   }
 

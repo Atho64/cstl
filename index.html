@@ -11,7 +11,7 @@
   </script>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="description" content="Alat bantu penerjemahan string dengan dukungan AI." />
-  <meta name="theme-color" content="#1a1f2b" />
+  <meta name="theme-color" content="#161412" />
   <title>Copas Tool</title>
   <link rel="icon" type="image/svg+xml" href="./icon.svg" />
   <link rel="apple-touch-icon" href="./icon.jpg" />
@@ -39,15 +39,15 @@
         <h1 class="hero-title">Copas Tool</h1>
         <span class="hero-badge">vM15</span>
       </div>
-      <div class="actions">
+      <div class="actions" role="toolbar" aria-label="Dashboard actions">
           <button id="btnNewProject" class="btn btn-primary">Buat Proyek Baru</button>
           <button id="btnRestoreProject" class="btn btn-outline">Pulihkan Proyek</button>
           <button id="btnBackupAllProjects" class="btn btn-outline" title="Backup semua proyek sebagai ZIP">Backup Semua ZIP</button>
           <div class="dropdown">
-            <button id="btnDropdownDashboardSettings" class="btn btn-outline dropdown-toggle" title="Pengaturan Default Proyek"><svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915" /><circle cx="12" cy="12" r="3" /></svg> Default ▼</button>
-            <div id="dropdownDashboardSettingsMenu" class="dropdown-content">
-              <button id="btnDashboardSettings" class="dropdown-item">Project Defaults</button>
-              <button id="btnDashboardPrompts" class="dropdown-item">Prompt Defaults</button>
+            <button id="btnDropdownDashboardSettings" class="btn btn-outline dropdown-toggle" aria-expanded="false" aria-haspopup="menu" title="Pengaturan Default Proyek"><svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915" /><circle cx="12" cy="12" r="3" /></svg> Default ▼</button>
+            <div id="dropdownDashboardSettingsMenu" class="dropdown-content" role="menu">
+              <button id="btnDashboardSettings" class="dropdown-item" role="menuitem">Project Defaults</button>
+              <button id="btnDashboardPrompts" class="dropdown-item" role="menuitem">Prompt Defaults</button>
             </div>
           </div>
         </div>
@@ -62,12 +62,12 @@
   </div>
   
   <div id="workspaceView" class="app-shell" style="display: none;">
-    <header class="toolbar">
-      <div class="toolbar-scroll">
+    <header class="toolbar" role="toolbar" aria-label="Workspace">
+      <div class="toolbar-scroll" role="toolbar" aria-label="Workspace actions">
         <button id="btnBackToDashboard" class="btn btn-outline">&lt;- Dashboard</button>
         <span class="toolbar-sep"></span>
         <div class="dropdown">
-          <button id="btnDropdownImport" class="btn dropdown-toggle">Impor ▾</button>
+          <button id="btnDropdownImport" class="btn dropdown-toggle" aria-expanded="false" aria-haspopup="menu">Impor ▾</button>
           <div id="dropdownImportMenu" class="dropdown-content">
             <button id="btnImportFile" class="dropdown-item">Impor File</button>
             <button id="btnImportFolder" class="dropdown-item">Impor Folder</button>
@@ -85,10 +85,10 @@
             </div>
           </div>
         </div>
-        <button id="btnUndo" class="btn" disabled title="Undo (Batalkan aksi terakhir)"><svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5" /><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11" /></svg></button>
-        <button id="btnRedo" class="btn" disabled title="Redo (Ulangi aksi terakhir)"><svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 14 5-5-5-5" /><path d="M20 9H9.5A5.5 5.5 0 0 0 4 14.5A5.5 5.5 0 0 0 9.5 20H13" /></svg></button>
-        <button id="btnBatchPrev" class="btn btn-icon btn-outline" title="Batch sebelumnya (Alt+ArrowUp)" aria-label="Batch sebelumnya (Alt+ArrowUp)">&#8593;</button>
-        <button id="btnBatchNext" class="btn btn-icon btn-outline" title="Batch berikutnya (Alt+ArrowDown)" aria-label="Batch berikutnya (Alt+ArrowDown)">&#8595;</button>
+        <button id="btnUndo" class="btn btn-icon" disabled title="Undo (Batalkan aksi terakhir)"><svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5" /><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11" /></svg></button>
+        <button id="btnRedo" class="btn btn-icon" disabled title="Redo (Ulangi aksi terakhir)"><svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 14 5-5-5-5" /><path d="M20 9H9.5A5.5 5.5 0 0 0 4 14.5A5.5 5.5 0 0 0 9.5 20H13" /></svg></button>
+        <button id="btnBatchPrev" class="btn btn-icon" title="Batch sebelumnya (Alt+ArrowUp)" aria-label="Batch sebelumnya (Alt+ArrowUp)">↑</button>
+        <button id="btnBatchNext" class="btn btn-icon" title="Batch berikutnya (Alt+ArrowDown)" aria-label="Batch berikutnya (Alt+ArrowDown)">↓</button>
         <span class="toolbar-sep"></span>
         <button id="btnExport" class="btn" disabled>Ekspor</button>
         <span class="toolbar-sep"></span>
@@ -98,7 +98,7 @@
         <button id="btnTextReplacer" class="btn">Text Replacer</button>
         <button id="btnFileList" class="btn" disabled>File List</button>
         <div class="dropdown">
-          <button id="btnDropdownSettings" class="btn dropdown-toggle">Pengaturan ▼</button>
+          <button id="btnDropdownSettings" class="btn dropdown-toggle" aria-expanded="false" aria-haspopup="menu">Pengaturan ▼</button>
           <div id="dropdownSettingsMenu" class="dropdown-content">
             <button id="btnSettingsGeneral" class="dropdown-item">General Settings</button>
             <button id="btnSettingsPrompts" class="dropdown-item">Prompt Settings</button>
@@ -146,17 +146,17 @@
           </div>
         </div>
 
-        <div class="tabs-wrap mb-2 workspace-ai-tabs" data-htl-hide="true">
-          <button id="tabTranslate" class="btn btn-primary grow">Translate</button>
-          <button id="tabGlossary" class="btn btn-outline grow workspace-ai-tab" data-htl-hide="true">Glossary Extractor</button>
-          <button id="tabAiCheck" class="btn btn-outline grow workspace-ai-tab" data-htl-hide="true">AI Check</button>
+        <div class="tabs-wrap mb-2 workspace-ai-tabs" data-htl-hide="true" role="tablist" aria-label="Workspace sections">
+          <button id="tabTranslate" class="btn btn-primary grow" role="tab" aria-selected="true">Translate</button>
+          <button id="tabGlossary" class="btn btn-outline grow workspace-ai-tab" data-htl-hide="true" role="tab" aria-selected="false">Glossary Extractor</button>
+          <button id="tabAiCheck" class="btn btn-outline grow workspace-ai-tab" data-htl-hide="true" role="tab" aria-selected="false">AI Check</button>
         </div>
         <div class="tabs-wrap mb-2">
           <button id="tabDelete" class="btn btn-outline grow text-danger" style="border-color: rgba(239, 68, 68, 0.3);">Hapus Terjemahan</button>
         </div>
 
         <div id="viewTranslate">
-          <div class="card-box mb-2" data-htl-hide="true">
+          <div class="card-box is-primary mb-2" data-htl-hide="true">
                       <button id="btnCopyForAi" class="btn btn-primary w-full mb-1" disabled>Copy <span id="copyCount">0</span> Baris</button>
                       <div class="flex gap-2"><select id="aiTranslateModeSelect" class="text-input" style="width: auto;"><option value="auto">Auto</option><option value="agent">Agent</option></select><button id="btnAutoTranslate" class="btn btn-success grow" disabled>Jalankan Auto Translate</button></div>
                       <div id="autoCopasControls" hidden>
@@ -207,7 +207,7 @@
             </table>
           </div>
           <div id="viewHtlPlaceholder" data-htl-show="true" style="display: none;">
-            <div class="card-box mb-2" style="border-color: rgba(59, 130, 246, 0.3);">
+            <div class="card-box mb-2" style="border-color: rgba(200, 78, 24, 0.25);">
               <label class="section-label mt-0">Mode HTL (Human Translation)</label>
               <p class="hint">Klik baris manapun di daftar untuk membuka editor dan mengetik terjemahan secara manual. Gunakan kotak pencarian di toolbar atas untuk proofread.</p>
             </div>
@@ -407,11 +407,11 @@
       <div class="mt-2">
         <label class="section-label text-white m-0">Color Palette</label>
         <select id="paletteSelect" class="text-input w-full mt-1">
-          <option value="indigo">Indigo Night (Default)</option>
-          <option value="ocean">Ocean Blue</option>
-          <option value="forest">Forest</option>
-          <option value="sunset">Sunset</option>
-          <option value="rose">Rose</option>
+          <option value="indigo">Sumi Ink (Default)</option>
+          <option value="ocean">Indigo Archive</option>
+          <option value="forest">Moss Folio</option>
+          <option value="sunset">Paper & Lacquer</option>
+          <option value="rose">Seal Red</option>
         </select>
       </div>
 

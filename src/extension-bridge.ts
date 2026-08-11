@@ -488,6 +488,7 @@ async function runFullAutoBatches(): Promise<void> {
       }
     }
     if (isFullAutoRunning) {
+      void import('./notify').then(m => m.notifyStop(`Full Auto selesai: ${appliedCount} baris diterapkan.`, 'success'));
       flashHint(`Full auto selesai: ${appliedCount} baris diterapkan.`);
       setStatus(`Full auto selesai — ${appliedCount} baris diterapkan`);
     }
@@ -628,6 +629,7 @@ async function runGlossaryFullAuto(): Promise<void> {
       retryCount = 0;
     }
     if (isGlossaryAutoRunning) {
+      void import('./notify').then(m => m.notifyStop(`Auto Glossary selesai: ${processed} baris, ${totalAdded} entri baru, ${totalUpdated} diperbarui.`, 'success'));
       flashHint(`Auto Glossary selesai: ${processed} baris, ${totalAdded} entri baru, ${totalUpdated} diperbarui.`);
       setGlossaryStatus(`Selesai — ${processed} baris · ${totalAdded} baru · ${totalUpdated} diperbarui.`);
     }
@@ -694,7 +696,7 @@ export function cancelGlossaryAutoCopas(): void {
   }
   showGlossaryCancelButton(false);
   setGlossaryStatus('Dibatalkan.');
-  flashHint('Auto Glossary dibatalkan.');
+  void import('./notify').then(m => m.notifyStop('Auto Glossary dibatalkan.', 'warn'));
 }
 
 // ─── AI Check helpers ─────────────────────────────────────────────────────────
@@ -872,6 +874,7 @@ async function runAiCheckFullAuto(): Promise<void> {
       const msg = reviewMode
         ? `Auto AI Check selesai: ${processed} baris diproses.`
         : `Auto AI Check selesai: ${processed} baris diproses, ${totalApplied} koreksi diterapkan.`;
+      void import('./notify').then(m => m.notifyStop(msg, 'success'));
       flashHint(msg);
       setAiCheckExtStatus(`Selesai.`);
       setAiCheckStatus(msg);
@@ -942,7 +945,7 @@ export function cancelAiCheckAutoCopas(): void {
   }
   showAiCheckCancelButton(false);
   setAiCheckExtStatus('Dibatalkan.');
-  flashHint('Auto AI Check dibatalkan.');
+  void import('./notify').then(m => m.notifyStop('Auto AI Check dibatalkan.', 'warn'));
 }
 
 export async function sendAutoCopas(): Promise<void> {
@@ -987,8 +990,8 @@ export async function cancelAutoCopas(): Promise<void> {
   isFullAutoRunning = false;
   if (!translateRequestId) {
     showCancelButton(false);
-    flashHint('Auto Copas dibatalkan.');
     setStatus('Dibatalkan');
+    void import('./notify').then(m => m.notifyStop('Auto Copas dibatalkan.', 'warn'));
     return;
   }
   const reqId = translateRequestId;
@@ -996,7 +999,7 @@ export async function cancelAutoCopas(): Promise<void> {
   cancelRequest(reqId, 'translate');
   showCancelButton(false);
   translateRequestId = null;
-  flashHint('Auto Copas dibatalkan.');
+  void import('./notify').then(m => m.notifyStop('Auto Copas dibatalkan.', 'warn'));
   setStatus('Dibatalkan');
 }
 

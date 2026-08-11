@@ -475,6 +475,7 @@ export async function onAutoTranslate(): Promise<void> {
 
   if (isAutoTranslating) {
     isAutoTranslating = false;
+    void import('./notify').then(m => m.notifyStop('Auto Translate dihentikan.', 'warn'));
     btn.textContent = 'Menghentikan...';
     btn.classList.remove('btn-danger');
     btn.classList.add('btn-success');
@@ -507,6 +508,7 @@ export async function onAutoTranslate(): Promise<void> {
       // Find untranslated lines from top
       const untranslatedLines = targetLines.filter(l => !isTranslated(l) && !l._hidden);
       if (untranslatedLines.length === 0) {
+        void import('./notify').then(m => m.notifyStop('Auto Translate selesai.', 'success'));
         alert('Selesai! Semua baris target telah diterjemahkan.');
         break;
       }
@@ -704,6 +706,7 @@ export async function onAutoTranslate(): Promise<void> {
     }
   } catch (err: any) {
     if (isAutoTranslating) {
+      void import('./notify').then(m => m.notifyStop(`Auto Translate berhenti: ${String(err?.message || err)}`, 'danger'));
       alert('Auto Translate berhenti karena error:\n\n' + err.message);
     }
   } finally {
@@ -998,6 +1001,7 @@ export async function onAutoGlossary(): Promise<void> {
   const btn = ui.btnAutoGlossaryAi as HTMLButtonElement;
   if (isAutoGlossary) {
     isAutoGlossary = false;
+    void import('./notify').then(m => m.notifyStop('Auto Glossary dihentikan.', 'warn'));
     btn.textContent = 'Menghentikan...';
     btn.classList.remove('btn-danger');
     btn.classList.add('btn-success');
@@ -1024,6 +1028,7 @@ export async function onAutoGlossary(): Promise<void> {
     while (isAutoGlossary) {
       const untranslatedLines = state.lines.filter(l => !l._glossary_extracted && !l._hidden);
       if (untranslatedLines.length === 0) {
+        void import('./notify').then(m => m.notifyStop('Auto Glossary selesai.', 'success'));
         alert('Selesai! Semua baris telah diekstrak glossary-nya.');
         break;
       }
@@ -1071,6 +1076,7 @@ export async function onAutoGlossary(): Promise<void> {
     }
   } catch (err: any) {
     if (isAutoGlossary) {
+      void import('./notify').then(m => m.notifyStop(`Auto Glossary berhenti: ${String(err?.message || err)}`, 'danger'));
       alert('Auto Ekstrak berhenti karena error:\n\n' + err.message);
     }
   } finally {
@@ -1088,6 +1094,7 @@ export async function onAutoAiCheck(): Promise<void> {
   if (isAutoAiCheck) {
     isAutoAiCheck = false;
     resolveReviewAction('stop');
+    void import('./notify').then(m => m.notifyStop('Auto AI Check dihentikan.', 'warn'));
     btn.textContent = 'Menghentikan...';
     btn.classList.remove('btn-danger');
     btn.classList.add('btn-success');
@@ -1120,6 +1127,7 @@ export async function onAutoAiCheck(): Promise<void> {
       const uncheckedLines = state.lines.filter(l => isTranslated(l) && !l._ai_checked && !l._ai_confirmed && !l._hidden);
       if (uncheckedLines.length === 0) {
         // Show summary
+        void import('./notify').then(m => m.notifyStop('Auto AI Check selesai.', 'success'));
         const catSummary = Array.from(autoAiCheckStats.byCategory.entries()).map(([k, v]) => `${k}: ${v}`).join(', ');
         alert(`Selesai! AI Check selesai.\n\nTotal dicek: ${autoAiCheckStats.totalChecked}\nKoreksi ditemukan: ${autoAiCheckStats.totalCorrections}\nKoreksi diterapkan: ${autoAiCheckStats.totalApplied}${catSummary ? `\n\nKategori: ${catSummary}` : ''}`);
         break;
@@ -1206,6 +1214,7 @@ export async function onAutoAiCheck(): Promise<void> {
       }
     }
     if (isAutoAiCheck) {
+      void import('./notify').then(m => m.notifyStop('Auto AI Check selesai.', 'success'));
       const catSummary = Array.from(autoAiCheckStats.byCategory.entries()).map(([k, v]) => `${k}: ${v}`).join(', ');
       alert(`AI Check selesai.\n\nTotal dicek: ${autoAiCheckStats.totalChecked}\nKoreksi ditemukan: ${autoAiCheckStats.totalCorrections}\nKoreksi diterapkan: ${autoAiCheckStats.totalApplied}${catSummary ? `\n\nKategori: ${catSummary}` : ''}`);
     }
@@ -1215,6 +1224,7 @@ export async function onAutoAiCheck(): Promise<void> {
     btn.textContent = 'Jalankan Auto Cek';
   } catch (err: any) {
     if (isAutoAiCheck) {
+      void import('./notify').then(m => m.notifyStop(`Auto AI Check berhenti: ${String(err?.message || err)}`, 'danger'));
       alert('Auto Cek berhenti karena error:\n\n' + err.message);
     }
   } finally {

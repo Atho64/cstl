@@ -16,12 +16,12 @@ import type { Line, AiCheckCorrection } from './types';
 
 const VALID_CATEGORIES = ['Grammar', 'Naturalness', 'Punctuation', 'Consistency', 'Accuracy', 'Name'] as const;
 const CATEGORY_COLORS: Record<string, string> = {
-  Grammar: '#f59e0b',
-  Naturalness: '#10b981',
-  Punctuation: '#f97316',
-  Consistency: '#8b5cf6',
-  Accuracy: '#ef4444',
-  Name: '#14b8a6',
+  Grammar: '#c98a12',
+  Naturalness: '#2d7d5f',
+  Punctuation: '#c84e18',
+  Consistency: '#7a6ab8',
+  Accuracy: '#c82a3a',
+  Name: '#3a7a68',
 };
 
 function normalizeCategory(raw: string): string {

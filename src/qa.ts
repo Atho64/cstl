@@ -345,8 +345,8 @@ export function renderQaRow(r: QaMatch): HTMLElement {
     else if (err.startsWith('Length')) badge.style.background = '#ec4899';
     else if (err.startsWith('Wrong')) badge.style.background = '#ef4444';
     else if (err.startsWith('JP')) badge.style.background = '#f97316';
-    else if (err.startsWith('Uncertain')) badge.style.background = '#6366f1';
-    else if (err.startsWith('Name')) badge.style.background = '#14b8a6';
+    else if (err.startsWith('Uncertain')) badge.style.background = '#b9975b';
+    else if (err.startsWith('Name')) badge.style.background = '#2d7d5f';
     else badge.style.background = 'var(--primary)';
     badge.textContent = err;
     titleEl.appendChild(badge);
