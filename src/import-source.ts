@@ -230,7 +230,7 @@ export async function handleImportLogic(filesObj: FileList | File[] | File, isZi
             await new Promise(r => setTimeout(r, 0));
           }
         } else if (isJson) {
-          if (pendingEpubSourceId || lines.length > 0) {
+          if (pendingEpubSourceId) {
             alert('Jangan mencampur EPUB dan JSON dalam satu impor.');
             continue;
           }
