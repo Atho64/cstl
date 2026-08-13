@@ -3,6 +3,15 @@ name: Deploy static content to Pages
 on:
   push:
     branches: ["main"]
+    paths:
+      - 'src/**'
+      - 'public/**'
+      - 'index.html'
+      - 'styles.css'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'vite.config.ts'
+      - 'tsconfig.json'
   workflow_dispatch:
 
 permissions:
@@ -23,27 +32,28 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      
+       
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'npm'
-          
+          # cache npm dimatikan: boros storage (ratusan MB/run) padahal build cuma ~1 menit
+         
       - name: Install dependencies
         run: npm ci
-        
+       
       - name: Build
         run: npm run build
-        
+       
       - name: Setup Pages
         uses: actions/configure-pages@v4
-        
+       
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: './dist'
-          
+          retention-days: 7
+         
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
