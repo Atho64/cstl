@@ -52,12 +52,17 @@ export function loadApiSettings(): void {
       if (p.aiKeyStrategy) state.aiKeyStrategy = p.aiKeyStrategy;
       if (p.aiTranslateMode) state.aiTranslateMode = p.aiTranslateMode;
       if (p.tavilyApiKey !== undefined) state.tavilyApiKey = p.tavilyApiKey;
+      if (p.autoRepeatOnFailure !== undefined) state.autoRepeatOnFailure = !!p.autoRepeatOnFailure;
     }
   } catch (e) {
     console.error('Failed to load API settings', e);
   }
   const modeSelect = document.getElementById('aiTranslateModeSelect') as HTMLSelectElement;
   if (modeSelect) modeSelect.value = state.aiTranslateMode || 'auto';
+  const repeatCheck = document.getElementById('checkAutoRepeatOnFailure') as HTMLInputElement | null;
+  if (repeatCheck) repeatCheck.checked = !!state.autoRepeatOnFailure;
+  const repeatCached = ui.checkAutoRepeatOnFailure as HTMLInputElement | undefined;
+  if (repeatCached) repeatCached.checked = !!state.autoRepeatOnFailure;
 }
 
 export function saveApiSettings(): void {
@@ -81,6 +86,7 @@ export function saveApiSettings(): void {
     aiBackupKeys: state.aiBackupKeys,
     aiKeyStrategy: state.aiKeyStrategy, aiTranslateMode: state.aiTranslateMode,
     tavilyApiKey: state.tavilyApiKey,
+    autoRepeatOnFailure: state.autoRepeatOnFailure,
   };
   localStorage.setItem(API_STORAGE_KEY, JSON.stringify(d));
 }
@@ -464,6 +470,17 @@ function createRetryableAiFormatError(err: TranslationApplyError): AutoTranslate
   return retryableError;
 }
 
+function isAuthFailureMessage(msg: string): boolean {
+  const m = msg.toLowerCase();
+  return m.includes('401') || m.includes('403') || m.includes('unauthorized') || m.includes('forbidden') || m.includes('invalid api') || m.includes('invalid_api') || m.includes('api key') && m.includes('invalid') || m.includes('authentication');
+}
+
+function getRepeatDelayMs(): number {
+  const rpm = Number(state.aiRpm);
+  if (!Number.isFinite(rpm) || rpm <= 0) return 2000;
+  return Math.max(1000, Math.round(60000 / rpm));
+}
+
 let isAutoTranslating = false;
 
 export async function onAutoTranslate(): Promise<void> {
@@ -532,7 +549,6 @@ export async function onAutoTranslate(): Promise<void> {
       const parallelSize = Math.max(1, Math.min(10, state.parallelBatchSize || 1));
 
       if (parallelSize === 1) {
-        // Original sequential mode
         btn.textContent = `Menerjemahkan ${sel.length} baris... (Klik untuk Stop)`;
 
         let contextBlock = '';
@@ -563,7 +579,7 @@ export async function onAutoTranslate(): Promise<void> {
         const joinedText = buildSelectedTranslationExport(false);
         const glossaryBlock = getGlossaryPrompt(joinedText);
         const baseHeader = applyPromptVariables((state.aiInstructionHeader || DEFAULT_PROMPT_HEADER).trim());
-        
+
         const sections: string[] = [baseHeader];
         if (glossaryBlock) sections.push(glossaryBlock.trim());
         if (contextBlock) sections.push(contextBlock.trim());
@@ -573,25 +589,42 @@ export async function onAutoTranslate(): Promise<void> {
         sections.push(joinedText.trim());
         const prompt = sections.join('\n\n');
 
-        let rawResult = await fetchWithRetry(async () => {
-          const result = await fetchApiResult(prompt);
-          if (!isAutoTranslating) throw new Error('Dibatalkan oleh pengguna.');
-          (ui.pasteArea as HTMLTextAreaElement).value = result;
+        let repeatAttempt = 0;
+        while (true) {
           try {
-            Translate.onApplyTranslation({ suppressAlerts: true });
-          } catch (err: any) {
-            if (err instanceof TranslationApplyError) {
-              throw createRetryableAiFormatError(err);
-            }
-            throw err;
-          }
-          return result;
-        }, (retry) => {
-          btn.textContent = `${formatRetryLabel(retry)}... (Klik Stop)`;
-        }, () => !isAutoTranslating);
+            const rawResult = await fetchWithRetry(async () => {
+              const result = await fetchApiResult(prompt);
+              if (!isAutoTranslating) throw new Error('Dibatalkan oleh pengguna.');
+              (ui.pasteArea as HTMLTextAreaElement).value = result;
+              try {
+                Translate.onApplyTranslation({ suppressAlerts: true });
+              } catch (err: any) {
+                if (err instanceof TranslationApplyError) {
+                  throw createRetryableAiFormatError(err);
+                }
+                throw err;
+              }
+              return result;
+            }, (retry) => {
+              btn.textContent = `${formatRetryLabel(retry)}... (Klik Stop)`;
+            }, () => !isAutoTranslating);
 
-        if (!rawResult || !rawResult.trim()) {
-          throw new Error('Respons dari API kosong.');
+            if (!rawResult || !rawResult.trim()) {
+              throw new Error('Respons dari API kosong.');
+            }
+            break;
+          } catch (err: any) {
+            const msg = String(err?.message || err);
+            if (msg.includes('Dibatalkan')) throw err;
+            if (isAuthFailureMessage(msg)) throw err;
+            if (!state.autoRepeatOnFailure) throw err;
+            if (!isAutoTranslating) throw new Error('Dibatalkan oleh pengguna.');
+            repeatAttempt++;
+            const waitMs = getRepeatDelayMs();
+            btn.textContent = `Gagal: ${msg.slice(0, 80)} — coba lagi ke-${repeatAttempt} dalam ${Math.round(waitMs / 1000)}s... (Klik Stop)`;
+            await delay(waitMs, () => !isAutoTranslating);
+            if (!isAutoTranslating) throw new Error('Dibatalkan oleh pengguna.');
+          }
         }
 
         if (isAutoTranslating && state.aiRpm > 0) {
@@ -653,48 +686,54 @@ export async function onAutoTranslate(): Promise<void> {
         // Build all prompts without changing the user's selection.
         const subPrompts = subBatches.map(sb => ({ batch: sb, prompt: buildSubPrompt(sb) }));
 
-        // Fetch and apply each sub-batch inside the retry callback. An invalid
-        // response therefore retries instead of being silently skipped.
-        const fetchResults = await Promise.allSettled(subPrompts.map(async (sp, idx) => {
-          if (!isAutoTranslating) throw new Error('Dibatalkan oleh pengguna.');
-          const result = await fetchWithRetry(async () => {
-            const attemptResult = await fetchApiResult(sp.prompt);
+        let parallelRepeatAttempt = 0;
+        let fetchResults: PromiseSettledResult<{ sp: typeof subPrompts[number]; result: string }>[] = [];
+        while (true) {
+          fetchResults = await Promise.allSettled(subPrompts.map(async (sp, idx) => {
             if (!isAutoTranslating) throw new Error('Dibatalkan oleh pengguna.');
-            const pasteArea = ui.pasteArea as HTMLTextAreaElement;
-            const prevVal = pasteArea.value;
-            pasteArea.value = attemptResult;
-            try {
-              Translate.onApplyTranslation({
-                suppressAlerts: true,
-                selectedLineNums: new Set(sp.batch.map(l => l.line_num)),
-              });
-            } catch (err: any) {
-              if (err instanceof TranslationApplyError) throw createRetryableAiFormatError(err);
-              throw err;
-            } finally {
-              pasteArea.value = prevVal;
-            }
-            return attemptResult;
-          }, (retry) => {
-            btn.textContent = `Paralel ${idx + 1}/${subPrompts.length}: ${formatRetryLabel(retry)}... (Klik Stop)`;
-          }, () => !isAutoTranslating);
-          return { sp, result };
-        }));
+            const result = await fetchWithRetry(async () => {
+              const attemptResult = await fetchApiResult(sp.prompt);
+              if (!isAutoTranslating) throw new Error('Dibatalkan oleh pengguna.');
+              const pasteArea = ui.pasteArea as HTMLTextAreaElement;
+              const prevVal = pasteArea.value;
+              pasteArea.value = attemptResult;
+              try {
+                Translate.onApplyTranslation({
+                  suppressAlerts: true,
+                  selectedLineNums: new Set(sp.batch.map(l => l.line_num)),
+                });
+              } catch (err: any) {
+                if (err instanceof TranslationApplyError) throw createRetryableAiFormatError(err);
+                throw err;
+              } finally {
+                pasteArea.value = prevVal;
+              }
+              return attemptResult;
+            }, (retry) => {
+              btn.textContent = `Paralel ${idx + 1}/${subPrompts.length}: ${formatRetryLabel(retry)}... (Klik Stop)`;
+            }, () => !isAutoTranslating);
+            return { sp, result };
+          }));
 
-        // Keep the UI selection representing the whole visible batch.
-        state.selectedLines.clear();
-        for (const l of sel) state.selectedLines.add(l.line_num);
+          state.selectedLines.clear();
+          for (const l of sel) state.selectedLines.add(l.line_num);
 
-        // Check results
-        let successCount = 0;
-        let lastErr: string = '';
-        for (let i = 0; i < fetchResults.length; i++) {
-          const r = fetchResults[i];
-          if (r.status === 'fulfilled') successCount++;
-          else lastErr = String((r as any).reason?.message || r);
-        }
-        if (successCount === 0) {
-          throw new Error(`Semua ${subPrompts.length} request paralel gagal. ${lastErr}`);
+          let successCount = 0;
+          let lastErr = '';
+          for (let i = 0; i < fetchResults.length; i++) {
+            const r = fetchResults[i];
+            if (r.status === 'fulfilled') successCount++;
+            else lastErr = String((r as any).reason?.message || r);
+          }
+          if (successCount > 0) break;
+          if (isAuthFailureMessage(lastErr)) throw new Error(lastErr);
+          if (!state.autoRepeatOnFailure) throw new Error(`Semua ${subPrompts.length} request paralel gagal. ${lastErr}`);
+          if (!isAutoTranslating) throw new Error('Dibatalkan oleh pengguna.');
+          parallelRepeatAttempt++;
+          const waitMs = getRepeatDelayMs();
+          btn.textContent = `Paralel gagal: ${lastErr.slice(0, 60)} — coba lagi ke-${parallelRepeatAttempt} dalam ${Math.round(waitMs / 1000)}s... (Klik Stop)`;
+          await delay(waitMs, () => !isAutoTranslating);
+          if (!isAutoTranslating) throw new Error('Dibatalkan oleh pengguna.');
         }
 
         if (isAutoTranslating && state.aiRpm > 0) {

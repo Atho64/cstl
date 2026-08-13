@@ -72,7 +72,7 @@ export function cacheElements(): void {
     'btnImportFolder', 'btnImportZip', 'btnImportTranslatedFile', 'btnImportTranslatedFolder', 'btnExport', 'btnProofread', 'btnSettings',
     'previewViewport', 'previewContainer', 'currentFileBar', 'progressFill', 'progressText', 'btnSelectAll',
     'btnClearSelection', 'copyCount', 'btnCopyForAi', 'copyStatus', 'pasteArea', 'btnApply', 'checkIgnorePasteNames',
-    'autoCopasControls', 'btnAutoCopas', 'btnFetchCopasResult', 'autoCopasStatus', 'btnAutoCopasCancel',
+    'autoCopasControls', 'btnAutoCopas', 'btnFetchCopasResult', 'autoCopasStatus', 'btnAutoCopasCancel', 'checkAutoRepeatOnFailure',
     'autoCopasGlossaryControls', 'btnAutoCopasGlossary', 'btnFetchCopasGlossaryResult', 'autoCopasGlossaryStatus', 'btnAutoCopasGlossaryCancel',
     'autoCopasAiCheckControls', 'btnAutoCopasAiCheck', 'btnFetchCopasAiCheckResult', 'autoCopasAiCheckStatus', 'btnAutoCopasAiCheckCancel',
     'btnUndo', 'btnRedo', 'nameTableBody', 'statusBar', 'importFileInput', 'importFolderInput', 'importTranslatedFileInput', 'importTranslatedFolderInput',
@@ -531,6 +531,16 @@ if (ui.settingsCheckSimilarity) {
   if (modeSelect) {
     modeSelect.addEventListener('change', () => {
       state.aiTranslateMode = (modeSelect.value as 'auto' | 'agent');
+      import('./auto-translate').then(m => m.saveApiSettings());
+    });
+  }
+  const repeatCheck = (ui.checkAutoRepeatOnFailure || document.getElementById('checkAutoRepeatOnFailure')) as HTMLInputElement | null;
+  if (repeatCheck) {
+    repeatCheck.checked = !!state.autoRepeatOnFailure;
+    repeatCheck.addEventListener('change', () => {
+      state.autoRepeatOnFailure = repeatCheck.checked;
+      const cached = ui.checkAutoRepeatOnFailure as HTMLInputElement | undefined;
+      if (cached && cached !== repeatCheck) cached.checked = repeatCheck.checked;
       import('./auto-translate').then(m => m.saveApiSettings());
     });
   }

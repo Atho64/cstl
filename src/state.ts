@@ -107,6 +107,7 @@ export const state: AppState = {
   dashboardProjects: [],
   agentMemories: [],
   projectLoggingEnabled: false,
+  autoRepeatOnFailure: false,
 };
 
 // ─── Shared UI Element Cache ──────────────────────────────────────────────────

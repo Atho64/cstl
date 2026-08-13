@@ -60,6 +60,31 @@ let lastSettings: { target: CopasTargetId; mode: CopasMode } = {
   mode: 'semi',
 };
 let statusText = 'Extension: mengecek…';
+
+function isAutoRepeatEnabled(): boolean {
+  const el = (ui.checkAutoRepeatOnFailure as HTMLInputElement | undefined)
+    || document.getElementById('checkAutoRepeatOnFailure') as HTMLInputElement | null;
+  if (el) return !!el.checked;
+  return !!(state as any).autoRepeatOnFailure;
+}
+
+function getCopasRepeatDelayMs(): number {
+  const rpm = Number(state.aiRpm);
+  if (!Number.isFinite(rpm) || rpm <= 0) return 2000;
+  return Math.max(1000, Math.round(60000 / rpm));
+}
+
+function delayCancellable(ms: number, shouldCancel: () => boolean): Promise<void> {
+  if (ms <= 0) return Promise.resolve();
+  return new Promise<void>(resolve => {
+    const start = Date.now();
+    const check = () => {
+      if (shouldCancel() || Date.now() - start >= ms) resolve();
+      else setTimeout(check, 200);
+    };
+    check();
+  });
+}
 type CopasWorkflow = 'translate' | 'glossary' | 'ai-check';
 
 let translateRequestId: string | null = null;
@@ -451,6 +476,17 @@ async function runFullAutoBatches(): Promise<void> {
           setStatus(`Full auto berhenti: ${detail}`);
           return;
         }
+        const shouldRepeat = isAutoRepeatEnabled();
+        if (shouldRepeat) {
+          retryCount++;
+          const waitMs = getCopasRepeatDelayMs();
+          flashHint(`Batch gagal (${detail}). Ulangi ke-${retryCount} dalam ${Math.round(waitMs / 1000)}s… (Batal untuk stop)`);
+          setStatus(`Gagal: ${detail} — coba lagi ke-${retryCount} dalam ${Math.round(waitMs / 1000)}s…`);
+          await prepareRetry();
+          await delayCancellable(waitMs, () => !isFullAutoRunning);
+          if (!isFullAutoRunning) return;
+          continue;
+        }
         if (retryCount < 1) {
           retryCount++;
           flashHint(`Batch gagal (${detail}). Mencoba ulang 1x — ${retryLabel()}…`);
@@ -469,6 +505,20 @@ async function runFullAutoBatches(): Promise<void> {
         appliedCount += n;
         retryCount = 0;
       } catch (err) {
+        const shouldRepeat = isAutoRepeatEnabled();
+        if (shouldRepeat) {
+          retryCount++;
+          const waitMs = getCopasRepeatDelayMs();
+          const detail = err instanceof TranslationApplyError
+            ? `${err.message}${err.details[0] ? ` — ${err.details[0]}` : ''}`
+            : 'gagal menerapkan hasil';
+          flashHint(`Format AI keliru (${detail}). Ulangi ke-${retryCount} dalam ${Math.round(waitMs / 1000)}s…`);
+          setStatus(`Format keliru — coba lagi ke-${retryCount} dalam ${Math.round(waitMs / 1000)}s…`);
+          await prepareRetry();
+          await delayCancellable(waitMs, () => !isFullAutoRunning);
+          if (!isFullAutoRunning) return;
+          continue;
+        }
         if (retryCount < 1) {
           retryCount++;
           const detail = err instanceof TranslationApplyError

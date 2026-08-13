@@ -144,6 +144,7 @@ export interface AppState {
   agentMemories: AgentMemory[];
   projectLoggingEnabled: boolean;
   aiStreaming: boolean;
+  autoRepeatOnFailure: boolean;
 }
 
 export type WorkspaceTab = 'translate' | 'glossary' | 'aiCheck' | 'delete';
