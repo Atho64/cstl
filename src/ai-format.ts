@@ -18,7 +18,8 @@ export function applyPromptVariables(prompt: string): string {
   if (!prompt) return '';
   return prompt
     .replace(/\{\{sourceLang\}\}/g, state.sourceLang || 'Japanese')
-    .replace(/\{\{targetLang\}\}/g, state.targetLang || 'Indonesian');
+    .replace(/\{\{targetLang\}\}/g, state.targetLang || 'Indonesian')
+    .replace(/\{\{lineCount\}\}/g, String(state._lastExportedLineCount || 0));
 }
 
 export function normalizeAiTranslationFormat(value: string): string {

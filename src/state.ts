@@ -65,6 +65,8 @@ export const state: AppState = {
   aiInstructionHeader: DEFAULT_PROMPT_HEADER,
   aiTranslationFormat: DEFAULT_AI_TRANSLATION_FORMAT,
   aiApiType: 'openai',
+  /** Number of untranslated lines exported by the most recent Copy for AI call. Used to populate {{lineCount}} in prompts. */
+  _lastExportedLineCount: 0,
   aiApiUrl: '',
   aiApiKey: '',
   aiModel: 'gpt-4o-mini',

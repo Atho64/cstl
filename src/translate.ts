@@ -78,6 +78,7 @@ export function buildCopyForAiPrompt(): string | null {
 
   const joinedText = sanitizeTagsForChatgpt(buildSelectedTranslationExport(false));
   const glossaryBlock = getGlossaryPrompt(joinedText);
+  state._lastExportedLineCount = sel.length;
   const baseHeader = applyPromptVariables((state.aiInstructionHeader || DEFAULT_PROMPT_HEADER).trim());
   const sections: string[] = [baseHeader];
   if (glossaryBlock) sections.push(glossaryBlock.trim());

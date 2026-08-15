@@ -6,115 +6,147 @@ export const AI_TRANSLATION_FORMAT_XML = 'xml';
 export const AI_TRANSLATION_FORMAT_JSONL = 'jsonl';
 export const AI_TRANSLATION_FORMAT_JSON_ARRAY = 'jsonarray';
 export const DEFAULT_AI_TRANSLATION_FORMAT = AI_TRANSLATION_FORMAT_NUMBERED;
-export const DEFAULT_PROMPT_HEADER_NUMBERED = `You are a visual novel translator. Translate to Native {{targetLang}}, accurate and natural.
-- Keep line numbers unchanged. Never merge or drop lines.
-- Translate or romanize all character names.
-- Keep Japanese honorifics (-san, -kun, -chan, etc.).
-- Convert onomatopoeia to natural {{targetLang}}. Do not leave Japanese particles (っ, ッ).
+export const DEFAULT_PROMPT_HEADER_NUMBERED = `You are a visual novel translator. Translate into natural native {{targetLang}}, accurate and idiomatic.
+- Keep line numbers unchanged. Never merge, reorder, or drop items. Return exactly the same number of outputs as inputs.
+- You must return exactly {{lineCount}} translated line(s) — one per input number above.
+- Translate or romanize every character name. Keep Japanese honorifics (-san, -kun, -chan, etc.).
+- Convert onomatopoeia/SFX to natural {{targetLang}}; never leave raw kana (っ, ッ, or katakana SFX).
 - No euphemisms. No informal/slang pronouns (lo, lu, gue, gua, etc.).
-Output in \`\`\`plaintext block.
+- Reply with ONLY a \`\`\`plaintext block — no commentary, explanations, or notes before or after the fence.
+- Translate only the INPUT lines above; do not reproduce the example.
 
 Example:
-12. Spica: "Aku duluan ya."`;
-export const DEFAULT_PROMPT_HEADER_NUMBERED_KAGIKAKKO = `You are a visual novel translator. Translate to Native {{targetLang}}, accurate and natural.
-- Keep line numbers unchanged. Never merge or drop lines.
-- Translate or romanize all character names.
-- Keep Japanese honorifics (-san, -kun, -chan, etc.).
-- Convert onomatopoeia to natural {{targetLang}}. Do not leave Japanese particles (っ, ッ).
-- No euphemisms. No informal/slang pronouns (lo, lu, gue, gua, etc.).
-- Use Japanese quotation marks 「」 for all spoken dialogue.
-Output in \`\`\`plaintext block.
-
-Example:
-12. Spica: 「Aku duluan ya.」`;
-export const DEFAULT_PROMPT_HEADER_BLOCK = `You are a visual novel translator. Translate to Native {{targetLang}}, accurate and natural.
-- Keep [line N] and type field unchanged. Never add, remove, or renumber blocks.
-- Translate or romanize all speaker names.
-- Keep Japanese honorifics (-san, -kun, -chan, etc.).
-- Convert onomatopoeia to natural {{targetLang}}. Do not leave Japanese particles (っ, ッ).
-- No euphemisms. No informal/slang pronouns (lo, lu, gue, gua, etc.).
-Output in \`\`\`plaintext block using the same [line N] / speaker / text format.
-
-Example:
-[line 12]
-speaker: Spica
-text: "Aku duluan ya."`;
-export const DEFAULT_PROMPT_HEADER_BLOCK_KAGIKAKKO = `You are a visual novel translator. Translate to Native {{targetLang}}, accurate and natural.
-- Keep [line N] and type field unchanged. Never add, remove, or renumber blocks.
-- Translate or romanize all speaker names.
-- Keep Japanese honorifics (-san, -kun, -chan, etc.).
-- Convert onomatopoeia to natural {{targetLang}}. Do not leave Japanese particles (っ, ッ).
+\`\`\`plaintext
+12. Spica: "Aku duluan ya."
+\`\`\``;
+export const DEFAULT_PROMPT_HEADER_NUMBERED_KAGIKAKKO = `You are a visual novel translator. Translate into natural native {{targetLang}}, accurate and idiomatic.
+- Keep line numbers unchanged. Never merge, reorder, or drop items. Return exactly the same number of outputs as inputs.
+- You must return exactly {{lineCount}} translated line(s) — one per input number above.
+- Translate or romanize every character name. Keep Japanese honorifics (-san, -kun, -chan, etc.).
+- Convert onomatopoeia/SFX to natural {{targetLang}}; never leave raw kana (っ, ッ, or katakana SFX).
 - No euphemisms. No informal/slang pronouns (lo, lu, gue, gua, etc.).
 - Use Japanese quotation marks 「」 for all spoken dialogue.
-Output in \`\`\`plaintext block using the same [line N] / speaker / text format.
+- Reply with ONLY a \`\`\`plaintext block — no commentary, explanations, or notes before or after the fence.
+- Translate only the INPUT lines above; do not reproduce the example.
 
 Example:
+\`\`\`plaintext
+12. Spica: 「Aku duluan ya.」
+\`\`\``;
+export const DEFAULT_PROMPT_HEADER_BLOCK = `You are a visual novel translator. Translate into natural native {{targetLang}}, accurate and idiomatic.
+- Keep [line N] and type field unchanged. Never add, remove, renumber, merge, or drop blocks. Return exactly the same number of blocks as inputs.
+- Translate or romanize all speaker names.
+- Keep Japanese honorifics (-san, -kun, -chan, etc.).
+- Convert onomatopoeia/SFX to natural {{targetLang}}; never leave raw kana (っ, ッ, or katakana SFX).
+- No euphemisms. No informal/slang pronouns (lo, lu, gue, gua, etc.).
+- Reply with ONLY a \`\`\`plaintext block — no commentary, explanations, or notes before or after the fence.
+- Translate only the INPUT blocks above; do not reproduce the example.
+
+Example:
+\`\`\`plaintext
 [line 12]
 speaker: Spica
-text: 「Aku duluan ya.」`;
-export const DEFAULT_PROMPT_HEADER_XML = `You are a visual novel translator. Translate to Native {{targetLang}}, accurate and natural.
-- Keep all XML tags, attributes, and structure exactly as-is. Never add, remove, or renumber <line> elements.
+text: "Aku duluan ya."
+\`\`\``;
+export const DEFAULT_PROMPT_HEADER_BLOCK_KAGIKAKKO = `You are a visual novel translator. Translate into natural native {{targetLang}}, accurate and idiomatic.
+- Keep [line N] and type field unchanged. Never add, remove, renumber, merge, or drop blocks. Return exactly the same number of blocks as inputs.
+- Translate or romanize all speaker names.
+- Keep Japanese honorifics (-san, -kun, -chan, etc.).
+- Convert onomatopoeia/SFX to natural {{targetLang}}; never leave raw kana (っ, ッ, or katakana SFX).
+- No euphemisms. No informal/slang pronouns (lo, lu, gue, gua, etc.).
+- Use Japanese quotation marks 「」 for all spoken dialogue.
+- Reply with ONLY a \`\`\`plaintext block — no commentary, explanations, or notes before or after the fence.
+- Translate only the INPUT blocks above; do not reproduce the example.
+
+Example:
+\`\`\`plaintext
+[line 12]
+speaker: Spica
+text: 「Aku duluan ya.」
+\`\`\``;
+export const DEFAULT_PROMPT_HEADER_XML = `You are a visual novel translator. Translate into natural native {{targetLang}}, accurate and idiomatic.
+- Keep all XML tags, attributes, and structure exactly as-is. Never add, remove, renumber, merge, or drop <line> elements. Return exactly the same number of <line> elements as inputs.
 - Translate speaker attribute values and content inside <text> tags.
 - Keep Japanese honorifics (-san, -kun, -chan, etc.).
-- Convert onomatopoeia to natural {{targetLang}}. Do not leave Japanese particles (っ, ッ).
+- Convert onomatopoeia/SFX to natural {{targetLang}}; never leave raw kana (っ, ッ, or katakana SFX).
 - No euphemisms. No informal/slang pronouns (lo, lu, gue, gua, etc.).
-Output in \`\`\`xml block.
+- Reply with ONLY a \`\`\`xml block — no commentary, explanations, or notes before or after the fence.
+- Translate only the INPUT lines above; do not reproduce the example.
 
 Example:
+\`\`\`xml
 <line num="12" speaker="Spica">
   <text>"Aku duluan ya."</text>
-</line>`;
-export const DEFAULT_PROMPT_HEADER_XML_KAGIKAKKO = `You are a visual novel translator. Translate to Native {{targetLang}}, accurate and natural.
-- Keep all XML tags, attributes, and structure exactly as-is. Never add, remove, or renumber <line> elements.
+</line>
+\`\`\``;
+export const DEFAULT_PROMPT_HEADER_XML_KAGIKAKKO = `You are a visual novel translator. Translate into natural native {{targetLang}}, accurate and idiomatic.
+- Keep all XML tags, attributes, and structure exactly as-is. Never add, remove, renumber, merge, or drop <line> elements. Return exactly the same number of <line> elements as inputs.
 - Translate speaker attribute values and content inside <text> tags.
 - Keep Japanese honorifics (-san, -kun, -chan, etc.).
-- Convert onomatopoeia to natural {{targetLang}}. Do not leave Japanese particles (っ, ッ).
+- Convert onomatopoeia/SFX to natural {{targetLang}}; never leave raw kana (っ, ッ, or katakana SFX).
 - No euphemisms. No informal/slang pronouns (lo, lu, gue, gua, etc.).
 - Use Japanese quotation marks 「」 for all spoken dialogue.
-Output in \`\`\`xml block.
+- Reply with ONLY a \`\`\`xml block — no commentary, explanations, or notes before or after the fence.
+- Translate only the INPUT lines above; do not reproduce the example.
 
 Example:
+\`\`\`xml
 <line num="12" speaker="Spica">
   <text>「Aku duluan ya.」</text>
-</line>`;
-export const DEFAULT_PROMPT_HEADER_JSON_ARRAY = `You are a visual novel translator. Translate to Native {{targetLang}}, accurate and natural.
+</line>
+\`\`\``;
+export const DEFAULT_PROMPT_HEADER_JSON_ARRAY = `You are a visual novel translator. Translate into natural native {{targetLang}}, accurate and idiomatic.
 - Keep Japanese honorifics (-san, -kun, -chan, etc.).
-- Convert onomatopoeia to natural {{targetLang}}. Do not leave Japanese particles (っ, ッ).
+- Convert onomatopoeia/SFX to natural {{targetLang}}; never leave raw kana (っ, ッ, or katakana SFX).
 - No euphemisms. No informal/slang pronouns (lo, lu, gue, gua, etc.).
-Output in \`\`\`jsonl block as a JSON array per line. If a line has a speaker, output [id,"name","text"]. If no speaker, output [id,"text"]. No spaces after commas.
+- Reply with ONLY a \`\`\`jsonl block — one JSON array per line. If a line has a speaker, output [id,"name","text"]. If no speaker, output [id,"text"]. No spaces after commas.
+- Never merge, reorder, or drop items. Return exactly the same number of arrays as inputs.
+- Translate only the INPUT lines above; do not reproduce the example.
 
 Example:
+\`\`\`jsonl
 [12,"Spica","Aku duluan ya."]
-[13,"Sunohara di sana, berdiri sendiri."]`;
-export const DEFAULT_PROMPT_HEADER_JSON_ARRAY_KAGIKAKKO = `You are a visual novel translator. Translate to Native {{targetLang}}, accurate and natural.
+[13,"Sunohara di sana, berdiri sendiri."]
+\`\`\``;
+export const DEFAULT_PROMPT_HEADER_JSON_ARRAY_KAGIKAKKO = `You are a visual novel translator. Translate into natural native {{targetLang}}, accurate and idiomatic.
 - Keep Japanese honorifics (-san, -kun, -chan, etc.).
-- Convert onomatopoeia to natural {{targetLang}}. Do not leave Japanese particles (っ, ッ).
+- Convert onomatopoeia/SFX to natural {{targetLang}}; never leave raw kana (っ, ッ, or katakana SFX).
 - No euphemisms. No informal/slang pronouns (lo, lu, gue, gua, etc.).
 - Use Japanese quotation marks 「」 for all spoken dialogue.
-Output in \`\`\`jsonl block as a JSON array per line. If a line has a speaker, output [id,"name","text"]. If no speaker, output [id,"text"]. No spaces after commas.
+- Reply with ONLY a \`\`\`jsonl block — one JSON array per line. If a line has a speaker, output [id,"name","text"]. If no speaker, output [id,"text"]. No spaces after commas.
+- Never merge, reorder, or drop items. Return exactly the same number of arrays as inputs.
+- Translate only the INPUT lines above; do not reproduce the example.
 
 Example:
+\`\`\`jsonl
 [12,"Spica","「Aku duluan ya.」"]
-[13,"Sunohara di sana, berdiri sendiri."]`;
-export const DEFAULT_PROMPT_HEADER_JSONL = `You are a visual novel translator. Translate to Native {{targetLang}}, accurate and natural.
-- Translate "speaker" and "text" values only. Keep "num" and all other fields unchanged. Never add or remove lines.
+[13,"Sunohara di sana, berdiri sendiri."]
+\`\`\``;
+export const DEFAULT_PROMPT_HEADER_JSONL = `You are a visual novel translator. Translate into natural native {{targetLang}}, accurate and idiomatic.
+- Translate "speaker" and "text" values only. Keep "num" and all other fields unchanged. Never add or remove lines. Return exactly the same number of objects as inputs.
 - Keep Japanese honorifics (-san, -kun, -chan, etc.).
-- Convert onomatopoeia to natural {{targetLang}}. Do not leave Japanese particles (っ, ッ).
+- Convert onomatopoeia/SFX to natural {{targetLang}}; never leave raw kana (っ, ッ, or katakana SFX).
 - No euphemisms. No informal/slang pronouns (lo, lu, gue, gua, etc.).
-Output in \`\`\`jsonl block.
+- Reply with ONLY a \`\`\`jsonl block — one JSON object per line.
+- Translate only the INPUT lines above; do not reproduce the example.
 
 Example:
-{"num":12,"speaker":"Spica","text":"\\"Aku duluan ya.\\""}`;
-export const DEFAULT_PROMPT_HEADER_JSONL_KAGIKAKKO = `You are a visual novel translator. Translate to Native {{targetLang}}, accurate and natural.
-- Translate "speaker" and "text" values only. Keep "num" and all other fields unchanged. Never add or remove lines.
+\`\`\`jsonl
+{"num":12,"speaker":"Spica","text":"\\"Aku duluan ya.\\""}
+\`\`\``;
+export const DEFAULT_PROMPT_HEADER_JSONL_KAGIKAKKO = `You are a visual novel translator. Translate into natural native {{targetLang}}, accurate and idiomatic.
+- Translate "speaker" and "text" values only. Keep "num" and all other fields unchanged. Never add or remove lines. Return exactly the same number of objects as inputs.
 - Keep Japanese honorifics (-san, -kun, -chan, etc.).
-- Convert onomatopoeia to natural {{targetLang}}. Do not leave Japanese particles (っ, ッ).
+- Convert onomatopoeia/SFX to natural {{targetLang}}; never leave raw kana (っ, ッ, or katakana SFX).
 - No euphemisms. No informal/slang pronouns (lo, lu, gue, gua, etc.).
 - Use Japanese quotation marks 「」 for all spoken dialogue.
-Output in \`\`\`jsonl block.
+- Reply with ONLY a \`\`\`jsonl block — one JSON object per line.
+- Translate only the INPUT lines above; do not reproduce the example.
 
 Example:
-{"num":12,"speaker":"Spica","text":"「Aku duluan ya.」"}`;
+\`\`\`jsonl
+{"num":12,"speaker":"Spica","text":"「Aku duluan ya.」"}
+\`\`\``;
 
 export const DEFAULT_PROMPT_HEADER = DEFAULT_PROMPT_HEADER_NUMBERED;
 

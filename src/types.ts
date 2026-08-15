@@ -101,6 +101,8 @@ export interface AppState {
   aiInstructionHeader: string;
   aiTranslationFormat: string;
   aiApiType: 'openai' | 'gemini' | 'anthropic';
+  /** Number of untranslated lines exported by the most recent Copy for AI call. Used to populate {{lineCount}} in prompts. */
+  _lastExportedLineCount: number;
   aiApiUrl: string;
   aiApiKey: string;
   aiModel: string;
