@@ -351,7 +351,7 @@ export function bindEvents(): void {
   ui.tabDelete?.addEventListener('click', () => switchWorkspaceTab('delete'));
 
   ui.btnCopyForAiCheck?.addEventListener('click', onCopyForAiCheck);
-  ui.btnParseAiCheck?.addEventListener('click', onParseAiCheck);
+  ui.btnParseAiCheck?.addEventListener('click', () => onParseAiCheck());
   ui.btnApplyAiCheck?.addEventListener('click', onApplyAiCheckCorrections);
   ui.btnClearAiCheck?.addEventListener('click', onClearAiCheck);
   ui.pasteAiCheckArea?.addEventListener('input', updateButtonStates);
