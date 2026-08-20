@@ -146,12 +146,16 @@ export async function handleImportLogic(filesObj: FileList | File[] | File, isZi
           skippedFiles.push(baseName);
           continue;
         }
-        const jsonContent = JSON.parse(decodeArrayBuffer(await zip.file(n).async('uint8array')));
-        const p = parseJsonEntries(jsonContent, baseName, cur);
-        if (p.length) {
-          existingFiles.add(baseName);
-          for (let i = 0; i < p.length; i++) lines.push(p[i]);
-          cur += p.length;
+        try {
+          const jsonContent = JSON.parse(decodeArrayBuffer(await zip.file(n).async('uint8array')));
+          const p = parseJsonEntries(jsonContent, baseName, cur);
+          if (p.length) {
+            existingFiles.add(baseName);
+            for (let i = 0; i < p.length; i++) lines.push(p[i]);
+            cur += p.length;
+          }
+        } catch (err) {
+          console.warn(`[Import ZIP] Gagal mem-parse file JSON: ${n}`, err);
         }
         await new Promise(r => setTimeout(r, 0));
       }

@@ -5,6 +5,7 @@ import { parseJsonFromFileObject, parseJsonEntries } from './luca-engine';
 import { switchWorkspaceTab } from './selection';
 import { refreshAll, flashHint } from './render';
 import { queueAutoSave } from './project';
+import { applyProjectLoggingVisibility } from './logging';
 
 const REFLANG_1 = 'ref_lang_1';
 const REFLANG_2 = 'ref_lang_2';
@@ -27,6 +28,13 @@ export function applyHtlMode(): void {
     el.hidden = !htl;
     el.style.display = htl ? 'block' : 'none';
   }
+
+  if (htl) {
+    if (ui.aiAgentChatPanel) ui.aiAgentChatPanel.style.display = 'none';
+    if (ui.loggingPanel) ui.loggingPanel.style.display = 'none';
+  }
+
+  applyProjectLoggingVisibility();
 
   if (htl && (state.activeWorkspaceTab === 'glossary' || state.activeWorkspaceTab === 'aiCheck')) {
     switchWorkspaceTab('translate');
