@@ -11,6 +11,7 @@ import { unescapeStoredNewlines, escapeStoredNewlines, stringSimilarity, applyRe
 import { rebuildDisplayState, renderPreviewRows, syncCheckboxUI, flashHint, updateButtonStates, pushUndoSnapshot, refreshAll } from './render';
 import { queueAutoSave } from './project';
 import { getGlossaryMatches, getGlossaryPrompt, sanitizeTagsForChatgpt } from './glossary';
+import { DEFAULT_SUMMARY_PROMPT, DEFAULT_SUMMARY_PROMPT_SAFE_TAGS } from './constants';
 
 function snapshotLine(l: any): any {
   return {
@@ -21,6 +22,7 @@ function snapshotLine(l: any): any {
     trans_name: l.trans_name,
     trans_message: l.trans_message,
     is_translated: l.is_translated,
+    bookmarked: l.bookmarked,
     _hidden: l._hidden,
     _glossary_extracted: l._glossary_extracted,
     _ai_checked: l._ai_checked,
@@ -35,7 +37,7 @@ function snapshotLine(l: any): any {
 }
 
 function restoreLineSnapshot(l: any, saved: any): void {
-  for (const key of ['file', 'name', 'message', 'trans_name', 'trans_message', 'is_translated', '_hidden', '_glossary_extracted', '_ai_checked', '_ai_confirmed', 'luca_command', 'luca_pre', 'luca_post', 'luca_text_prefix', 'epub_selector', 'epub_id']) {
+  for (const key of ['file', 'name', 'message', 'trans_name', 'trans_message', 'is_translated', 'bookmarked', '_hidden', '_glossary_extracted', '_ai_checked', '_ai_confirmed', 'luca_command', 'luca_pre', 'luca_post', 'luca_text_prefix', 'epub_selector', 'epub_id']) {
     if (Object.prototype.hasOwnProperty.call(saved, key)) l[key] = saved[key];
   }
 }
@@ -85,18 +87,16 @@ export function buildCopyForAiPrompt(): string | null {
   if (contextBlock) sections.push(contextBlock.trim());
   if (state.enableBackgroundChaining) {
     if (state.currentBackground) {
-      // Follows the Safe Tags setting: <background> when off, === BACKGROUND === when on.
-      sections.push(sanitizeTagsForChatgpt(`<background>\n${state.currentBackground.trim()}\n</background>`));
+      // Follows the Safe Tags setting: <summary> when off, === SUMMARY === when on.
+      sections.push(sanitizeTagsForChatgpt(`<summary>\n${state.currentBackground.trim()}\n</summary>`));
     }
-    // Inject instruksi estafet; format marker ikut setting Safe Tags.
-    const bgInstruction = state.safeTagsForChatgpt
-      ? 'If the === BACKGROUND === section is provided above, absorb the history translations and plot to ensure semantic accuracy.\n' +
-        'After translation, generate a short context background summary (in {{targetLang}}) that focuses on translation-relevant points (scene, events, current topic) to help make the next batches more accurate. Keep it empty if there is nothing meaningful.\n' +
-        'Your background output must start with a line "=== BACKGROUND ===" at the very end of your response, INSIDE the plaintext block. No closing tag needed.'
-      : 'If the <background> section is provided above, absorb the history translations and plot to ensure semantic accuracy.\n' +
-        'After translation, generate a short context background summary (in {{targetLang}}) that focuses on translation-relevant points (scene, events, current topic) to help make the next batches more accurate. Keep it empty if there is nothing meaningful.\n' +
-        'Your background output should be enclosed in a label pair (<background>...</background>) at the very end of your response, INSIDE the plaintext block.';
-    sections.push(applyPromptVariables(bgInstruction));
+    // Inject summary prompt instruction (customizable by user)
+    const customPrompt = (state.summaryPrompt || '').trim();
+    let promptText = customPrompt;
+    if (!promptText) {
+      promptText = state.safeTagsForChatgpt ? DEFAULT_SUMMARY_PROMPT_SAFE_TAGS : DEFAULT_SUMMARY_PROMPT;
+    }
+    sections.push(applyPromptVariables(promptText));
   }
   if (state.enableUncertainMarking) {
     sections.push('If you are uncertain about a translation, prefix it with [?].');
@@ -137,6 +137,106 @@ type ApplyTranslationOptions = {
   selectedLineNums?: ReadonlySet<number>;
 };
 
+export function extractSummaryAndPayload(rawText: string): { cleanText: string; summary: string } {
+  let text = rawText.trim();
+  let summary = '';
+
+  // 1. Explicit tags: <summary>...</summary>, <background>...</background>, === SUMMARY ===, === BACKGROUND ===
+  const sumSafeIdx = text.search(/^=== SUMMARY ===\s*$/im);
+  const bgSafeIdx = text.search(/^=== BACKGROUND ===\s*$/im);
+
+  if (sumSafeIdx >= 0) {
+    summary = text.slice(sumSafeIdx + '=== SUMMARY ==='.length).trim();
+    text = text.slice(0, sumSafeIdx).trim();
+  } else if (bgSafeIdx >= 0) {
+    summary = text.slice(bgSafeIdx + '=== BACKGROUND ==='.length).trim();
+    text = text.slice(0, bgSafeIdx).trim();
+  } else {
+    const sumMatch = text.match(/<summary>([\s\S]*?)<\/summary>/i);
+    const bgMatch = text.match(/<background>([\s\S]*?)<\/background>/i);
+    if (sumMatch) {
+      summary = sumMatch[1].trim();
+      text = text.replace(/<summary>[\s\S]*?<\/summary>/i, '').trim();
+    } else if (bgMatch) {
+      summary = bgMatch[1].trim();
+      text = text.replace(/<background>[\s\S]*?<\/background>/i, '').trim();
+    }
+  }
+
+  // If explicit summary was found, clean up fences and return
+  if (summary) {
+    summary = summary
+      .replace(/^```[^\n]*\n?/i, '')
+      .replace(/\n?```\s*$/i, '')
+      .trim();
+    return { cleanText: text, summary };
+  }
+
+  // 2. Untagged summary extraction: identify non-payload text before or after translation items
+  const lines = text.split(/\r?\n/);
+  const isPayloadLine = (line: string): boolean => {
+    const t = line.trim();
+    if (!t) return false;
+    // Numbered: 1. Text or 1) Text
+    if (/^\d+\s*[.)]\s*.+/.test(t)) return true;
+    // Blocks: [line 1]
+    if (/^\[line\s+\d+\]/i.test(t)) return true;
+    // JSON Array: [1, "name", "text"] or [1, "text"]
+    if (/^\[\s*\d+\s*,/.test(t)) return true;
+    // JSONL: {"num": 1, ...}
+    if (/^\{\s*["']num["']\s*:\s*\d+/i.test(t)) return true;
+    // XML: <line num="1" ...
+    if (/^<line\s+num=/i.test(t) || /^<\/?lines>/i.test(t)) return true;
+    return false;
+  };
+
+  let firstPayloadIdx = -1;
+  let lastPayloadIdx = -1;
+
+  for (let i = 0; i < lines.length; i++) {
+    if (isPayloadLine(lines[i])) {
+      if (firstPayloadIdx === -1) firstPayloadIdx = i;
+      lastPayloadIdx = i;
+    }
+  }
+
+  if (firstPayloadIdx !== -1 && lastPayloadIdx >= firstPayloadIdx) {
+    // Collect non-payload lines before the first translation line
+    const topLines = lines.slice(0, firstPayloadIdx)
+      .map(l => l.trim())
+      .filter(l => l && !/^```(?:plaintext|text|json|jsonl|xml)?\s*$/i.test(l));
+
+    // Collect non-payload lines after the last translation line
+    const bottomLines = lines.slice(lastPayloadIdx + 1)
+      .map(l => l.trim())
+      .filter(l => l && !/^```\s*$/i.test(l));
+
+    const topText = topLines.join('\n').trim();
+    const bottomText = bottomLines.join('\n').trim();
+
+    if (bottomText) {
+      summary = bottomText;
+    } else if (topText) {
+      // Avoid taking generic conversational greetings as summary
+      const isGenericIntro = /^(?:here\s+(?:is|are)\s+the\s+translations?|berikut\s+(?:adalah\s+)?(?:hasil\s+)?terjemahan(?:nya)?|tentu,?\s+ini\s+hasil\s+terjemahan(?:nya)?|sure,?\s+here\s+(?:is|are)\s+the\s+translations?|translating\s+into\s+\w+|hasil\s+terjemahan:?)\s*[:.]?$/i.test(topText);
+      if (!isGenericIntro) {
+        summary = topText;
+      }
+    }
+
+    text = lines.slice(firstPayloadIdx, lastPayloadIdx + 1).join('\n').trim();
+  }
+
+  if (summary) {
+    summary = summary
+      .replace(/^```[^\n]*\n?/i, '')
+      .replace(/\n?```\s*$/i, '')
+      .trim();
+  }
+
+  return { cleanText: text, summary };
+}
+
 export function onApplyTranslation(options: ApplyTranslationOptions = {}): void {
   const { suppressAlerts = false, selectedLineNums } = options;
   const fail = (message: string, details: string[] = []): never => {
@@ -152,37 +252,16 @@ export function onApplyTranslation(options: ApplyTranslationOptions = {}): void 
   let rawText = (ui.pasteArea as HTMLTextAreaElement).value.trim();
   if (!rawText) fail('Teks di kotak kosong atau tidak valid.');
 
-  if (state.enableBackgroundChaining) {
-    // Background summary may use either marker format depending on the Safe Tags
-    // setting: "=== BACKGROUND ===" (no closing tag) when on, or <background>...</background> when off.
-    let bgIdx = rawText.search(/^=== BACKGROUND ===\s*$/im);
-    let summary = '';
-    if (bgIdx >= 0) {
-      summary = rawText.slice(bgIdx + '=== BACKGROUND ==='.length).trim();
-      rawText = rawText.slice(0, bgIdx).trim();
-    } else {
-      const bgMatch = rawText.match(/<background>([\s\S]*?)<\/background>/i);
-      if (bgMatch) {
-        summary = bgMatch[1].trim();
-        rawText = rawText.replace(/<background>[\s\S]*?<\/background>/i, '').trim();
-      }
+  const { cleanText, summary } = extractSummaryAndPayload(rawText);
+  rawText = cleanText;
+
+  if (state.enableBackgroundChaining && summary) {
+    state.currentBackground = summary;
+    flashHint('Ringkasan cerita diperbarui!');
+    if (ui.settingsBackgroundInput) {
+      (ui.settingsBackgroundInput as HTMLTextAreaElement).value = state.currentBackground;
     }
-    if (summary) {
-      // Drop a stray ```plaintext / ``` fence left at the end when the user pasted
-      // the full ChatGPT response (wrapped in a code block). Strip fence lines only.
-      summary = summary
-        .replace(/^```[^\n]*\n?/i, '')
-        .replace(/\n?```\s*$/i, '')
-        .trim();
-      if (summary) {
-        state.currentBackground = summary;
-        flashHint('Memori latar belakang diperbarui!');
-        if (ui.settingsBackgroundInput) {
-          (ui.settingsBackgroundInput as HTMLTextAreaElement).value = state.currentBackground;
-        }
-        queueAutoSave();
-      }
-    }
+    queueAutoSave();
   }
 
   const pasteFormat = detectTranslationPasteFormat(rawText);

@@ -10,6 +10,7 @@ import {
   DEFAULT_SELECTION_BATCH_PREV_SHORTCUT, DEFAULT_SELECTION_BATCH_NEXT_SHORTCUT,
   DEFAULT_LUCA_MC_DISPLAY_NAME,
   DEFAULT_AGENT_PROMPT,
+  DEFAULT_SUMMARY_PROMPT,
 } from './constants';
 import { getDefaultPromptHeaderForFormat, normalizeAiTranslationFormat } from './ai-format';
 import { normalizeSelectionBatchSize } from './selection';
@@ -123,6 +124,11 @@ export function onOpenSettings(): void {
 export function onOpenPromptsSettings(): void {
   (ui.settingsEnableBackgroundChaining as HTMLInputElement).checked = state.enableBackgroundChaining;
   (ui.settingsBackgroundInput as HTMLTextAreaElement).value = state.currentBackground;
+  if (ui.settingsSummaryPromptInput) {
+    (ui.settingsSummaryPromptInput as HTMLTextAreaElement).value = state.summaryPrompt !== undefined && state.summaryPrompt !== ''
+      ? state.summaryPrompt
+      : DEFAULT_SUMMARY_PROMPT;
+  }
 
   if (state.projectName) {
     (ui.settingsPromptInput as HTMLTextAreaElement).value = state.aiInstructionHeader;
@@ -249,6 +255,7 @@ export function onSavePromptsSettings(): void {
   const epubTags = (ui.settingsEpubTagsInput as HTMLInputElement)?.value.trim() || 'p';
   const enableBackgroundChaining = (ui.settingsEnableBackgroundChaining as HTMLInputElement).checked;
   const currentBackground = (ui.settingsBackgroundInput as HTMLTextAreaElement).value.trim();
+  const summaryPrompt = (ui.settingsSummaryPromptInput as HTMLTextAreaElement)?.value.trim() || '';
   
   state.aiInstructionHeader = aiInstructionHeader;
   state.glossaryPrompt = glossaryPrompt;
@@ -257,6 +264,7 @@ export function onSavePromptsSettings(): void {
   state.epubTags = epubTags;
   state.enableBackgroundChaining = enableBackgroundChaining;
   state.currentBackground = currentBackground;
+  state.summaryPrompt = summaryPrompt;
   
   if (ui.settingsPromptsModal) closeModal(ui.settingsPromptsModal as HTMLElement);
   queueAutoSave();

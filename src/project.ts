@@ -4,7 +4,7 @@ import { state, ui, setSaveTimeout, getSaveTimeout, getOpfsRoot } from './state'
 import {
   APP_VERSION, PROJECT_EXT,
   DEFAULT_PROMPT_HEADER, DEFAULT_GLOSSARY_PROMPT, DEFAULT_AI_CHECK_PROMPT,
-  DEFAULT_AGENT_PROMPT,
+  DEFAULT_AGENT_PROMPT, DEFAULT_SUMMARY_PROMPT,
   DEFAULT_LUCA_MC_DISPLAY_NAME,
   DEFAULT_AI_TRANSLATION_FORMAT,
   DEFAULT_SELECTION_BATCH_SIZE, DEFAULT_GLOSSARY_BATCH_SIZE, DEFAULT_AI_CHECK_BATCH_SIZE,
@@ -162,44 +162,132 @@ export function getDefaultSettings(): Record<string, any> {
     translationMode: 'ai',
     aiFormat: DEFAULT_AI_TRANSLATION_FORMAT,
     contextLines: 10,
+    contextType: 'raw',
     selectionBatch: DEFAULT_SELECTION_BATCH_SIZE,
     glossaryBatch: DEFAULT_GLOSSARY_BATCH_SIZE,
     aiCheckBatch: DEFAULT_AI_CHECK_BATCH_SIZE,
+    parallelBatchSize: 1,
+    subagentWorkers: 3,
     regexFilter: '',
     palette: 'indigo',
     enableLogging: false,
+    disableEmptyLineValidation: false,
+    showFurigana: false,
+    furiganaType: 'hiragana',
+    fontSize: 14,
+    enableDictionary: false,
+    dictionaryEngine: 'llm',
+    dictionaryPrompt: 'Jelaskan arti kata "{word}" dalam konteks kalimat "{context}". Berikan bentuk dasar, cara baca (hiragana/romaji), kelas kata, dan terjemahan/penjelasan singkat dalam bahasa Indonesia.',
+    checkKanaResidue: false,
+    checkSimilarity: false,
+    similarityThreshold: 70,
+    checkLengthRatio: false,
+    lengthRatioThreshold: 2.5,
+    checkLinebreak: true,
+    checkLanguage: true,
+    checkPunctuation: true,
+    checkUntransName: false,
+    enableUncertainMarking: false,
+    safeTagsForChatgpt: false,
+    agentMaxTurns: 10,
+    enableBackgroundChaining: false,
+    epubTags: 'p',
+    selectionPrevShortcut: DEFAULT_SELECTION_BATCH_PREV_SHORTCUT,
+    selectionNextShortcut: DEFAULT_SELECTION_BATCH_NEXT_SHORTCUT,
   };
 }
 
 export function openDashboardSettings(): void {
   const d = getDefaultSettings();
-  (ui.dsSourceLang as HTMLSelectElement).value = d.sourceLang;
-  (ui.dsTargetLang as HTMLSelectElement).value = d.targetLang;
+  if (ui.dsSourceLang) (ui.dsSourceLang as HTMLSelectElement).value = d.sourceLang || 'Japanese';
+  if (ui.dsTargetLang) (ui.dsTargetLang as HTMLSelectElement).value = d.targetLang || 'Indonesian';
   if (ui.dsTranslationMode) (ui.dsTranslationMode as HTMLSelectElement).value = d.translationMode || 'ai';
-  (ui.dsAiFormat as HTMLSelectElement).value = d.aiFormat;
-  (ui.dsContextLines as HTMLInputElement).value = d.contextLines;
-  (ui.dsSelectionBatch as HTMLInputElement).value = d.selectionBatch;
-  (ui.dsGlossaryBatch as HTMLInputElement).value = d.glossaryBatch;
-  (ui.dsAiCheckBatch as HTMLInputElement).value = d.aiCheckBatch;
-  (ui.dsRegexFilter as HTMLInputElement).value = d.regexFilter || '';
+  if (ui.dsAiFormat) (ui.dsAiFormat as HTMLSelectElement).value = d.aiFormat || DEFAULT_AI_TRANSLATION_FORMAT;
+  if (ui.dsContextLines) (ui.dsContextLines as HTMLInputElement).value = String(d.contextLines !== undefined ? d.contextLines : 10);
+  if (ui.dsContextType) (ui.dsContextType as HTMLSelectElement).value = d.contextType || 'raw';
+  if (ui.dsSelectionBatch) (ui.dsSelectionBatch as HTMLInputElement).value = String(d.selectionBatch || DEFAULT_SELECTION_BATCH_SIZE);
+  if (ui.dsGlossaryBatch) (ui.dsGlossaryBatch as HTMLInputElement).value = String(d.glossaryBatch || DEFAULT_GLOSSARY_BATCH_SIZE);
+  if (ui.dsAiCheckBatch) (ui.dsAiCheckBatch as HTMLInputElement).value = String(d.aiCheckBatch || DEFAULT_AI_CHECK_BATCH_SIZE);
+  if (ui.dsParallelBatch) (ui.dsParallelBatch as HTMLInputElement).value = String(d.parallelBatchSize || 1);
+  if (ui.dsSubagentWorkers) (ui.dsSubagentWorkers as HTMLInputElement).value = String(d.subagentWorkers || 3);
+  if (ui.dsShowFurigana) (ui.dsShowFurigana as HTMLInputElement).checked = !!d.showFurigana;
+  if (ui.dsFuriganaType) (ui.dsFuriganaType as HTMLSelectElement).value = d.furiganaType || 'hiragana';
+  if (ui.dsFontSize) (ui.dsFontSize as HTMLInputElement).value = String(d.fontSize || 14);
+  if (ui.dsEnableDictionary) (ui.dsEnableDictionary as HTMLInputElement).checked = !!d.enableDictionary;
+  if (ui.dsDictionaryEngine) (ui.dsDictionaryEngine as HTMLSelectElement).value = d.dictionaryEngine || 'llm';
+  if (ui.dsDictionaryPrompt) (ui.dsDictionaryPrompt as HTMLTextAreaElement).value = d.dictionaryPrompt || 'Jelaskan arti kata "{word}" dalam konteks kalimat "{context}". Berikan bentuk dasar, cara baca (hiragana/romaji), kelas kata, dan terjemahan/penjelasan singkat dalam bahasa Indonesia.';
+  if (ui.dsRegexFilter) (ui.dsRegexFilter as HTMLInputElement).value = d.regexFilter || '';
+  if (ui.dsDisableEmptyLineValidation) (ui.dsDisableEmptyLineValidation as HTMLInputElement).checked = !!d.disableEmptyLineValidation;
+  if (ui.dsCheckKanaResidue) (ui.dsCheckKanaResidue as HTMLInputElement).checked = !!d.checkKanaResidue;
+  if (ui.dsCheckSimilarity) (ui.dsCheckSimilarity as HTMLInputElement).checked = !!d.checkSimilarity;
+  if (ui.dsSimilarityThreshold) (ui.dsSimilarityThreshold as HTMLInputElement).value = String(d.similarityThreshold !== undefined ? d.similarityThreshold : 70);
+  if (ui.dsCheckLengthRatio) (ui.dsCheckLengthRatio as HTMLInputElement).checked = !!d.checkLengthRatio;
+  if (ui.dsLengthRatioThreshold) (ui.dsLengthRatioThreshold as HTMLInputElement).value = String(d.lengthRatioThreshold !== undefined ? d.lengthRatioThreshold : 2.5);
+  if (ui.dsCheckLinebreak) (ui.dsCheckLinebreak as HTMLInputElement).checked = d.checkLinebreak !== undefined ? !!d.checkLinebreak : true;
+  if (ui.dsCheckLanguage) (ui.dsCheckLanguage as HTMLInputElement).checked = d.checkLanguage !== undefined ? !!d.checkLanguage : true;
+  if (ui.dsCheckPunctuation) (ui.dsCheckPunctuation as HTMLInputElement).checked = d.checkPunctuation !== undefined ? !!d.checkPunctuation : true;
+  if (ui.dsCheckUntransName) (ui.dsCheckUntransName as HTMLInputElement).checked = !!d.checkUntransName;
+  if (ui.dsEnableBackgroundChaining) (ui.dsEnableBackgroundChaining as HTMLInputElement).checked = !!d.enableBackgroundChaining;
+  if (ui.dsEnableUncertainMarking) (ui.dsEnableUncertainMarking as HTMLInputElement).checked = !!d.enableUncertainMarking;
+  if (ui.dsSafeTagsForChatgpt) (ui.dsSafeTagsForChatgpt as HTMLInputElement).checked = !!d.safeTagsForChatgpt;
+  if (ui.dsAgentMaxTurns) (ui.dsAgentMaxTurns as HTMLInputElement).value = String(d.agentMaxTurns || 10);
+  if (ui.dsEpubTags) (ui.dsEpubTags as HTMLInputElement).value = d.epubTags || 'p';
+  if (ui.dsSelectionPrevShortcut) (ui.dsSelectionPrevShortcut as HTMLInputElement).value = d.selectionPrevShortcut || DEFAULT_SELECTION_BATCH_PREV_SHORTCUT;
+  if (ui.dsSelectionNextShortcut) (ui.dsSelectionNextShortcut as HTMLInputElement).value = d.selectionNextShortcut || DEFAULT_SELECTION_BATCH_NEXT_SHORTCUT;
   if (ui.dsEnableLogging) (ui.dsEnableLogging as HTMLInputElement).checked = !!d.enableLogging;
   if (ui.paletteSelect) (ui.paletteSelect as HTMLSelectElement).value = d.palette || 'indigo';
+
+  // Sync conditional wrap displays
+  if (ui.dsSimilarityThresholdWrap) {
+    (ui.dsSimilarityThresholdWrap as HTMLElement).style.display = (ui.dsCheckSimilarity as HTMLInputElement)?.checked ? 'flex' : 'none';
+  }
+  if (ui.dsLengthRatioWrap) {
+    (ui.dsLengthRatioWrap as HTMLElement).style.display = (ui.dsCheckLengthRatio as HTMLInputElement)?.checked ? 'flex' : 'none';
+  }
+
   (ui.dashboardSettingsModal as HTMLElement).classList.add('open');
 }
 
 export function saveDashboardSettings(): void {
   const d = getDefaultSettings();
-  d.sourceLang = (ui.dsSourceLang as HTMLSelectElement).value;
-  d.targetLang = (ui.dsTargetLang as HTMLSelectElement).value;
-  d.translationMode = (ui.dsTranslationMode as HTMLSelectElement)?.value === 'htl' ? 'htl' : 'ai';
-  d.aiFormat = (ui.dsAiFormat as HTMLSelectElement).value;
-  d.contextLines = parseInt((ui.dsContextLines as HTMLInputElement).value) || 10;
-  d.selectionBatch = parseInt((ui.dsSelectionBatch as HTMLInputElement).value) || DEFAULT_SELECTION_BATCH_SIZE;
-  d.glossaryBatch = parseInt((ui.dsGlossaryBatch as HTMLInputElement).value) || DEFAULT_GLOSSARY_BATCH_SIZE;
-  d.aiCheckBatch = parseInt((ui.dsAiCheckBatch as HTMLInputElement).value) || DEFAULT_AI_CHECK_BATCH_SIZE;
-  d.regexFilter = (ui.dsRegexFilter as HTMLInputElement).value || '';
-  d.enableLogging = !!(ui.dsEnableLogging as HTMLInputElement | undefined)?.checked;
-  d.palette = (ui.paletteSelect as HTMLSelectElement)?.value || 'indigo';
+  if (ui.dsSourceLang) d.sourceLang = (ui.dsSourceLang as HTMLSelectElement).value;
+  if (ui.dsTargetLang) d.targetLang = (ui.dsTargetLang as HTMLSelectElement).value;
+  if (ui.dsTranslationMode) d.translationMode = (ui.dsTranslationMode as HTMLSelectElement)?.value === 'htl' ? 'htl' : 'ai';
+  if (ui.dsAiFormat) d.aiFormat = (ui.dsAiFormat as HTMLSelectElement).value;
+  if (ui.dsContextLines) d.contextLines = parseInt((ui.dsContextLines as HTMLInputElement).value) || 10;
+  if (ui.dsContextType) d.contextType = (ui.dsContextType as HTMLSelectElement).value || 'raw';
+  if (ui.dsSelectionBatch) d.selectionBatch = parseInt((ui.dsSelectionBatch as HTMLInputElement).value) || DEFAULT_SELECTION_BATCH_SIZE;
+  if (ui.dsGlossaryBatch) d.glossaryBatch = parseInt((ui.dsGlossaryBatch as HTMLInputElement).value) || DEFAULT_GLOSSARY_BATCH_SIZE;
+  if (ui.dsAiCheckBatch) d.aiCheckBatch = parseInt((ui.dsAiCheckBatch as HTMLInputElement).value) || DEFAULT_AI_CHECK_BATCH_SIZE;
+  if (ui.dsParallelBatch) d.parallelBatchSize = Math.max(1, Math.min(10, parseInt((ui.dsParallelBatch as HTMLInputElement).value) || 1));
+  if (ui.dsSubagentWorkers) d.subagentWorkers = Math.max(1, Math.min(10, parseInt((ui.dsSubagentWorkers as HTMLInputElement).value) || 3));
+  if (ui.dsShowFurigana) d.showFurigana = !!(ui.dsShowFurigana as HTMLInputElement).checked;
+  if (ui.dsFuriganaType) d.furiganaType = (ui.dsFuriganaType as HTMLSelectElement).value || 'hiragana';
+  if (ui.dsFontSize) d.fontSize = parseInt((ui.dsFontSize as HTMLInputElement).value) || 14;
+  if (ui.dsEnableDictionary) d.enableDictionary = !!(ui.dsEnableDictionary as HTMLInputElement).checked;
+  if (ui.dsDictionaryEngine) d.dictionaryEngine = (ui.dsDictionaryEngine as HTMLSelectElement).value || 'llm';
+  if (ui.dsDictionaryPrompt) d.dictionaryPrompt = (ui.dsDictionaryPrompt as HTMLTextAreaElement).value || '';
+  if (ui.dsRegexFilter) d.regexFilter = (ui.dsRegexFilter as HTMLInputElement).value || '';
+  if (ui.dsDisableEmptyLineValidation) d.disableEmptyLineValidation = !!(ui.dsDisableEmptyLineValidation as HTMLInputElement).checked;
+  if (ui.dsCheckKanaResidue) d.checkKanaResidue = !!(ui.dsCheckKanaResidue as HTMLInputElement).checked;
+  if (ui.dsCheckSimilarity) d.checkSimilarity = !!(ui.dsCheckSimilarity as HTMLInputElement).checked;
+  if (ui.dsSimilarityThreshold) d.similarityThreshold = parseInt((ui.dsSimilarityThreshold as HTMLInputElement).value) || 70;
+  if (ui.dsCheckLengthRatio) d.checkLengthRatio = !!(ui.dsCheckLengthRatio as HTMLInputElement).checked;
+  if (ui.dsLengthRatioThreshold) d.lengthRatioThreshold = parseFloat((ui.dsLengthRatioThreshold as HTMLInputElement).value) || 2.5;
+  if (ui.dsCheckLinebreak) d.checkLinebreak = !!(ui.dsCheckLinebreak as HTMLInputElement).checked;
+  if (ui.dsCheckLanguage) d.checkLanguage = !!(ui.dsCheckLanguage as HTMLInputElement).checked;
+  if (ui.dsCheckPunctuation) d.checkPunctuation = !!(ui.dsCheckPunctuation as HTMLInputElement).checked;
+  if (ui.dsCheckUntransName) d.checkUntransName = !!(ui.dsCheckUntransName as HTMLInputElement).checked;
+  if (ui.dsEnableBackgroundChaining) d.enableBackgroundChaining = !!(ui.dsEnableBackgroundChaining as HTMLInputElement).checked;
+  if (ui.dsEnableUncertainMarking) d.enableUncertainMarking = !!(ui.dsEnableUncertainMarking as HTMLInputElement).checked;
+  if (ui.dsSafeTagsForChatgpt) d.safeTagsForChatgpt = !!(ui.dsSafeTagsForChatgpt as HTMLInputElement).checked;
+  if (ui.dsAgentMaxTurns) d.agentMaxTurns = parseInt((ui.dsAgentMaxTurns as HTMLInputElement).value) || 10;
+  if (ui.dsEpubTags) d.epubTags = (ui.dsEpubTags as HTMLInputElement).value || 'p';
+  if (ui.dsSelectionPrevShortcut) d.selectionPrevShortcut = (ui.dsSelectionPrevShortcut as HTMLInputElement).value || DEFAULT_SELECTION_BATCH_PREV_SHORTCUT;
+  if (ui.dsSelectionNextShortcut) d.selectionNextShortcut = (ui.dsSelectionNextShortcut as HTMLInputElement).value || DEFAULT_SELECTION_BATCH_NEXT_SHORTCUT;
+  if (ui.dsEnableLogging) d.enableLogging = !!(ui.dsEnableLogging as HTMLInputElement).checked;
+  if (ui.paletteSelect) d.palette = (ui.paletteSelect as HTMLSelectElement)?.value || 'indigo';
+
   localStorage.setItem(DS_STORAGE_KEY, JSON.stringify(d));
   applyPalette(d.palette);
   state.projectLoggingEnabled = !!d.enableLogging;
@@ -213,6 +301,9 @@ export function openDashboardPrompts(): void {
   (ui.dpGlossaryPromptInput as HTMLTextAreaElement).value = d.glossaryPrompt !== undefined ? d.glossaryPrompt : DEFAULT_GLOSSARY_PROMPT;
   (ui.dpAiCheckPromptInput as HTMLTextAreaElement).value = d.aiCheckPrompt !== undefined ? d.aiCheckPrompt : DEFAULT_AI_CHECK_PROMPT;
   (ui.dpAgentPromptInput as HTMLTextAreaElement).value = d.agentPrompt !== undefined ? d.agentPrompt : DEFAULT_AGENT_PROMPT;
+  if (ui.dpSummaryPromptInput) {
+    (ui.dpSummaryPromptInput as HTMLTextAreaElement).value = d.summaryPrompt !== undefined ? d.summaryPrompt : DEFAULT_SUMMARY_PROMPT;
+  }
   (ui.dashboardPromptsModal as HTMLElement).classList.add('open');
 }
 
@@ -222,6 +313,9 @@ export function saveDashboardPrompts(): void {
   d.glossaryPrompt = (ui.dpGlossaryPromptInput as HTMLTextAreaElement).value;
   d.aiCheckPrompt = (ui.dpAiCheckPromptInput as HTMLTextAreaElement).value;
   d.agentPrompt = (ui.dpAgentPromptInput as HTMLTextAreaElement).value;
+  if (ui.dpSummaryPromptInput) {
+    d.summaryPrompt = (ui.dpSummaryPromptInput as HTMLTextAreaElement).value;
+  }
   localStorage.setItem(DS_STORAGE_KEY, JSON.stringify(d));
   (ui.dashboardPromptsModal as HTMLElement).classList.remove('open');
 }
@@ -232,24 +326,16 @@ export function resetDashboardPrompts(): void {
   (ui.dpGlossaryPromptInput as HTMLTextAreaElement).value = DEFAULT_GLOSSARY_PROMPT;
   (ui.dpAiCheckPromptInput as HTMLTextAreaElement).value = DEFAULT_AI_CHECK_PROMPT;
   (ui.dpAgentPromptInput as HTMLTextAreaElement).value = DEFAULT_AGENT_PROMPT;
+  if (ui.dpSummaryPromptInput) {
+    (ui.dpSummaryPromptInput as HTMLTextAreaElement).value = DEFAULT_SUMMARY_PROMPT;
+  }
 }
 
 export function resetDashboardSettings(): void {
   localStorage.removeItem(DS_STORAGE_KEY);
-  const d = getDefaultSettings();
-  (ui.dsSourceLang as HTMLSelectElement).value = d.sourceLang;
-  (ui.dsTargetLang as HTMLSelectElement).value = d.targetLang;
-  if (ui.dsTranslationMode) (ui.dsTranslationMode as HTMLSelectElement).value = d.translationMode || 'ai';
-  (ui.dsAiFormat as HTMLSelectElement).value = d.aiFormat;
-  (ui.dsContextLines as HTMLInputElement).value = d.contextLines;
-  (ui.dsSelectionBatch as HTMLInputElement).value = d.selectionBatch;
-  (ui.dsGlossaryBatch as HTMLInputElement).value = d.glossaryBatch;
-  (ui.dsAiCheckBatch as HTMLInputElement).value = d.aiCheckBatch;
-  (ui.dsRegexFilter as HTMLInputElement).value = d.regexFilter;
-  if (ui.dsEnableLogging) (ui.dsEnableLogging as HTMLInputElement).checked = !!d.enableLogging;
-  if (ui.paletteSelect) (ui.paletteSelect as HTMLSelectElement).value = 'indigo';
+  openDashboardSettings();
   applyPalette('indigo');
-  state.projectLoggingEnabled = !!d.enableLogging;
+  state.projectLoggingEnabled = false;
   applyProjectLoggingVisibility();
 }
 
@@ -384,20 +470,52 @@ export async function createNewProject(): Promise<void> {
   const id = 'proj_' + Date.now() + PROJECT_EXT;
   const d = getDefaultSettings();
   const initialData: Record<string, any> = {
-    version: APP_VERSION, projectName: name.trim(), projectType: 'json', translationMode: 'ai',
-    jsonRefLang: '', epubTags: 'p', epubSourceId: null, lucaExportLang: 'en',
+    version: APP_VERSION, projectName: name.trim(), projectType: 'json',
+    translationMode: d.translationMode || 'ai',
+    jsonRefLang: '', epubTags: d.epubTags || 'p', epubSourceId: null, lucaExportLang: 'en',
     luca_profile: DEFAULT_LUCA_PROFILE, luca_mc_display_name: DEFAULT_LUCA_MC_DISPLAY_NAME,
     lucaRawFiles: {}, lucaRawBuffers: {}, updatedAt: Date.now(),
-    source_lang: d.sourceLang, target_lang: d.targetLang, regex_filter: d.regexFilter || '',
-    disable_empty_line_validation: false, check_kana_residue: false, check_similarity: false, similarity_threshold: 0.7,
+    source_lang: d.sourceLang || 'Japanese',
+    target_lang: d.targetLang || 'Indonesian',
+    regex_filter: d.regexFilter || '',
+    disable_empty_line_validation: !!d.disableEmptyLineValidation,
+    show_furigana: !!d.showFurigana,
+    furigana_type: d.furiganaType || 'hiragana',
+    font_size: d.fontSize || 14,
+    enable_dictionary: !!d.enableDictionary,
+    dictionary_engine: d.dictionaryEngine || 'llm',
+    dictionary_prompt: d.dictionaryPrompt !== undefined ? d.dictionaryPrompt : 'Jelaskan arti kata "{word}" dalam konteks kalimat "{context}". Berikan bentuk dasar, cara baca (hiragana/romaji), kelas kata, dan terjemahan/penjelasan singkat dalam bahasa Indonesia.',
+    check_kana_residue: !!d.checkKanaResidue,
+    check_similarity: !!d.checkSimilarity,
+    similarity_threshold: (typeof d.similarityThreshold === 'number' ? d.similarityThreshold : 70) / 100,
+    check_length_ratio: !!d.checkLengthRatio,
+    length_ratio_threshold: typeof d.lengthRatioThreshold === 'number' ? d.lengthRatioThreshold : 2.5,
+    check_linebreak: d.checkLinebreak !== undefined ? !!d.checkLinebreak : true,
+    check_language: d.checkLanguage !== undefined ? !!d.checkLanguage : true,
+    check_punctuation: d.checkPunctuation !== undefined ? !!d.checkPunctuation : true,
+    check_untrans_name: !!d.checkUntransName,
+    enable_uncertain_marking: !!d.enableUncertainMarking,
+    safe_tags_for_chatgpt: !!d.safeTagsForChatgpt,
+    agent_max_turns: d.agentMaxTurns || 10,
+    enableBackgroundChaining: !!d.enableBackgroundChaining,
+    currentBackground: '',
+    summary_prompt: d.summaryPrompt !== undefined ? d.summaryPrompt : '',
     imported_files: [], file_order: [], lines: [],
-    prompt_header: d.promptHeader !== undefined ? d.promptHeader : getDefaultPromptHeaderForFormat(d.aiFormat), ai_translation_format: d.aiFormat,
-    glossary_prompt: d.glossaryPrompt !== undefined ? d.glossaryPrompt : DEFAULT_GLOSSARY_PROMPT, ai_check_prompt: d.aiCheckPrompt !== undefined ? d.aiCheckPrompt : DEFAULT_AI_CHECK_PROMPT,
+    prompt_header: d.promptHeader !== undefined ? d.promptHeader : getDefaultPromptHeaderForFormat(d.aiFormat),
+    ai_translation_format: d.aiFormat || DEFAULT_AI_TRANSLATION_FORMAT,
+    glossary_prompt: d.glossaryPrompt !== undefined ? d.glossaryPrompt : DEFAULT_GLOSSARY_PROMPT,
+    ai_check_prompt: d.aiCheckPrompt !== undefined ? d.aiCheckPrompt : DEFAULT_AI_CHECK_PROMPT,
     agent_prompt: d.agentPrompt !== undefined ? d.agentPrompt : DEFAULT_AGENT_PROMPT,
-    glossary_text: '', context_lines: d.contextLines, context_type: 'raw',
-    selection_batch_size: d.selectionBatch, glossary_batch_size: d.glossaryBatch, ai_check_batch_size: d.aiCheckBatch,
-    selection_batch_prev_shortcut: DEFAULT_SELECTION_BATCH_PREV_SHORTCUT,
-    selection_batch_next_shortcut: DEFAULT_SELECTION_BATCH_NEXT_SHORTCUT,
+    glossary_text: '',
+    context_lines: d.contextLines !== undefined ? d.contextLines : 10,
+    context_type: d.contextType || 'raw',
+    selection_batch_size: d.selectionBatch || DEFAULT_SELECTION_BATCH_SIZE,
+    glossary_batch_size: d.glossaryBatch || DEFAULT_GLOSSARY_BATCH_SIZE,
+    ai_check_batch_size: d.aiCheckBatch || DEFAULT_AI_CHECK_BATCH_SIZE,
+    parallel_batch_size: d.parallelBatchSize || 1,
+    subagent_workers: d.subagentWorkers || 3,
+    selection_batch_prev_shortcut: d.selectionPrevShortcut || DEFAULT_SELECTION_BATCH_PREV_SHORTCUT,
+    selection_batch_next_shortcut: d.selectionNextShortcut || DEFAULT_SELECTION_BATCH_NEXT_SHORTCUT,
     enable_logging: !!d.enableLogging,
   };
   try {
@@ -533,10 +651,13 @@ function buildProjectPersistenceData(): Record<string, any> {
     glossary_text: state.glossaryText, context_lines: state.contextLines,
     context_type: state.contextType, selection_batch_size: state.selectionBatchSize,
     glossary_batch_size: state.glossaryBatchSize, ai_check_batch_size: state.aiCheckBatchSize,
+    parallel_batch_size: state.parallelBatchSize,
+    subagent_workers: state.subagentWorkers,
     selection_batch_prev_shortcut: state.selectionBatchPrevShortcut,
     selection_batch_next_shortcut: state.selectionBatchNextShortcut,
     enableBackgroundChaining: state.enableBackgroundChaining,
     currentBackground: state.currentBackground,
+    summary_prompt: state.summaryPrompt,
     enable_logging: state.projectLoggingEnabled,
     proofread_settings: getProofreadSettings(),
   };
@@ -743,8 +864,9 @@ export async function openProject(id: string, data: any): Promise<void> {
   state.regexFilter = data.regex_filter || '';
   state.preReplaceRules = data.pre_replace_rules || '';
   state.postReplaceRules = data.post_replace_rules || '';
-  state.enableBackgroundChaining = !!data.enableBackgroundChaining;
-  state.currentBackground = data.currentBackground || '';
+  state.enableBackgroundChaining = !!(data.enableBackgroundChaining || data.enable_summary_chaining);
+  state.currentBackground = data.currentBackground || data.current_summary || '';
+  state.summaryPrompt = data.summary_prompt || data.summaryPrompt || '';
   state.disableEmptyLineValidation = !!data.disable_empty_line_validation;
   state.checkKanaResidue = !!data.check_kana_residue;
   state.checkSimilarity = !!data.check_similarity;
@@ -782,6 +904,8 @@ export async function openProject(id: string, data: any): Promise<void> {
   state.selectionBatchSize = normalizeSelectionBatchSize(data.selection_batch_size);
   state.glossaryBatchSize = normalizeSelectionBatchSize(data.glossary_batch_size, DEFAULT_GLOSSARY_BATCH_SIZE);
   state.aiCheckBatchSize = normalizeSelectionBatchSize(data.ai_check_batch_size, DEFAULT_AI_CHECK_BATCH_SIZE);
+  state.parallelBatchSize = Math.max(1, Math.min(10, parseInt(data.parallel_batch_size) || 1));
+  state.subagentWorkers = Math.max(1, Math.min(10, parseInt(data.subagent_workers) || 3));
   state.selectionBatchPrevShortcut = normalizeShortcutString(data.selection_batch_prev_shortcut, DEFAULT_SELECTION_BATCH_PREV_SHORTCUT);
   state.selectionBatchNextShortcut = normalizeShortcutString(data.selection_batch_next_shortcut, DEFAULT_SELECTION_BATCH_NEXT_SHORTCUT);
   

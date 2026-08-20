@@ -163,6 +163,9 @@ export function renderMainRow(rowData: DisplayRow): HTMLElement {
     if (isChecked) row.classList.add('row-selected');
     const cbWrap = document.createElement('div');
     cbWrap.className = 'checkbox-cell';
+    const leftControls = document.createElement('div');
+    leftControls.className = 'row-left-controls';
+
     const cb = document.createElement('input');
     cb.type = 'checkbox';
     (cb as any).dataset.num = line.line_num;
@@ -174,6 +177,21 @@ export function renderMainRow(rowData: DisplayRow): HTMLElement {
       recordSelectionHistory();
       syncCheckboxUI();
     });
+
+    const bmBtn = document.createElement('button');
+    bmBtn.type = 'button';
+    bmBtn.className = 'line-bookmark-btn' + (line.bookmarked ? ' is-bookmarked' : '');
+    bmBtn.setAttribute('title', line.bookmarked ? 'Hapus bookmark' : 'Bookmark baris ini');
+    bmBtn.innerHTML = line.bookmarked
+      ? `<svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/></svg>`
+      : `<svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/></svg>`;
+    bmBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      import('./bookmark').then(m => m.toggleBookmark(line.line_num));
+    });
+
+    leftControls.append(cb, bmBtn);
+
     const contentWrap = document.createElement('div');
     contentWrap.className = 'text-content';
     if (line.luca_command === 'SELECT') {
@@ -208,7 +226,7 @@ export function renderMainRow(rowData: DisplayRow): HTMLElement {
     }
     transDiv.textContent = tTxt;
     contentWrap.append(origDiv, transDiv);
-    cbWrap.append(cb, contentWrap);
+    cbWrap.append(leftControls, contentWrap);
     row.appendChild(cbWrap);
     contentWrap.addEventListener('click', () => openLineEditor(line.line_num));
   }
@@ -320,6 +338,7 @@ export function refreshAll(): void {
   renderPreviewRows();
   renderNameTable();
   updateStatusBar();
+  import('./bookmark').then(m => m.updateBookmarkBadge()).catch(() => {});
   (ui.btnUndo as HTMLButtonElement).disabled = state.undoStack.length === 0;
   if (ui.btnRedo) (ui.btnRedo as HTMLButtonElement).disabled = state.redoStack.length === 0;
   if (state.translationMode === 'htl') {
@@ -341,6 +360,7 @@ export function pushUndoSnapshot(clearRedo = true): void {
       trans_name: l.trans_name,
       trans_message: l.trans_message,
       is_translated: l.is_translated,
+      bookmarked: l.bookmarked,
       _hidden: l._hidden,
       _glossary_extracted: l._glossary_extracted,
       _ai_checked: l._ai_checked,
@@ -368,7 +388,6 @@ export function flashHint(msg: string, keepAlive = false): void {
   const kind: 'success' | 'info' | 'warn' | 'danger' = isWarnLike ? (q.includes('ditolak') || q.includes('gagal') ? 'danger' : 'warn') : isOkLike ? 'success' : 'info';
   const looksLikeTransientToast =
     q.startsWith('disalin ') ||
-    q.startsWith('dipilih ') ||
     q.includes('disalin:') ||
     /^nama\s+["\u201c]/.test(q) ||
     q.includes(' full auto') ||
@@ -543,6 +562,12 @@ export function openLineEditor(num: number): void {
     } else {
       (ui.jsonRefLang2Wrap as HTMLElement).style.display = 'none';
     }
+  }
+  if (ui.btnLineBookmark) {
+    const isBm = !!l.bookmarked;
+    (ui.btnLineBookmark as HTMLElement).classList.toggle('is-bookmarked', isBm);
+    const txt = document.getElementById('lineBookmarkBtnText');
+    if (txt) txt.textContent = isBm ? 'Tersimpan' : 'Bookmark';
   }
   openModal(ui.lineEditorModal as HTMLElement);
 }

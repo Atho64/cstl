@@ -1,6 +1,6 @@
 // @module ui-init.ts — DOM element caching, scroller initialization, and event binding
 
-import { state, ui, setMainScroller, setProofreadScroller, setQaScroller } from './state';
+import { state, ui, setMainScroller, setProofreadScroller, setQaScroller, getActiveLineEditorLineNum } from './state';
 import {
   DEFAULT_AI_TRANSLATION_FORMAT, DEFAULT_GLOSSARY_PROMPT, DEFAULT_AI_CHECK_PROMPT,
   DEFAULT_PROMPT_HEADER_NUMBERED, DEFAULT_PROMPT_HEADER_BLOCK,
@@ -8,7 +8,8 @@ import {
   DEFAULT_PROMPT_HEADER_COMPLEX_ID, DEFAULT_PROMPT_HEADER_COMPLEX_EN,
   DEFAULT_PROMPT_HEADER_NUMBERED_KAGIKAKKO, DEFAULT_PROMPT_HEADER_BLOCK_KAGIKAKKO,
   DEFAULT_PROMPT_HEADER_XML_KAGIKAKKO, DEFAULT_PROMPT_HEADER_JSONL_KAGIKAKKO, DEFAULT_PROMPT_HEADER_JSON_ARRAY_KAGIKAKKO,
-  DEFAULT_AGENT_PROMPT
+  DEFAULT_AGENT_PROMPT, DEFAULT_SUMMARY_PROMPT,
+  DEFAULT_PROMPT_HEADER_AERA_SIMPLE, DEFAULT_SUMMARY_PROMPT_AERA_SIMPLE
 } from './constants';
 import { VirtualScroller } from './virtual-scroller';
 import { renderMainRow, syncCheckboxUI, updateButtonStates, onSaveLineEditor, flashHint, updateCurrentFileBar } from './render';
@@ -67,8 +68,8 @@ export function cacheElements(): void {
   const ids = [
     'dashboardView', 'workspaceView', 'projectList', 'projectFilterInput', 'btnNewProject', 'btnRestoreProject', 'btnBackupAllProjects',
     'btnBackToDashboard', 'btnBackupProject', 'btnBatchPrev', 'btnBatchNext', 'projectNameDisplay', 'restoreProjectInput', 'btnDropdownImport', 'dropdownImportMenu', 'btnDropdownImportOther', 'dropdownImportOtherMenu', 'btnImportFile',
-    'btnDropdownDashboardSettings', 'dropdownDashboardSettingsMenu', 'btnDashboardSettings', 'dashboardSettingsModal', 'btnDashboardSettingsSave', 'btnDashboardSettingsReset', 'paletteSelect', 'btnDashboardSettingsCancel',     'btnDashboardPrompts', 'dashboardPromptsModal', 'dpPromptInput', 'dpGlossaryPromptInput', 'dpAiCheckPromptInput', 'dpAgentPromptInput', 'btnDashboardPromptsSave', 'btnDashboardPromptsReset', 'btnDashboardPromptsCancel',
-    'dsSourceLang', 'dsTargetLang', 'dsTranslationMode', 'dsAiFormat', 'dsContextLines', 'dsSelectionBatch', 'dsGlossaryBatch', 'dsAiCheckBatch', 'dsRegexFilter', 'dsEnableLogging',
+    'btnDropdownDashboardSettings', 'dropdownDashboardSettingsMenu', 'btnDashboardSettings', 'dashboardSettingsModal', 'btnDashboardSettingsSave', 'btnDashboardSettingsReset', 'paletteSelect', 'btnDashboardSettingsCancel', 'btnDashboardPrompts', 'dashboardPromptsModal', 'dpPromptInput', 'dpPromptTemplateSelect', 'dpGlossaryPromptInput', 'dpAiCheckPromptInput', 'dpAgentPromptInput', 'dpSummaryPromptInput', 'btnDashboardPromptsSave', 'btnDashboardPromptsReset', 'btnDashboardPromptsCancel',
+    'dsSourceLang', 'dsTargetLang', 'dsTranslationMode', 'dsAiFormat', 'dsContextLines', 'dsContextType', 'dsSelectionBatch', 'dsGlossaryBatch', 'dsAiCheckBatch', 'dsParallelBatch', 'dsSubagentWorkers', 'dsShowFurigana', 'dsFuriganaType', 'dsFontSize', 'dsEnableDictionary', 'dsDictionaryEngine', 'dsDictionaryPrompt', 'dsRegexFilter', 'dsDisableEmptyLineValidation', 'dsCheckKanaResidue', 'dsCheckSimilarity', 'dsSimilarityThreshold', 'dsSimilarityThresholdWrap', 'dsCheckLengthRatio', 'dsLengthRatioThreshold', 'dsLengthRatioWrap', 'dsCheckLinebreak', 'dsCheckLanguage', 'dsCheckPunctuation', 'dsCheckUntransName', 'dsEnableBackgroundChaining', 'dsEnableUncertainMarking', 'dsSafeTagsForChatgpt', 'dsAgentMaxTurns', 'dsEpubTags', 'dsSelectionPrevShortcut', 'dsSelectionNextShortcut', 'dsEnableLogging',
     'btnImportFolder', 'btnImportZip', 'btnImportTranslatedFile', 'btnImportTranslatedFolder', 'btnExport', 'btnProofread', 'btnSettings',
     'previewViewport', 'previewContainer', 'currentFileBar', 'progressFill', 'progressText', 'btnSelectAll',
     'btnClearSelection', 'copyCount', 'btnCopyForAi', 'copyStatus', 'pasteArea', 'btnApply', 'checkIgnorePasteNames',
@@ -82,7 +83,7 @@ export function cacheElements(): void {
     'glossaryFileInput', 'settingsModal', 'settingsPromptInput', 'settingsGlossaryPromptInput', 'settingsAiCheckPromptInput', 'settingsAgentPromptInput', 'settingsEpubTagsInput',
     'settingsLucaWrap', 'settingsLucaProfileSelect', 'settingsLucaMcWrap', 'settingsLucaMcDisplayNameInput', 'settingsLucaExportLangWrap', 'settingsLucaExportLangSelect', 'settingsSourceLangSelect', 'settingsTargetLangSelect', 'settingsTranslationModeSelect', 'settingsRegexFilterInput', 'settingsRefLangWrap', 'settingsRefLang1Select', 'settingsRefLang2Select', 'btnImportRefLang1', 'btnImportRefLang2', 'btnImportRefLang1Folder', 'btnImportRefLang2Folder', 'btnClearRefLang1', 'btnClearRefLang2', 'refLang1Input', 'refLang2Input', 'refLang1FolderInput', 'refLang2FolderInput',
     'settingsDisableEmptyLineValidation', 'settingsShowFurigana', 'settingsFuriganaType', 'settingsFontSize', 'settingsEnableDictionary', 'settingsDictionaryEngine', 'settingsDictionaryPrompt', 'dictionaryPopup', 'dictPopupWord', 'dictPopupClose', 'dictPopupContent', 'settingsAiTranslationFormatSelect', 'settingsGlossaryInput', 'settingsContextLinesInput', 'settingsSelectionBatchSizeInput', 'settingsGlossaryBatchSizeInput', 'settingsAiCheckBatchSizeInput', 'settingsParallelBatchSizeInput', 'settingsSubagentWorkersInput', 'settingsSelectionPrevShortcutInput', 'settingsSelectionNextShortcutInput', 'btnSettingsReset', 'btnSettingsGlossaryReset', 'btnSettingsAiCheckReset', 'btnSettingsAgentPromptReset', 'btnSettingsCancel', 'btnSettingsSave', 'lineEditorModal', 'lineEditorTitle',
-    'btnDropdownSettings', 'dropdownSettingsMenu', 'btnSettingsGeneral', 'btnSettingsPrompts', 'btnSettingsGlossary', 'settingsPromptsModal', 'settingsGlossaryModal', 'btnSettingsPromptsCancel', 'btnSettingsPromptsSave', 'btnSettingsGlossaryCancel', 'btnSettingsGlossarySave', 'settingsEnableBackgroundChaining', 'settingsBackgroundInput', 'settingsPromptTemplateSelect', 'btnSettingsClearBackground',
+    'btnDropdownSettings', 'dropdownSettingsMenu', 'btnSettingsGeneral', 'btnSettingsPrompts', 'btnSettingsGlossary', 'settingsPromptsModal', 'settingsGlossaryModal', 'btnSettingsPromptsCancel', 'btnSettingsPromptsSave', 'btnSettingsGlossaryCancel', 'btnSettingsGlossarySave', 'settingsEnableBackgroundChaining', 'settingsBackgroundInput', 'settingsSummaryPromptInput', 'btnSettingsSummaryPromptReset', 'settingsPromptTemplateSelect', 'btnSettingsClearBackground',
     'tabTranslate', 'tabGlossary', 'viewTranslate', 'viewGlossary', 'btnCopyForGlossaryAi', 'pasteGlossaryArea', 'btnSaveGlossary', 'btnImportGlossaryFile', 'btnExportGlossaryFile', 'copyGlossaryCount', 'btnDeleteTranslation', 'deleteTranslationCount', 'tabDelete', 'viewDelete',
     'tabAiCheck', 'viewAiCheck', 'btnCopyForAiCheck', 'copyAiCheckCount', 'aiCheckStatus', 'pasteAiCheckArea', 'btnParseAiCheck', 'btnApplyAiCheck', 'btnClearAiCheck', 'aiCheckResults',
     'vndbInput', 'btnImportVndbNames', 'vndbStatus',
@@ -103,7 +104,9 @@ export function cacheElements(): void {
     'btnFloatingAiAgent', 'btnFloatingLogging', 'loggingPanel', 'loggingHistory', 'btnLoggingClear', 'btnLoggingClose', 'aiAgentChatPanel', 'btnAgentClose', 'btnAgentClear', 'btnAgentMemory', 'agentChatHistory', 'agentInput', 'btnAgentSend',
     'agentMemoryModal', 'agentMemoryList', 'agentMemoryKey', 'agentMemoryCategory', 'agentMemoryScope', 'agentMemoryValue', 'btnAgentMemoryCancel', 'btnAgentMemorySave',
     'btnTextReplacer', 'textReplacerModal', 'replacerPreInput', 'replacerPostInput', 'btnTextReplacerCancel', 'btnTextReplacerSave',
-    'btnFileList', 'fileListModal', 'fileListContainer', 'btnFileListAdd', 'btnFileListDelete', 'btnFileListClose'
+    'btnFileList', 'fileListModal', 'fileListContainer', 'btnFileListAdd', 'btnFileListDelete', 'btnFileListClose',
+    'btnToolbarBookmark', 'toolbarBookmarkBadge', 'btnLineBookmark',
+    'bookmarkModal', 'bookmarkModalCount', 'btnBookmarkModalCloseIcon', 'bookmarkSearchInput', 'btnClearAllBookmarks', 'bookmarkListContainer', 'btnBookmarkClose'
   ];
   for (const id of ids) {
     ui[id] = document.getElementById(id);
@@ -298,6 +301,35 @@ export function bindEvents(): void {
   ui.btnDashboardPromptsSave?.addEventListener('click', () => { import('./project').then(m => m.saveDashboardPrompts()); });
   ui.btnDashboardPromptsReset?.addEventListener('click', () => { import('./project').then(m => m.resetDashboardPrompts()); });
   ui.btnDashboardPromptsCancel?.addEventListener('click', () => (ui.dashboardPromptsModal as HTMLElement).classList.remove('open'));
+  ui.dpPromptTemplateSelect?.addEventListener('change', () => {
+    const val = (ui.dpPromptTemplateSelect as HTMLSelectElement).value;
+    if (val === 'aera-simple') {
+      (ui.dpPromptInput as HTMLTextAreaElement).value = DEFAULT_PROMPT_HEADER_AERA_SIMPLE;
+      if (ui.dpSummaryPromptInput) {
+        (ui.dpSummaryPromptInput as HTMLTextAreaElement).value = DEFAULT_SUMMARY_PROMPT_AERA_SIMPLE;
+      }
+    } else if (val === 'complex-id') {
+      (ui.dpPromptInput as HTMLTextAreaElement).value = DEFAULT_PROMPT_HEADER_COMPLEX_ID;
+    } else if (val === 'complex-en') {
+      (ui.dpPromptInput as HTMLTextAreaElement).value = DEFAULT_PROMPT_HEADER_COMPLEX_EN;
+    } else if (val === 'kagikakko') {
+      const format = (ui.dsAiFormat as HTMLSelectElement)?.value || DEFAULT_AI_TRANSLATION_FORMAT;
+      (ui.dpPromptInput as HTMLTextAreaElement).value = getKagikakkoPromptHeaderForFormat(format);
+    } else {
+      const format = (ui.dsAiFormat as HTMLSelectElement)?.value || DEFAULT_AI_TRANSLATION_FORMAT;
+      (ui.dpPromptInput as HTMLTextAreaElement).value = getDefaultPromptHeaderForFormat(format);
+    }
+  });
+  ui.dsCheckSimilarity?.addEventListener('change', () => {
+    if (ui.dsSimilarityThresholdWrap) {
+      (ui.dsSimilarityThresholdWrap as HTMLElement).style.display = (ui.dsCheckSimilarity as HTMLInputElement).checked ? 'flex' : 'none';
+    }
+  });
+  ui.dsCheckLengthRatio?.addEventListener('change', () => {
+    if (ui.dsLengthRatioWrap) {
+      (ui.dsLengthRatioWrap as HTMLElement).style.display = (ui.dsCheckLengthRatio as HTMLInputElement).checked ? 'flex' : 'none';
+    }
+  });
   ui.btnDashboardSettingsSave?.addEventListener('click', saveDashboardSettings);
   ui.btnDashboardSettingsReset?.addEventListener('click', resetDashboardSettings);
   ui.btnDashboardSettingsCancel?.addEventListener('click', () => (ui.dashboardSettingsModal as HTMLElement).classList.remove('open'));
@@ -382,6 +414,7 @@ export function bindEvents(): void {
     }
     recordSelectionHistory();
     syncCheckboxUI();
+    flashHint(`Dipilih ${state.selectedLines.size} baris untuk translate.`);
     const mainScroller = getMainScroller();
     const targetIndex = state.displayRows.findIndex(row => row.type === 'line' && row.line?.line_num === f);
     if (targetIndex !== -1) {
@@ -424,7 +457,8 @@ export function bindEvents(): void {
       ];
       if (allDefaults.some(d => (ui.settingsPromptInput as HTMLTextAreaElement).value.trim() === d.trim()) ||
           (ui.settingsPromptInput as HTMLTextAreaElement).value.trim() === DEFAULT_PROMPT_HEADER_COMPLEX_ID.trim() ||
-          (ui.settingsPromptInput as HTMLTextAreaElement).value.trim() === DEFAULT_PROMPT_HEADER_COMPLEX_EN.trim()) {
+          (ui.settingsPromptInput as HTMLTextAreaElement).value.trim() === DEFAULT_PROMPT_HEADER_COMPLEX_EN.trim() ||
+          (ui.settingsPromptInput as HTMLTextAreaElement).value.trim() === DEFAULT_PROMPT_HEADER_AERA_SIMPLE.trim()) {
         (ui.settingsPromptInput as HTMLTextAreaElement).value = currentDefault;
       }
     });
@@ -432,7 +466,12 @@ export function bindEvents(): void {
 
   ui.settingsPromptTemplateSelect?.addEventListener('change', () => {
     const val = (ui.settingsPromptTemplateSelect as HTMLSelectElement).value;
-    if (val === 'complex-id') {
+    if (val === 'aera-simple') {
+      (ui.settingsPromptInput as HTMLTextAreaElement).value = DEFAULT_PROMPT_HEADER_AERA_SIMPLE;
+      if (ui.settingsSummaryPromptInput) {
+        (ui.settingsSummaryPromptInput as HTMLTextAreaElement).value = DEFAULT_SUMMARY_PROMPT_AERA_SIMPLE;
+      }
+    } else if (val === 'complex-id') {
       (ui.settingsPromptInput as HTMLTextAreaElement).value = DEFAULT_PROMPT_HEADER_COMPLEX_ID;
     } else if (val === 'complex-en') {
       (ui.settingsPromptInput as HTMLTextAreaElement).value = DEFAULT_PROMPT_HEADER_COMPLEX_EN;
@@ -449,7 +488,13 @@ export function bindEvents(): void {
     state.currentBackground = '';
     (ui.settingsBackgroundInput as HTMLTextAreaElement).value = '';
     import('./project').then(m => m.queueAutoSave());
-    flashHint('Memori latar belakang dikosongkan.');
+    flashHint('Ringkasan cerita dikosongkan.');
+  });
+
+  ui.btnSettingsSummaryPromptReset?.addEventListener('click', () => {
+    if (ui.settingsSummaryPromptInput) {
+      (ui.settingsSummaryPromptInput as HTMLTextAreaElement).value = DEFAULT_SUMMARY_PROMPT;
+    }
   });
 
   ui.btnSettingsGlossaryReset?.addEventListener('click', () => { (ui.settingsGlossaryPromptInput as HTMLTextAreaElement).value = DEFAULT_GLOSSARY_PROMPT; });
@@ -701,6 +746,8 @@ if (ui.settingsCheckSimilarity) {
 
   bindShortcutCaptureInput(ui.settingsSelectionPrevShortcutInput as HTMLInputElement);
   bindShortcutCaptureInput(ui.settingsSelectionNextShortcutInput as HTMLInputElement);
+  bindShortcutCaptureInput(ui.dsSelectionPrevShortcut as HTMLInputElement);
+  bindShortcutCaptureInput(ui.dsSelectionNextShortcut as HTMLInputElement);
 
   // AI Agent Events
   let isDraggingChat = false;
@@ -1043,6 +1090,43 @@ if (ui.settingsCheckSimilarity) {
       doAgentSend();
     }
   });
+
+  // Bookmark Feature Events
+  ui.btnToolbarBookmark?.addEventListener('click', () => {
+    import('./bookmark').then(m => m.openBookmarkModal());
+  });
+  ui.btnLineBookmark?.addEventListener('click', () => {
+    const num = getActiveLineEditorLineNum();
+    if (!num) return;
+    import('./bookmark').then(m => {
+      m.toggleBookmark(num);
+      const l = state.lineByNum.get(num);
+      if (ui.btnLineBookmark && l) {
+        const isBm = !!l.bookmarked;
+        (ui.btnLineBookmark as HTMLElement).classList.toggle('is-bookmarked', isBm);
+        const txt = document.getElementById('lineBookmarkBtnText');
+        if (txt) txt.textContent = isBm ? 'Tersimpan' : 'Bookmark';
+      }
+    });
+  });
+  ui.btnBookmarkClose?.addEventListener('click', () => {
+    import('./bookmark').then(m => m.closeBookmarkModal());
+  });
+  ui.btnBookmarkModalCloseIcon?.addEventListener('click', () => {
+    import('./bookmark').then(m => m.closeBookmarkModal());
+  });
+  ui.btnClearAllBookmarks?.addEventListener('click', () => {
+    import('./bookmark').then(m => m.clearAllBookmarks());
+  });
+  ui.bookmarkModal?.addEventListener('click', (e: MouseEvent) => {
+    if (e.target === ui.bookmarkModal) {
+      import('./bookmark').then(m => m.closeBookmarkModal());
+    }
+  });
+  ui.bookmarkSearchInput?.addEventListener('input', debounce((e: Event) => {
+    const val = (e.target as HTMLInputElement).value;
+    import('./bookmark').then(m => m.renderBookmarkList(val));
+  }, 150));
 }
 
 // ─── Bootstrap ────────────────────────────────────────────────────────────────

@@ -59,7 +59,7 @@ export function buildExistingGlossaryHint(sourceText: string): string {
  * `<line num="...">` tags inside the payload are left intact.
  * No-op when the setting is off. Applies to all Auto Copas targets.
  */
-const SAFE_SECTION_TAGS = ['Glossary', 'Context', 'lines', 'AlreadyInGlossary', 'background'];
+const SAFE_SECTION_TAGS = ['Glossary', 'Context', 'lines', 'AlreadyInGlossary', 'background', 'summary'];
 export function sanitizeTagsForChatgpt(text: string): string {
   if (!state.safeTagsForChatgpt) return text;
   let out = text;

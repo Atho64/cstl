@@ -779,6 +779,7 @@ input, textarea, button, select { font-family: inherit; font-size: inherit; }
 .preview-row {
   width: calc(100% - 16px);
   margin: 0 8px;
+  position: relative;
   display: flex;
   flex-direction: column;
   background: var(--panel);
@@ -839,8 +840,17 @@ input, textarea, button, select { font-family: inherit; font-size: inherit; }
 .checkbox-cell {
   display: flex;
   align-items: flex-start;
-  gap: 12px;
+  gap: 10px;
   width: 100%;
+}
+
+.row-left-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  width: 18px;
 }
 
 .checkbox-cell input[type="checkbox"], .sep-cb {
@@ -850,6 +860,9 @@ input, textarea, button, select { font-family: inherit; font-size: inherit; }
   cursor: pointer;
   accent-color: var(--primary);
   flex-shrink: 0;
+}
+.row-left-controls input[type="checkbox"] {
+  margin: 3px 0 0 0;
 }
 .checkbox-cell input[type="checkbox"]:disabled { cursor: not-allowed; opacity: 0.4; }
 .checkbox-cell input[type="checkbox"]:focus-visible,
@@ -2100,3 +2113,225 @@ body.htl-mode .panel-left { flex: 1 !important; height: 100% !important; min-hei
 @media (prefers-reduced-motion: reduce) {
   .notify-toast { transition: none; }
 }
+
+/* ═══ BOOKMARK FEATURE STYLES ═══ */
+
+.panel-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+/* Bubble Badge */
+.bubble-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  background: #f59e0b;
+  color: #000;
+  line-height: 1;
+  transition: background 150ms ease, color 150ms ease;
+}
+.bubble-badge.is-zero {
+  background: var(--line-2);
+  color: var(--muted);
+}
+
+/* Line Row Bookmark Button (Under Checkbox) */
+.line-bookmark-btn {
+  position: static;
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-xs);
+  color: var(--muted);
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  padding: 0;
+  transition: opacity var(--dur-1) var(--ease), color var(--dur-1) var(--ease), transform 120ms var(--ease);
+}
+.preview-row:hover .line-bookmark-btn {
+  opacity: 0.55;
+  pointer-events: auto;
+}
+.line-bookmark-btn:hover {
+  opacity: 1 !important;
+  color: #f59e0b;
+  transform: scale(1.2);
+}
+.line-bookmark-btn.is-bookmarked {
+  opacity: 1 !important;
+  pointer-events: auto;
+  color: #f59e0b;
+}
+.line-bookmark-btn.is-bookmarked:hover {
+  color: #d97706;
+}
+
+.toolbar-bookmark-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text);
+}
+.toolbar-bookmark-btn svg {
+  color: #f59e0b;
+}
+
+#btnLineBookmark.is-bookmarked {
+  background: var(--primary-soft);
+  border-color: rgba(245, 158, 11, 0.6);
+  color: #f59e0b;
+}
+
+@media (pointer: coarse) {
+  .row-left-controls {
+    width: 26px;
+    gap: 8px;
+  }
+  .line-bookmark-btn {
+    opacity: 0.35;
+    pointer-events: auto;
+    width: 26px;
+    height: 26px;
+  }
+  .line-bookmark-btn.is-bookmarked {
+    opacity: 1;
+  }
+}
+
+/* Bookmark Modal List & Cards */
+.bookmark-list-container {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 55vh;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.bookmark-item-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: border-color var(--dur-1) var(--ease), background var(--dur-1) var(--ease);
+}
+.bookmark-item-card:hover {
+  border-color: var(--line-2);
+  background: var(--panel-2);
+}
+
+.bookmark-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.bookmark-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--muted);
+  overflow: hidden;
+}
+
+.bookmark-line-badge {
+  background: var(--primary-soft);
+  color: var(--primary);
+  border: 1px solid rgba(200, 78, 24, 0.3);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.bookmark-file-name {
+  font-family: var(--font-mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bookmark-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.bookmark-card-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  cursor: pointer;
+  padding: 8px 10px;
+  border-radius: var(--radius-xs);
+  background: rgba(0, 0, 0, 0.22);
+  border: 1px solid rgba(255, 255, 255, 0.03);
+  transition: background var(--dur-1) var(--ease), border-color var(--dur-1) var(--ease);
+}
+.bookmark-card-content:hover {
+  background: rgba(0, 0, 0, 0.35);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.bookmark-orig {
+  font-family: var(--font-jp);
+  font-size: 13px;
+  color: var(--muted);
+  border-bottom: 1px dashed var(--line);
+  padding-bottom: 4px;
+  word-break: break-word;
+  line-height: 1.45;
+}
+
+.bookmark-trans {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--text);
+  word-break: break-word;
+  line-height: 1.45;
+}
+
+.bookmark-empty-state {
+  text-align: center;
+  padding: 36px 16px;
+  color: var(--muted);
+}
+.bookmark-empty-icon {
+  margin-bottom: 8px;
+  opacity: 0.5;
+  color: #f59e0b;
+}
+.bookmark-empty-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+.inline-icon {
+  vertical-align: -1px;
+  color: #f59e0b;
+}
+

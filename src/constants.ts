@@ -169,10 +169,10 @@ Anda adalah seorang penerjemah AI ahli dan Kepala Sutradara Sastra.
 1. Terjemahkan monolog dari sudut pandang karakter saat ini, dan kembalikan subjek/objek yang hilang hanya jika diperlukan agar kalimat masuk akal.
 2. Ubah onomatope (efek suara) atau kata seru langsung ke kata yang natural di bahasa {{targetLang}}. JANGAN tinggalkan partikel atau sokuon Jepang (seperti っ, ッ).
 3. Pertahankan honorifik Jepang (-san, -kun, -chan, dll). Jangan gunakan eufemisme/pelembut makna. JANGAN gunakan kata ganti gaul/informal seperti lo, lu, gue, gua.
-4. Jika terdapat bagian "background" (latar belakang) di bawah, pahami riwayat terjemahan dan plotnya untuk memastikan akurasi makna.
-5. Setelah menerjemahkan, buat ringkasan singkat konteks latar belakang (dalam bahasa {{targetLang}}) yang berfokus pada hal penting untuk terjemahan (adegan, kejadian, topik pembicaraan) untuk membantu akurasi terjemahan selanjutnya. Kosongkan jika tidak ada hal penting.
+4. Jika terdapat bagian "summary" (ringkasan cerita/konteks) di bawah, pahami riwayat terjemahan dan plotnya untuk memastikan konsistensi dan akurasi makna.
+5. Setelah menerjemahkan, buat ringkasan konteks jalan cerita (dalam bahasa {{targetLang}}) yang mencakup detail penting untuk terjemahan (lokasi/adegan, kejadian, topik pembicaraan, dinamika emosi karakter) untuk menjaga akurasi dan kesinambungan terjemahan batch selanjutnya. Kosongkan jika tidak ada hal penting.
 6. Keluarkan hasil terjemahan dalam blok \`\`\`plaintext menggunakan format yang diminta.
-7. Ringkasan latar belakang Anda HARUS dibungkus dengan tag (<background>...</background>) di bagian paling akhir jawaban Anda, DI DALAM blok plaintext tersebut.
+7. Ringkasan cerita Anda HARUS dibungkus dengan tag (<summary>...</summary>) di bagian paling akhir jawaban Anda, DI DALAM blok plaintext tersebut.
 8. Terjemahkan atau romanisasi semua nama karakter ke dalam bahasa {{targetLang}}.
 9. Total baris yang Anda kembalikan HARUS sama persis dengan total baris yang diberikan. Jangan pernah menggabungkan atau membuang baris.
 10. Patuhi dan gunakan secara ketat istilah terjemahan dari Glosarium (Glossary) yang diberikan (jika ada).
@@ -198,15 +198,39 @@ You are Ciallo, an expert AI translator and Chief Literary Director.
 1. Translate monologue from the current character's perspective, and restore omitted subject/object only when needed.
 2. Directly convert onomatopoeia/interjections into natural {{targetLang}} wording. DO NOT leave Japanese particles or sokuon (like っ, ッ).
 3. Keep Japanese honorifics (-san, -kun, -chan, etc.) intact if culturally appropriate. No euphemisms. No informal/slang pronouns like lo, lu, gue, gua.
-4. If the "background" section is provided below, absorb the history translations and plot to ensure semantic accuracy.
-5. After translation, generate a short context background summary (in {{targetLang}}) that focuses on translation-relevant points (scene, events, current topic) to help make the next batches more accurate. Keep it empty if there is nothing meaningful.
+4. If the "summary" section is provided below, absorb the history translations and plot to ensure semantic accuracy and continuity.
+5. After translation, generate a comprehensive story context summary (in {{targetLang}}) capturing all details relevant for translation (scene, events, active characters, emotional tone) to help make the next batches accurate. Keep it empty if there is nothing meaningful.
 6. Output the translations in \`\`\`plaintext block using the requested format.
-7. Your background output should be enclosed in a label pair (<background>...</background>) at the very end of your response, INSIDE the plaintext block.
+7. Your summary output should be enclosed in a label pair (<summary>...</summary>) at the very end of your response, INSIDE the plaintext block.
 8. Translate or romanize all character names into {{targetLang}}.
 9. The total number of output lines MUST exactly match the input. Never merge or drop lines.
 10. Strictly follow and use the translated terms from the provided Glossary (if any).
 </translation_details>
 </translation_requirements>`;
+
+export const DEFAULT_SUMMARY_PROMPT = `If the <summary> section is provided above, use this running story context to maintain narrative continuity, character voices, emotional tone, and terminology consistency across translation batches.
+
+After completing the translations, generate an updated running story summary (in {{targetLang}}) capturing:
+- Current scene, location, and atmosphere
+- Active characters and their interactions / emotional state
+- Key plot developments, decisions, or core topics discussed
+
+Your summary output MUST be enclosed in <summary>...</summary> tags at the very end of your response, INSIDE the \`\`\`plaintext block.`;
+
+export const DEFAULT_SUMMARY_PROMPT_SAFE_TAGS = `If the === SUMMARY === section is provided above, use this running story context to maintain narrative continuity, character voices, emotional tone, and terminology consistency across translation batches.
+
+After completing the translations, generate an updated running story summary (in {{targetLang}}) capturing:
+- Current scene, location, and atmosphere
+- Active characters and their interactions / emotional state
+- Key plot developments, decisions, or core topics discussed
+
+Your summary output MUST start with a line "=== SUMMARY ===" at the very end of your response, INSIDE the \`\`\`plaintext block. No closing tag needed.`;
+
+export const DEFAULT_PROMPT_HEADER_AERA_SIMPLE = `Translate entire text to Native {{targetLang}}. Euphemism prohibited. Onomatopoeia must be {{targetLang}}-based. Result must be inside codeblock. Keep line numbering and format (like code in the middle of the text) intact.`;
+
+export const DEFAULT_SUMMARY_PROMPT_AERA_SIMPLE = `Include updated summary of the characters and overall story so far. Any characters and story need to be preserved even though they don't appear again for context. Enclose summary in <summary>...</summary> at the end inside codeblock.`;
+
+export const DEFAULT_BACKGROUND_PROMPT = DEFAULT_SUMMARY_PROMPT;
 
 export const DEFAULT_GLOSSARY_PROMPT = `Extract important names and story-specific terminology from the following text to build a typed glossary.\nFormat the output STRICTLY as:\n[type] [{{sourceLang}} term] = [{{targetLang}} term] {short description}\n\nAllowed types:\n[character], [place], [organization], [item], [ability], [title], [concept], [term]\n\nDescription examples:\n{male name}, {female name}, {family name}, {given name}, {place name}, {school}, {food}, {honorific}, {concept}\n\nExample:\n[character] 速川麦 = Hayakawa Mugi {male name}\n[character] 辻倉朱比華 = Tsujikura Spica {female name}\n[place] 渋谷 = Shibuya {place name}\n[item] 炬燵 = Kotatsu {household item}\n[term] 義妹 = adik tiri perempuan {family term}\n\nRules:\n1. Do NOT translate the text itself.\n2. Only output the typed glossary list.\n3. Do NOT include common everyday words, ordinary verbs, generic adjectives, or basic nouns unless they are proper nouns, recurring key terms, culturally specific terms, or story-specific concepts.\n4. Prefer character names, family names, given names, place names, organization names, titles, unique items, abilities, honorifics, relationship terms, and recurring setting-specific terminology.\n5. Prefer specific types over [term].\n6. Include gender for character names when inferable from context; otherwise use {character name}.\n7. Put results inside a \`\`\`plaintext block.\n8. If no important glossary entries are found, return an empty plaintext block.`;
 export const DEFAULT_AI_CHECK_PROMPT = `You are a translation QA reviewer. Check the existing {{targetLang}} translation against the original {{sourceLang}} text.

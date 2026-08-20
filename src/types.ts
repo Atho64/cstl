@@ -10,6 +10,7 @@ export interface Line {
   trans_name: string | null;
   trans_message: string | null;
   is_translated: boolean;
+  bookmarked?: boolean;
   _hidden?: boolean;
   _glossary_extracted?: boolean;
   _ai_checked?: boolean;
@@ -57,6 +58,7 @@ export interface AppState {
   postReplaceRules: string;
   enableBackgroundChaining: boolean;
   currentBackground: string;
+  summaryPrompt: string;
   disableEmptyLineValidation: boolean;
   showFurigana: boolean;
   furiganaType: 'furigana' | 'hiragana' | 'katakana' | 'romaji';
@@ -161,6 +163,7 @@ export interface PartialLineSnapshot {
   trans_name: string | null;
   trans_message: string | null;
   is_translated: boolean;
+  bookmarked?: boolean;
   _hidden?: boolean;
   _glossary_extracted?: boolean;
   _ai_checked?: boolean;
