@@ -692,7 +692,12 @@ export async function renameDashboardProject(id: string, oldName: string, data: 
 }
 
 // ─── Backup & Restore ─────────────────────────────────────────────────────────
-export async function backupDashboardProject(name: string, data: any, id: string): Promise<void> {
+/**
+ * Build the full backup payload for one project: merges the Luca sidecar and
+ * the original EPUB into a single portable object. Returns null when the Luca
+ * sidecar is corrupt — the caller must abort that project's backup.
+ */
+export async function prepareProjectBackupData(data: any, id: string): Promise<Record<string, any> | null> {
   const backupData = JSON.parse(JSON.stringify(data));
   // Merge lucaRawBuffers from separate OPFS file if available
   if (backupData.projectType === 'luca') {
@@ -703,7 +708,7 @@ export async function backupDashboardProject(name: string, data: any, id: string
       })();
       if (sidecarExists) {
         alert('Backup Luca dibatalkan: sidecar corrupt dan tidak dapat dibaca.');
-        return;
+        return null;
       }
     } else {
       backupData.lucaRawFiles = lucaData.lucaRawFiles || {};
@@ -717,6 +722,12 @@ export async function backupDashboardProject(name: string, data: any, id: string
       alert(`Backup dibuat tanpa file EPUB asli.\n\n${err.message}`);
     }
   }
+  return backupData;
+}
+
+export async function backupDashboardProject(name: string, data: any, id: string): Promise<void> {
+  const backupData = await prepareProjectBackupData(data, id);
+  if (!backupData) return;
   const strData = JSON.stringify(backupData);
   const b = new Blob([strData], { type: 'application/json' });
   const a = document.createElement('a');
@@ -816,22 +827,9 @@ export async function backupAllProjectsAsZip(): Promise<void> {
       if (button) button.textContent = `Backup ${index + 1}/${projects.length}...`;
       flashHint(`Membackup proyek ${index + 1}/${projects.length}: ${p.name}`, true);
       const data = await fetchProjectData(p.id);
-      const backupData = JSON.parse(JSON.stringify(data));
-      if (backupData.projectType === 'luca') {
-        const lucaData = await loadLucaDataFromOpfs(p.id);
-        if (!lucaData) {
-          const sidecarExists = await (async () => {
-            try { const root = await getOpfsRoot(); await root.getFileHandle(p.id.replace(PROJECT_EXT, '_luca.json')); return true; } catch { return false; }
-          })();
-          if (sidecarExists) {
-            throw new Error(`Data mentah Luca untuk proyek "${p.name}" tidak dapat dibaca — sidecar corrupt, backup semua dibatalkan.`);
-          }
-        } else {
-          Object.assign(backupData, lucaData);
-        }
-      }
-      if (backupData.projectType === 'epub' && backupData.epubSourceId) {
-        try { backupData.epub_source = await readEpubSourceForBackup(backupData.epubSourceId); } catch (_) {}
+      const backupData = await prepareProjectBackupData(data, p.id);
+      if (!backupData) {
+        throw new Error(`Data mentah Luca untuk proyek "${p.name}" tidak dapat dibaca — sidecar corrupt, backup semua dibatalkan.`);
       }
       const safeName = String(p.name || p.id).replace(/[^a-z0-9._-]/gi, '_').toLowerCase();
       const baseEntryName = `${safeName}_backup${PROJECT_EXT}`;
@@ -1183,6 +1181,12 @@ export async function onRestoreProject(ev: Event): Promise<void> {
   const f = target.files?.[0];
   target.value = '';
   if (!f) return;
+  await restoreProjectFromFile(f);
+}
+
+/** Restore pipeline shared by the dashboard file input and Folder Backup.
+ *  Returns true when the project was restored, false after a failed attempt. */
+export async function restoreProjectFromFile(f: File): Promise<boolean> {
   let restoreProjectId: string | null = null;
   let createdEpubSourceId: string | null = null;
   try {
@@ -1268,6 +1272,7 @@ export async function onRestoreProject(ev: Event): Promise<void> {
     }
     loadDashboardProjects();
     alert(`Proyek "${name}" berhasil dipulihkan!${restoreNote}`);
+    return true;
   } catch (e: any) {
     try {
       const root = await getOpfsRoot();
@@ -1280,5 +1285,6 @@ export async function onRestoreProject(ev: Event): Promise<void> {
       }
     } catch (_) {}
     alert('Gagal memulihkan proyek: ' + e.message);
+    return false;
   }
 }

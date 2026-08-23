@@ -105,9 +105,33 @@ Klik baris manapun untuk buka editor individual. Di sini bisa edit nama karakter
 - Tag HTML untuk parsing EPUB
 
 ### Penyimpanan
-Semua proyek disimpan langsung di browser pakai **OPFS** (Origin Private File System) — tidak ada server, tidak ada akun. Proyek bisa di-backup dan dipulihkan lewat file `.cstl`.
+Semua proyek disimpan langsung di browser pakai **OPFS** (Origin Private File System) — tidak ada server, tidak ada akun. Proyek bisa di-backup dan dipulihkan lewat file `.cstl`. Di desktop Chrome/Edge ada juga **Backup ke Folder** yang menulis backup langsung ke folder lokal pilihan (bisa disinkronkan ke cloud — lihat [di bawah](#backup-ke-folder-desktop)).
 
 Data biner besar (file mentah LucaSystem) disimpan di file OPFS terpisah supaya auto-save tetap ringan. Dashboard hanya memuat metadata proyek, bukan seluruh isi data — jadi tetap cepat meski proyek sudah banyak.
+
+#### Backup ke Folder (Desktop)
+
+> Hanya tersedia di **Chrome / Edge / Brave / Opera desktop**. Di HP atau Firefox/Safari tombolnya otomatis disembunyikan — pakai **Backup Semua ZIP** sebagai gantinya.
+
+CSTL bisa menulis file backup **langsung ke satu folder di komputer kamu** yang kamu pilih sendiri — tanpa download, tanpa upload, tanpa login akun apa pun. Ini pakai izin bawaan browser (*File System Access API*): kamu memberi CSTL akses ke **satu folder itu saja**, bukan seluruh komputer, dan CSTL tidak pernah tahu apa yang terjadi pada folder itu selanjutnya.
+
+**Cara pakai:**
+
+1. Klik **Backup ke Folder** di dashboard → muncul dialog pemilih folder bawaan Windows → pilih foldernya (misal `D:\CSTL Backups`).
+2. Semua proyek ditulis ke folder itu sebagai file `nama_proyek_backup.cstl` — isinya sama persis dengan backup download (termasuk data mentah Luca dan file EPUB asli). Klik tombol yang sama lain kali untuk menimpa dengan versi terbaru.
+3. Klik **Pulihkan dari Folder** untuk melihat daftar file `.cstl` di folder itu beserta ukuran dan tanggalnya, lalu pulihkan yang kamu mau. Hasil pemulihan selalu jadi proyek baru — proyek yang sekarang tidak tertimpa.
+
+**Soal izin "Allow":** selama browser masih jalan, izin diingat dan backup berjalan tanpa popup. Setelah browser ditutup dan dibuka lagi, klik backup pertama memunculkan satu popup kecil konfirmasi — pilih **Allow on every visit** supaya tidak ditanya lagi selamanya.
+
+**Sinkron ke cloud (opsional):** folder itu folder biasa, jadi bisa diarahkan ke folder milik aplikasi sinkron supaya backup naik ke cloud otomatis:
+
+- **Google Drive for Desktop** → saat memilih folder, arahkan ke folder di dalam `Drive saya`. File yang ditulis CSTL otomatis ikut naik ke Google Drive (dan bisa diakses dari HP).
+- **rclone** (power user) → `rclone sync D:\CSTLBackups drive:CSTL` dijadwalkan lewat Task Scheduler. Bekerja juga untuk Dropbox, OneDrive, S3, dll.
+- Dropbox / OneDrive / Syncthing juga sama saja — semua yang masuk ke folder itu ikut tersinkron.
+
+Intinya: **CSTL cuma menulis file ke folder; program lain yang meng-upload.** Jadi tidak ada login Google, tidak ada setup Google Console, dan ganti layanan cloud tidak perlu mengubah apa-apa di CSTL.
+
+**Catatan:** backup dengan nama sama menimpa file lama di folder. Kalau kamu pakai Drive/rclone, versi lama biasanya masih tersimpan di riwayat versi layanan cloud masing-masing.
 
 ---
 

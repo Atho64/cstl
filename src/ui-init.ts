@@ -44,6 +44,7 @@ import {
   queueAutoSave, openModal, closeModal, loadDashboardProjects,
   backupCurrentProject, backupAllProjectsAsZip, flushAutoSaveNow,
 } from './project';
+import { isFolderBackupSupported, backupAllToFolder, openFolderRestorePicker } from './folder-backup';
 import { getDefaultPromptHeaderForFormat, getKagikakkoPromptHeaderForFormat } from './ai-format';
 import { getLucaProfile, populateLucaExportSlotSelect, DEFAULT_LUCA_PROFILE } from './luca-engine';
 import { bindShortcutCaptureInput } from './shortcuts';
@@ -66,7 +67,7 @@ function debounce(func: Function, wait: number) {
 
 export function cacheElements(): void {
   const ids = [
-    'dashboardView', 'workspaceView', 'projectList', 'projectFilterInput', 'btnNewProject', 'btnRestoreProject', 'btnBackupAllProjects',
+    'dashboardView', 'workspaceView', 'projectList', 'projectFilterInput', 'btnNewProject', 'btnRestoreProject', 'btnBackupAllProjects', 'btnFolderBackup', 'btnFolderRestore',
     'btnBackToDashboard', 'btnBackupProject', 'btnBatchPrev', 'btnBatchNext', 'projectNameDisplay', 'restoreProjectInput', 'btnDropdownImport', 'dropdownImportMenu', 'btnDropdownImportOther', 'dropdownImportOtherMenu', 'btnImportFile',
     'btnDropdownDashboardSettings', 'dropdownDashboardSettingsMenu', 'btnDashboardSettings', 'dashboardSettingsModal', 'btnDashboardSettingsSave', 'btnDashboardSettingsReset', 'paletteSelect', 'btnDashboardSettingsCancel', 'btnDashboardPrompts', 'dashboardPromptsModal', 'dpPromptInput', 'dpPromptTemplateSelect', 'dpGlossaryPromptInput', 'dpAiCheckPromptInput', 'dpAgentPromptInput', 'dpSummaryPromptInput', 'btnDashboardPromptsSave', 'btnDashboardPromptsReset', 'btnDashboardPromptsCancel',
     'dsSourceLang', 'dsTargetLang', 'dsTranslationMode', 'dsAiFormat', 'dsContextLines', 'dsContextType', 'dsSelectionBatch', 'dsGlossaryBatch', 'dsAiCheckBatch', 'dsParallelBatch', 'dsSubagentWorkers', 'dsShowFurigana', 'dsFuriganaType', 'dsFontSize', 'dsEnableDictionary', 'dsDictionaryEngine', 'dsDictionaryPrompt', 'dsRegexFilter', 'dsDisableEmptyLineValidation', 'dsCheckKanaResidue', 'dsCheckSimilarity', 'dsSimilarityThreshold', 'dsSimilarityThresholdWrap', 'dsCheckLengthRatio', 'dsLengthRatioThreshold', 'dsLengthRatioWrap', 'dsCheckLinebreak', 'dsCheckLanguage', 'dsCheckPunctuation', 'dsCheckUntransName', 'dsEnableBackgroundChaining', 'dsEnableUncertainMarking', 'dsSafeTagsForChatgpt', 'dsAgentMaxTurns', 'dsEpubTags', 'dsSelectionPrevShortcut', 'dsSelectionNextShortcut', 'dsEnableLogging',
@@ -280,6 +281,15 @@ export function bindEvents(): void {
   });
   ui.btnNewProject?.addEventListener('click', createNewProject);
   ui.btnBackupAllProjects?.addEventListener('click', backupAllProjectsAsZip);
+  // Folder Backup butuh showDirectoryPicker (desktop Chromium) — di browser
+  // lain tombolnya disembunyikan dan user pakai ZIP/download seperti biasa.
+  if (isFolderBackupSupported()) {
+    ui.btnFolderBackup?.addEventListener('click', backupAllToFolder);
+    ui.btnFolderRestore?.addEventListener('click', openFolderRestorePicker);
+  } else {
+    (ui.btnFolderBackup as HTMLElement | null)?.style.setProperty('display', 'none');
+    (ui.btnFolderRestore as HTMLElement | null)?.style.setProperty('display', 'none');
+  }
   ui.projectFilterInput?.addEventListener('input', () => renderDashboardProjects());
   ui.btnBackToDashboard?.addEventListener('click', closeProject);
   ui.btnBackupProject?.addEventListener('click', backupCurrentProject);
