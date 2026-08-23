@@ -34,29 +34,78 @@
       <span class="aurora-blob aurora-2"></span>
     </div>
     <header class="dashboard-hero">
-      <div class="hero-left">
-        <h1 class="hero-title">Copas Tool</h1>
-        <span class="hero-badge">vM15</span>
+      <div class="hero-brand">
+        <img src="./icon.svg" alt="Copas Tool" class="hero-logo-img" width="64" height="64" />
+        <div class="hero-title-group">
+          <h1 class="hero-title">Copas Tool</h1>
+          <span class="hero-badge">vM15</span>
+        </div>
       </div>
-      <div class="actions" role="toolbar" aria-label="Dashboard actions">
-          <button id="btnNewProject" class="btn btn-primary">Buat Proyek Baru</button>
-          <button id="btnRestoreProject" class="btn btn-outline">Pulihkan Proyek</button>
-          <button id="btnBackupAllProjects" class="btn btn-outline" title="Backup semua proyek sebagai ZIP">Backup Semua ZIP</button>
-          <button id="btnFolderBackup" class="btn btn-outline" title="Backup semua proyek langsung ke folder pilihan — bisa disinkronkan ke Google Drive/dll (Chrome/Edge desktop)">Backup ke Folder</button>
-          <button id="btnFolderRestore" class="btn btn-outline" title="Pulihkan proyek dari file .cstl di folder backup (Chrome/Edge desktop)">Pulihkan dari Folder</button>
-          <div class="dropdown">
-            <button id="btnDropdownDashboardSettings" class="btn btn-outline dropdown-toggle" aria-expanded="false" aria-haspopup="menu" title="Pengaturan Default Proyek"><svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915" /><circle cx="12" cy="12" r="3" /></svg> Default ▼</button>
-            <div id="dropdownDashboardSettingsMenu" class="dropdown-content" role="menu">
-              <button id="btnDashboardSettings" class="dropdown-item" role="menuitem">Project Defaults</button>
-              <button id="btnDashboardPrompts" class="dropdown-item" role="menuitem">Prompt Defaults</button>
-            </div>
+      <div class="hero-actions">
+        <div class="dropdown">
+          <button id="btnDropdownDashboardSettings" class="btn btn-icon btn-outline btn-settings-gear" aria-expanded="false" aria-haspopup="menu" title="Pengaturan & Backup Proyek">
+            <svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915" /><circle cx="12" cy="12" r="3" /></svg>
+          </button>
+          <div id="dropdownDashboardSettingsMenu" class="dropdown-content dropdown-right" role="menu">
+            <button id="btnDashboardSettings" class="dropdown-item" role="menuitem">
+              <svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+              <span>Project Defaults</span>
+            </button>
+            <button id="btnDashboardPrompts" class="dropdown-item" role="menuitem">
+              <svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              <span>Prompt Defaults</span>
+            </button>
+            <div class="dropdown-divider"></div>
+            <button id="btnBackupAllProjects" class="dropdown-item" role="menuitem">
+              <svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="5" x="2" y="3" rx="1" /><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8" /><path d="M10 12h4" /></svg>
+              <span>Backup Semua (.zip)</span>
+            </button>
+            <button id="btnFolderBackup" class="dropdown-item" role="menuitem">
+              <svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg>
+              <span>Backup ke Folder</span>
+            </button>
+            <button id="btnFolderRestore" class="dropdown-item" role="menuitem">
+              <svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 14 1.45-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6a2 2 0 0 1-1.94 1.5H4a2 2 0 0 1-2-2V5c0-1.1.9-2 2-2h3.93a2 2 0 0 1 1.66.9l.82 1.2a2 2 0 0 0 1.66.9H18a2 2 0 0 1 2 2v2"/></svg>
+              <span>Pulihkan dari Folder</span>
+            </button>
           </div>
         </div>
+      </div>
     </header>
+
+    <div class="dashboard-hero-cta">
+      <button id="btnNewProject" class="btn btn-primary btn-cta">
+        <svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+        <span>Buat Project</span>
+      </button>
+      <button id="btnRestoreProject" class="btn btn-outline btn-cta">
+        <svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v5h-5"/></svg>
+        <span>Pulihkan Project</span>
+      </button>
+    </div>
+
     <main class="dashboard-content">
-      <div class="dashboard-filter-row">
-        <div class="section-label section-label-lg">Proyek Tersimpan</div>
-        <input id="projectFilterInput" class="text-input dashboard-filter" type="search" placeholder="Cari proyek..." />
+      <div class="dashboard-section-header">
+        <div class="dashboard-section-title">
+          <span>Project Tersimpan</span>
+          <span id="projectCountBadge" class="project-count-badge">0</span>
+        </div>
+      </div>
+      <div class="dashboard-filter-bar">
+        <div class="search-input-wrap">
+          <svg class="search-icon lucide-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          <input id="projectFilterInput" class="text-input dashboard-search-input" type="search" placeholder="Cari project..." />
+        </div>
+        <div class="sort-select-wrap">
+          <select id="projectSortSelect" class="text-input dashboard-sort-select">
+            <option value="newest">Terbaru</option>
+            <option value="oldest">Terlama</option>
+            <option value="name_asc">Nama (A-Z)</option>
+            <option value="name_desc">Nama (Z-A)</option>
+            <option value="progress_desc">Progress Tertinggi</option>
+            <option value="progress_asc">Progress Terendah</option>
+          </select>
+        </div>
       </div>
       <div id="projectList" class="project-grid"></div>
     </main>
@@ -581,6 +630,12 @@
           </div>
           <div class="mt-2">
             <label class="checkbox-line">
+              <input id="dsShowEpubImages" type="checkbox" checked />
+              <span>Tampilkan preview gambar/ilustrasi di proyek EPUB</span>
+            </label>
+          </div>
+          <div class="mt-2">
+            <label class="checkbox-line">
               <input id="dsEnableLogging" type="checkbox" />
               <span>Tampilkan bubble logging di semua proyek</span>
             </label>
@@ -894,6 +949,12 @@
           <div class="mt-2">
             <label class="form-label" for="settingsEpubTagsInput">Tag HTML Target EPUB</label>
             <input id="settingsEpubTagsInput" class="text-input w-full" type="text" placeholder="p, h1, h2, h3" />
+          </div>
+          <div class="mt-2">
+            <label class="checkbox-line">
+              <input id="settingsShowEpubImages" type="checkbox" checked />
+              <span>Tampilkan preview gambar/ilustrasi di daftar teks (EPUB)</span>
+            </label>
           </div>
           <div class="mt-2" id="settingsLucaWrap">
             <label class="form-label">Pengaturan LucaSystem</label>
@@ -1534,6 +1595,16 @@
         <span class="grow"></span>
         <button id="btnBookmarkClose" class="btn btn-primary" type="button">Tutup</button>
       </div>
+    </div>
+  </div>
+
+  <!-- EPUB Image Lightbox Modal -->
+  <div id="imageLightboxModal" class="modal-backdrop image-lightbox-backdrop">
+    <div class="image-lightbox-container">
+      <button id="btnImageLightboxClose" class="image-lightbox-close" title="Tutup preview" type="button">
+        <svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+      </button>
+      <img id="imageLightboxImg" class="image-lightbox-img" src="" alt="EPUB Image Full Preview" />
     </div>
   </div>
 

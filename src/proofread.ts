@@ -1,7 +1,7 @@
 // @module proofread.ts — Find & Replace / Proofread modal
 
 import { state, ui, getProofreadScroller, getMainScroller } from './state';
-import { isTranslated } from './state';
+import { isTranslated, isIlustrasiLine } from './state';
 import { escapeRegex, unescapeStoredNewlines, escapeStoredNewlines, containsJapanese } from './string-utils';
 import { rebuildDisplayState, renderPreviewRows, syncCheckboxUI, flashHint, updateButtonStates, pushUndoSnapshot, openLineEditor, refreshAll } from './render';
 import { queueAutoSave, openModal, closeModal } from './project';
@@ -67,6 +67,7 @@ export function renderProofreadResults(): void {
   }
   state.proofreadMatches = [];
   for (const line of state.lines) {
+    if (isIlustrasiLine(line)) continue; // image placeholders carry no translatable text
     if (onlyTrans && !isTranslated(line)) continue;
     const dName = line.name || '';
     let fName: string | null = null;

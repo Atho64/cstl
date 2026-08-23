@@ -1,7 +1,7 @@
 // @module translate.ts — Copy for AI, paste and apply translations, undo
 
 import { state, ui, normalizeLineDict } from './state';
-import { isTranslated } from './state';
+import { isTranslated, isIlustrasiLine } from './state';
 import {
   buildSelectedTranslationExport, detectTranslationPasteFormat,
   parseTranslationBlocks, parseTranslationXml, parseTranslationJsonl, parseTranslationJsonArray,
@@ -61,6 +61,7 @@ export function buildCopyForAiPrompt(): string | null {
       const ctxLines = state.lines.slice(startIdx, firstSelIdx);
       const ctxOut: string[] = [];
       for (const l of ctxLines) {
+        if (isIlustrasiLine(l)) continue; // image placeholders carry no useful context
         const origNameStr = l.name ? `${l.name}: ` : '';
         const transNameStr = (l.trans_name || l.name) ? `${(l.trans_name || l.name)!.trim()}: ` : '';
         if (state.contextType === 'raw') {

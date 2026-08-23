@@ -41,6 +41,7 @@ export interface Line {
   // EPUB fields
   epub_selector?: string;
   epub_id?: string;
+  epub_img_src?: string;
 
   // Luca language fields
   luca_jp?: string;
@@ -92,6 +93,7 @@ export interface AppState {
   jsonRefLang: string;
   epubTags: string;
   epubSourceId: string | null;
+  showEpubImages: boolean;
   lucaExportLang: string;
   lucaProfile: string;
   lucaMcDisplayName: string;
@@ -253,6 +255,8 @@ export interface DashboardProject {
   translationMode: string;
   totalLines: number;
   translatedLines: number;
+  fileCount: number;
+  lineCount?: number;
   updatedAt: number;
   /** Set when the .cstl file exists but cannot be parsed — shown as a recovery card. */
   corrupt?: boolean;

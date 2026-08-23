@@ -1,7 +1,7 @@
 // @module render.ts — Main rendering, virtual scroller callbacks, status bar, undo, flashHint
 
 import { state, ui, getMainScroller, incrementHintToken, getHintToken } from './state';
-import { isTranslated } from './state';
+import { isTranslated, isIlustrasiLine, EPUB_ILUSTRASI_MARKER } from './state';
 import { APP_VERSION, MAX_UNDO_STEPS } from './constants';
 import { formatLineLabel, getLineDisplayName, getActiveLucaProfile } from './luca-engine';
 import { isSelectableForActiveTab, recordSelectionHistory } from './selection';
@@ -10,6 +10,7 @@ import { getTranslationPastePlaceholder } from './ai-format';
 import { getActiveLineEditorLineNum, setActiveLineEditorLineNum } from './state';
 import { isClannadProtagonistToken, parseLucaTxtText, resolveLucaDisplayName } from './luca-engine';
 import { getFileDisplayOrder } from './file-list';
+import { getEpubImageBlobUrl, getEpubImagesForFile, preloadEpubImages, openImageLightbox } from './epub-images';
 import type { DisplayRow, Line } from './types';
 
 // ─── Lazy helpers (break circular deps) ──────────────────────────────────────
@@ -226,6 +227,46 @@ export function renderMainRow(rowData: DisplayRow): HTMLElement {
     }
     transDiv.textContent = tTxt;
     contentWrap.append(origDiv, transDiv);
+
+    // EPUB Image Preview
+    if (state.projectType === 'epub' && state.showEpubImages === true) {
+      const targetSrc = line.epub_img_src || (line.message === EPUB_ILUSTRASI_MARKER ? getEpubImagesForFile(line.file)?.[0] : null);
+      if (targetSrc) {
+        const blobUrl = getEpubImageBlobUrl(targetSrc);
+        const imgBox = document.createElement('div');
+        imgBox.className = 'epub-preview-image-wrap';
+        const img = document.createElement('img');
+        img.className = 'epub-preview-img';
+        img.alt = 'Ilustrasi EPUB';
+        img.loading = 'lazy';
+        if (blobUrl) {
+          img.src = blobUrl;
+          img.onload = () => getMainScroller()?.requestRemeasure();
+          img.addEventListener('click', (e) => {
+            e.stopPropagation();
+            openImageLightbox(blobUrl);
+          });
+        } else {
+          preloadEpubImages().then(() => {
+            const url = getEpubImageBlobUrl(targetSrc);
+            if (url && imgBox.isConnected) {
+              img.src = url;
+              img.onload = () => getMainScroller()?.requestRemeasure();
+              img.addEventListener('click', (e) => {
+                e.stopPropagation();
+                openImageLightbox(url);
+              });
+            }
+          });
+        }
+        const badge = document.createElement('span');
+        badge.className = 'epub-preview-badge';
+        badge.innerHTML = `<svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg> Ilustrasi EPUB`;
+        imgBox.append(img, badge);
+        contentWrap.appendChild(imgBox);
+      }
+    }
+
     cbWrap.append(leftControls, contentWrap);
     row.appendChild(cbWrap);
     contentWrap.addEventListener('click', () => openLineEditor(line.line_num));
@@ -575,14 +616,15 @@ export function openLineEditor(num: number): void {
 export function onSaveLineEditor(): void {
   const l = state.lineByNum.get(getActiveLineEditorLineNum()!);
   if (!l) return;
+  const ilustrasi = isIlustrasiLine(l);
   const m = (ui.lineMessageInput as HTMLTextAreaElement).value.trim().replace(/\r?\n/g, '\\n');
-  if ((ui.lineTranslatedCheck as HTMLInputElement).checked && !m && !state.disableEmptyLineValidation) return alert('Gagal: Pesan terjemahan kosong.');
+  if ((ui.lineTranslatedCheck as HTMLInputElement).checked && !m && !state.disableEmptyLineValidation && !ilustrasi) return alert('Gagal: Pesan terjemahan kosong.');
   let n: string | null = null;
   const hideMcName = isClannadProtagonistToken(l.name) && getActiveLucaProfile().nameAtFormat;
   if (l.name && !hideMcName) n = (ui.lineNameInput as HTMLInputElement).value.trim().replace(/\r?\n/g, '\\n');
   pushUndoSnapshot();
-  l.trans_message = m || ((ui.lineTranslatedCheck as HTMLInputElement).checked && state.disableEmptyLineValidation ? '' : null);
-  l.is_translated = !!((ui.lineTranslatedCheck as HTMLInputElement).checked && (m || state.disableEmptyLineValidation));
+  l.trans_message = m || ((ui.lineTranslatedCheck as HTMLInputElement).checked && (state.disableEmptyLineValidation || ilustrasi) ? '' : null);
+  l.is_translated = !!((ui.lineTranslatedCheck as HTMLInputElement).checked && (m || state.disableEmptyLineValidation || ilustrasi));
   if (l.name && !hideMcName) l.trans_name = n || null;
   closeModal(ui.lineEditorModal as HTMLElement);
   refreshAll();

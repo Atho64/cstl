@@ -1,7 +1,7 @@
 // @module export.ts — Project export: JSON, EPUB, dan LucaTxt formats
 
 import { state, ui } from './state';
-import { isTranslated } from './state';
+import { isTranslated, isIlustrasiLine } from './state';
 import { unescapeStoredNewlines } from './string-utils';
 import {
   buildLucaExportText, applyLucaMessageExport, applyLucaSelectExport,
@@ -136,6 +136,9 @@ export async function onExport(): Promise<void> {
       
       const linesByFile: Record<string, Line[]> = {};
       state.lines.forEach(l => {
+        // Illustration placeholder lines have no counterpart element in the XHTML —
+        // they must not consume a slot in the element<->line pairing below.
+        if (isIlustrasiLine(l)) return;
         if (!linesByFile[l.file]) linesByFile[l.file] = [];
         linesByFile[l.file].push(l);
       });

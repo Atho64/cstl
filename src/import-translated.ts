@@ -1,7 +1,7 @@
 // @module import-translated.ts — Import translated file/folder: match and apply
 
 import { state, ui } from './state';
-import { normalizeLineDict, isTranslated, getOpfsRoot } from './state';
+import { normalizeLineDict, isTranslated, isIlustrasiLine, getOpfsRoot } from './state';
 import { unescapeStoredNewlines, escapeStoredNewlines, normalizeFileBaseName, windowsFileOrderCompare, getFileOrderPath } from './string-utils';
 import { parseLucaTxt, getLucaProfile, getActiveLucaProfile, normalizeLucaHeavyQuoteFields, parseLucaTxtText, isQuotedLucaArg, unquoteLuca, splitLucaChoices, getLucaCommandRe, splitLucaArgs, parseJsonFromFileObject } from './luca-engine';
 import { WINDOWS_FILE_ORDER_COLLATOR } from './constants';
@@ -14,6 +14,9 @@ import type { Line } from './types';
 export function groupCurrentLinesByFile(): Map<string, Line[]> {
   const grouped = new Map<string, Line[]>();
   for (const line of state.lines) {
+    // Illustration placeholders have no counterpart paragraph in imported files —
+    // skipping them keeps the element<->line pairing in sync.
+    if (isIlustrasiLine(line)) continue;
     if (!grouped.has(line.file)) grouped.set(line.file, []);
     grouped.get(line.file)!.push(line);
   }

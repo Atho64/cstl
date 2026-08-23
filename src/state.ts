@@ -55,6 +55,7 @@ export const state: AppState = {
   jsonRefLang: '', // optional reference language code for json projects: "en", "zh", etc. (empty = disabled)
   epubTags: 'p',
   epubSourceId: null,
+  showEpubImages: true,
   lucaExportLang: 'en',
   lucaProfile: 'summer-pockets-steam',
   lucaMcDisplayName: DEFAULT_LUCA_MC_DISPLAY_NAME,
@@ -155,7 +156,16 @@ export function incrementHintToken() { return ++_hintToken; }
 
 // ─── Core Helpers (used everywhere) ──────────────────────────────────────────
 
+/** Marker message used for EPUB illustration-only lines (no text to translate). */
+export const EPUB_ILUSTRASI_MARKER = '[Ilustrasi]';
+
+/** True for EPUB placeholder lines that only carry an illustration — nothing to translate. */
+export function isIlustrasiLine(line: any): boolean {
+  return !!line && line.message === EPUB_ILUSTRASI_MARKER && !!line.epub_img_src;
+}
+
 export function isTranslated(line: Line): boolean {
+  if (isIlustrasiLine(line)) return true;
   return !!line.is_translated && (state.disableEmptyLineValidation || !!String(line.trans_message).trim());
 }
 
@@ -193,6 +203,7 @@ export function normalizeLineDict(line: any): Line {
   if (line.luca_prefix_b64 != null) normalized.luca_prefix_b64 = String(line.luca_prefix_b64);
   if (line.epub_selector != null) normalized.epub_selector = String(line.epub_selector);
   if (line.epub_id != null) normalized.epub_id = String(line.epub_id);
+  if (line.epub_img_src != null) normalized.epub_img_src = String(line.epub_img_src);
   if (line._hidden != null) normalized._hidden = Boolean(line._hidden);
   if (line._glossary_extracted != null) normalized._glossary_extracted = Boolean(line._glossary_extracted);
   if (line._ai_checked != null) normalized._ai_checked = Boolean(line._ai_checked);

@@ -15,11 +15,13 @@ import type { Line } from './types';
 import { normalizeAiTranslationFormat, getDefaultPromptHeaderForFormat } from './ai-format';
 import { readEpubSourceForBackup, writeEpubSourceFromBackup, cloneExistingEpubSource } from './binary-utils';
 import { resetSelectionHistory, switchWorkspaceTab, normalizeSelectionBatchSize } from './selection';
-import { normalizeLineDict } from './state';
+import { normalizeLineDict, isIlustrasiLine } from './state';
 import { normalizeShortcutString } from './shortcuts';
 import { getDictHistory, setDictHistory } from './dictionary';
 import { applyProjectLoggingVisibility } from './logging';
 import { salvageJsonObject } from './json-repair';
+import { icon } from './icons';
+import { preloadEpubImages, clearEpubImageCache } from './epub-images';
 
 // ─── Luca raw-field recovery (migration for saves made before the luca_raw_index fix) ───
 function recoverLucaRawFields(): void {
@@ -141,11 +143,18 @@ const PALETTES: Record<string, Record<string, string>> = {
 };
 
 export function applyPalette(name: string): void {
-  const vars = PALETTES[name] ?? PALETTES['indigo'];
+  // Resolve the key first so an unknown name falls back fully to indigo (icon included).
+  const key = PALETTES[name] ? name : 'indigo';
+  const vars = PALETTES[key];
   const root = document.documentElement;
   for (const [prop, val] of Object.entries(vars)) {
     root.style.setProperty(prop, val);
   }
+  const iconUrl = `./icon-${key}.svg`;
+  const logoImg = document.querySelector('.hero-logo-img') as HTMLImageElement | null;
+  if (logoImg) logoImg.src = iconUrl;
+  const favicon = document.querySelector('link[rel="icon"]') as HTMLLinkElement | null;
+  if (favicon) favicon.href = iconUrl;
 }
 
 export function getDefaultSettings(): Record<string, any> {
@@ -193,6 +202,7 @@ export function getDefaultSettings(): Record<string, any> {
     agentMaxTurns: 10,
     enableBackgroundChaining: false,
     epubTags: 'p',
+    showEpubImages: true,
     selectionPrevShortcut: DEFAULT_SELECTION_BATCH_PREV_SHORTCUT,
     selectionNextShortcut: DEFAULT_SELECTION_BATCH_NEXT_SHORTCUT,
   };
@@ -233,6 +243,8 @@ export function openDashboardSettings(): void {
   if (ui.dsSafeTagsForChatgpt) (ui.dsSafeTagsForChatgpt as HTMLInputElement).checked = !!d.safeTagsForChatgpt;
   if (ui.dsAgentMaxTurns) (ui.dsAgentMaxTurns as HTMLInputElement).value = String(d.agentMaxTurns || 10);
   if (ui.dsEpubTags) (ui.dsEpubTags as HTMLInputElement).value = d.epubTags || 'p';
+  const dsShowEpub = (document.getElementById('dsShowEpubImages') || ui.dsShowEpubImages) as HTMLInputElement | null;
+  if (dsShowEpub) dsShowEpub.checked = d.showEpubImages !== false;
   if (ui.dsSelectionPrevShortcut) (ui.dsSelectionPrevShortcut as HTMLInputElement).value = d.selectionPrevShortcut || DEFAULT_SELECTION_BATCH_PREV_SHORTCUT;
   if (ui.dsSelectionNextShortcut) (ui.dsSelectionNextShortcut as HTMLInputElement).value = d.selectionNextShortcut || DEFAULT_SELECTION_BATCH_NEXT_SHORTCUT;
   if (ui.dsEnableLogging) (ui.dsEnableLogging as HTMLInputElement).checked = !!d.enableLogging;
@@ -284,6 +296,8 @@ export function saveDashboardSettings(): void {
   if (ui.dsSafeTagsForChatgpt) d.safeTagsForChatgpt = !!(ui.dsSafeTagsForChatgpt as HTMLInputElement).checked;
   if (ui.dsAgentMaxTurns) d.agentMaxTurns = parseInt((ui.dsAgentMaxTurns as HTMLInputElement).value) || 10;
   if (ui.dsEpubTags) d.epubTags = (ui.dsEpubTags as HTMLInputElement).value || 'p';
+  const dsShowEpub = (document.getElementById('dsShowEpubImages') || ui.dsShowEpubImages) as HTMLInputElement | null;
+  if (dsShowEpub) d.showEpubImages = dsShowEpub.checked;
   if (ui.dsSelectionPrevShortcut) d.selectionPrevShortcut = (ui.dsSelectionPrevShortcut as HTMLInputElement).value || DEFAULT_SELECTION_BATCH_PREV_SHORTCUT;
   if (ui.dsSelectionNextShortcut) d.selectionNextShortcut = (ui.dsSelectionNextShortcut as HTMLInputElement).value || DEFAULT_SELECTION_BATCH_NEXT_SHORTCUT;
   if (ui.dsEnableLogging) d.enableLogging = !!(ui.dsEnableLogging as HTMLInputElement).checked;
@@ -341,6 +355,27 @@ export function resetDashboardSettings(): void {
 }
 
 // ─── Dashboard project list ───────────────────────────────────────────────────
+export function escapeHtml(str: string): string {
+  return String(str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+export function formatDashboardDate(ts: number): string {
+  if (!ts) return '-';
+  const d = new Date(ts);
+  const day = d.getDate();
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+  const month = months[d.getMonth()] || '';
+  const year = d.getFullYear();
+  const hours = String(d.getHours()).padStart(2, '0');
+  const minutes = String(d.getMinutes()).padStart(2, '0');
+  return `${day} ${month} ${year} · ${hours}.${minutes}`;
+}
+
 export async function loadDashboardProjects(): Promise<void> {
   state.dashboardProjects = [];
   (ui.projectList as HTMLElement).textContent = '';
@@ -365,24 +400,41 @@ export async function loadDashboardProjects(): Promise<void> {
             updatedAt: file.lastModified,
             fileCount: 0,
             lineCount: 0,
+            totalLines: 0,
+            translatedLines: 0,
             projectType: undefined,
             translationMode: undefined,
             corrupt: true,
           });
           continue;
         }
+
+        const lines = Array.isArray(data.lines) ? data.lines : [];
+        const totalLines = lines.length;
+        let translatedLines = 0;
+        for (const l of lines) {
+          if (isIlustrasiLine(l) || (l && l.is_translated && (data.disable_empty_line_validation || !!String(l.trans_message || '').trim()))) {
+            translatedLines++;
+          }
+        }
+        const fileCount = Array.isArray(data.imported_files) && data.imported_files.length > 0
+          ? data.imported_files.length
+          : (Array.isArray(data.file_order) ? data.file_order.length : 0);
+
         projects.push({
           id: name,
           name: data.projectName || name.replace(PROJECT_EXT, ''),
           updatedAt: data.updatedAt || file.lastModified,
-          fileCount: data.imported_files?.length || 0,
-          lineCount: data.lines?.length || 0,
+          fileCount,
+          lineCount: totalLines,
+          totalLines,
+          translatedLines,
           projectType: data.projectType,
           translationMode: data.translationMode,
         });
       }
     }
-    projects.sort((a, b) => b.updatedAt - a.updatedAt);
+    projects.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
     state.dashboardProjects = projects;
     renderDashboardProjects();
   } catch (err) {
@@ -395,6 +447,7 @@ export function renderDashboardMessage(message: string, isError = false): void {
   const p = document.createElement('p');
   p.className = 'hint';
   p.style.gridColumn = '1/-1';
+  p.style.padding = '24px 0';
   if (isError) p.style.color = 'var(--danger)';
   p.textContent = message;
   (ui.projectList as HTMLElement).appendChild(p);
@@ -410,18 +463,48 @@ export function createProjectButton(label: string, className: string, onClick: (
 }
 
 export function renderDashboardProjects(): void {
+  const badgeEl = document.getElementById('projectCountBadge') || ui.projectCountBadge;
+  if (badgeEl) {
+    badgeEl.textContent = String(state.dashboardProjects.length);
+  }
+
   const query = ((ui.projectFilterInput as HTMLInputElement)?.value || '').trim().toLowerCase();
-  const projects: any[] = query
+  let projects: any[] = query
     ? state.dashboardProjects.filter((p: any) => p.name.toLowerCase().includes(query))
-    : state.dashboardProjects;
+    : [...state.dashboardProjects];
+
+  const sortSelect = document.getElementById('projectSortSelect') as HTMLSelectElement | null;
+  const sortOption = sortSelect ? sortSelect.value : 'newest';
+
+  if (sortOption === 'newest') {
+    projects.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+  } else if (sortOption === 'oldest') {
+    projects.sort((a, b) => (a.updatedAt || 0) - (b.updatedAt || 0));
+  } else if (sortOption === 'name_asc') {
+    projects.sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+  } else if (sortOption === 'name_desc') {
+    projects.sort((a, b) => String(b.name || '').localeCompare(String(a.name || '')));
+  } else if (sortOption === 'progress_desc') {
+    projects.sort((a, b) => {
+      const pctA = a.totalLines ? a.translatedLines / a.totalLines : 0;
+      const pctB = b.totalLines ? b.translatedLines / b.totalLines : 0;
+      return pctB - pctA;
+    });
+  } else if (sortOption === 'progress_asc') {
+    projects.sort((a, b) => {
+      const pctA = a.totalLines ? a.translatedLines / a.totalLines : 0;
+      const pctB = b.totalLines ? b.translatedLines / b.totalLines : 0;
+      return pctA - pctB;
+    });
+  }
 
   (ui.projectList as HTMLElement).textContent = '';
   if (state.dashboardProjects.length === 0) {
-    renderDashboardMessage('Belum ada proyek. Klik "Buat Proyek Baru" untuk memulai.');
+    renderDashboardMessage('Belum ada proyek tersimpan. Klik "+ Buat Project" atau "Pulihkan Project" untuk memulai.');
     return;
   }
   if (projects.length === 0) {
-    renderDashboardMessage('Tidak ada proyek yang cocok dengan filter.');
+    renderDashboardMessage('Tidak ada proyek yang cocok dengan filter pencarian.');
     return;
   }
 
@@ -429,98 +512,184 @@ export function renderDashboardProjects(): void {
   for (const p of projects) {
     const card = document.createElement('div');
     card.className = 'project-card';
+
     if (p.corrupt) {
       card.classList.add('project-card-corrupt');
-      const info = document.createElement('div');
-      const title = document.createElement('h3');
-      title.textContent = p.name;
-      info.appendChild(title);
-      const meta = document.createElement('div');
-      meta.className = 'project-meta mt-2';
-      meta.style.color = 'var(--danger)';
-      meta.append(
-        document.createTextNode('File proyek tidak dapat dibaca (korup). File masih ada di storage — coba perbaiki, atau pulihkan dari backup.'),
-        document.createElement('br'),
-        document.createTextNode(`File: ${p.id} | Terakhir diubah: ${new Date(p.updatedAt).toLocaleString('id-ID')}`),
-      );
-      info.appendChild(meta);
-      const actions = document.createElement('div');
-      actions.className = 'project-actions';
-      actions.append(
-        createProjectButton('Coba Perbaiki', 'btn btn-primary btn-sm', async function() {
-          this.disabled = true; this.textContent = 'Memperbaiki...';
-          try {
-            const result = await tryRepairProject(p.id);
-            alert(result.message);
-            if (result.repaired) {
-              loadDashboardProjects();
-            } else {
-              this.disabled = false; this.textContent = 'Coba Perbaiki';
-            }
-          } catch (e: any) {
-            alert('Gagal memperbaiki: ' + (e?.message || e));
-            this.disabled = false; this.textContent = 'Coba Perbaiki';
+      card.innerHTML = `
+        <div class="project-card-header">
+          <h3 title="${escapeHtml(p.name)}">${escapeHtml(p.name)}</h3>
+          <span class="badge" style="background:var(--danger)">KORUP</span>
+        </div>
+        <div class="corrupt-box">
+          File proyek tidak dapat dibaca. Coba perbaiki atau pulihkan dari file backup.
+        </div>
+        <div class="project-meta-list">
+          <div class="project-meta-row">
+            ${icon('clock', 15, 'meta-icon')}
+            <span>${formatDashboardDate(p.updatedAt)}</span>
+          </div>
+          <div class="project-meta-row">
+            ${icon('file', 15, 'meta-icon')}
+            <span>ID: ${escapeHtml(p.id)}</span>
+          </div>
+        </div>
+        <div class="project-actions-container">
+          <button type="button" class="btn btn-primary btn-open-project btn-repair">
+            ${icon('wrench', 16)} <span>Coba Perbaiki</span>
+          </button>
+          <div class="project-actions-row">
+            <button type="button" class="btn btn-outline card-btn-action btn-restore-card">
+              ${icon('restore', 14)} <span>Pulihkan</span>
+            </button>
+            <button type="button" class="btn btn-danger-outline card-btn-action btn-delete">
+              ${icon('trash', 14)} <span>Hapus</span>
+            </button>
+          </div>
+        </div>
+      `;
+
+      card.querySelector('.btn-repair')?.addEventListener('click', async function(this: HTMLButtonElement) {
+        this.disabled = true;
+        this.textContent = 'Memperbaiki...';
+        try {
+          const result = await tryRepairProject(p.id);
+          alert(result.message);
+          if (result.repaired) {
+            loadDashboardProjects();
+          } else {
+            this.disabled = false;
+            this.innerHTML = `${icon('wrench', 16)} <span>Coba Perbaiki</span>`;
           }
-        }),
-        createProjectButton('Pulihkan dari Backup', 'btn btn-outline btn-sm', function() {
-          (ui.restoreProjectInput as HTMLInputElement | undefined)?.click();
-        }),
-        createProjectButton('Hapus', 'btn btn-danger btn-sm', async function() {
-          this.disabled = true; this.textContent = 'Menghapus...';
+        } catch (e: any) {
+          alert('Gagal memperbaiki: ' + (e?.message || e));
+          this.disabled = false;
+          this.innerHTML = `${icon('wrench', 16)} <span>Coba Perbaiki</span>`;
+        }
+      });
+
+      card.querySelector('.btn-restore-card')?.addEventListener('click', () => {
+        (ui.restoreProjectInput as HTMLInputElement | undefined)?.click();
+      });
+
+      card.querySelector('.btn-delete')?.addEventListener('click', async function(this: HTMLButtonElement) {
+        if (!confirm(`Hapus permanen proyek "${p.name}"?`)) return;
+        this.disabled = true;
+        this.textContent = 'Menghapus...';
+        try {
           await deleteProject(p.id, {});
-        }),
-      );
-      card.append(info, actions);
+        } finally {
+          this.disabled = false;
+          this.innerHTML = `${icon('trash', 14)} <span>Hapus</span>`;
+        }
+      });
+
       frag.appendChild(card);
       continue;
     }
-    const info = document.createElement('div');
-    const title = document.createElement('h3');
-    title.textContent = p.name;
-    info.appendChild(title);
-    const meta = document.createElement('div');
-    meta.className = 'project-meta mt-2';
-    if (p.fileCount > 0 || p.lineCount > 0) {
-      const badgeWrap = document.createElement('div');
-      badgeWrap.style.marginBottom = '8px';
-      const badge = document.createElement('span');
-      badge.className = p.projectType === 'epub' ? 'badge badge-epub' : p.projectType === 'luca' ? 'badge badge-luca' : 'badge badge-json';
-      let badgeText = p.projectType === 'epub' ? 'EPUB' : p.projectType === 'luca' ? 'TXT LUCA' : 'JSON VNTP';
-      if (p.translationMode === 'htl') badgeText += ' • HTL';
-      badge.textContent = badgeText;
-      badgeWrap.appendChild(badge);
-      meta.appendChild(badgeWrap);
+
+    const total = p.totalLines || 0;
+    const trans = p.translatedLines || 0;
+    const pct = total > 0 ? Math.floor((trans / total) * 100) : 0;
+
+    let badgeClass = 'badge-json';
+    let badgeText = 'JSON VNTP';
+    if (p.projectType === 'epub') {
+      badgeClass = 'badge-epub';
+      badgeText = 'EPUB';
+    } else if (p.projectType === 'luca') {
+      badgeClass = 'badge-luca';
+      badgeText = 'TXT LUCA';
     }
-    meta.append(
-      document.createTextNode(`Terakhir diubah: ${new Date(p.updatedAt).toLocaleString('id-ID')}`),
-      document.createElement('br'),
-      document.createTextNode(`File: ${p.fileCount} | Baris: ${p.lineCount}`),
-    );
-    info.appendChild(meta);
-    const actions = document.createElement('div');
-    actions.className = 'project-actions';
-    actions.append(
-      createProjectButton('Buka', 'btn btn-primary btn-sm', async function() {
-        this.disabled = true; this.textContent = 'Membuka...';
+    if (p.translationMode === 'htl') {
+      badgeText += ' • HTL';
+    }
+
+    card.innerHTML = `
+      <div class="project-card-header">
+        <h3 title="${escapeHtml(p.name)}">${escapeHtml(p.name)}</h3>
+        <span class="badge ${badgeClass}">${badgeText}</span>
+      </div>
+
+      <div class="project-progress-wrap">
+        <div class="project-progress-labels">
+          <span class="project-progress-lines">${trans}/${total} baris</span>
+          <span class="project-progress-pct">${pct}%</span>
+        </div>
+        <div class="project-progress-track">
+          <div class="project-progress-fill" style="width: ${pct}%"></div>
+        </div>
+      </div>
+
+      <div class="project-meta-list">
+        <div class="project-meta-row">
+          ${icon('clock', 15, 'meta-icon')}
+          <span>${formatDashboardDate(p.updatedAt)}</span>
+        </div>
+        <div class="project-meta-row">
+          ${icon('file', 15, 'meta-icon')}
+          <span>${p.fileCount} file</span>
+        </div>
+      </div>
+
+      <div class="project-actions-container">
+        <button type="button" class="btn btn-primary btn-open-project btn-open">
+          ${icon('arrow-right', 17)} <span>Buka Project</span>
+        </button>
+        <div class="project-actions-row">
+          <button type="button" class="btn btn-outline card-btn-action btn-rename" title="Ubah Nama">
+            ${icon('pencil', 14)} <span>Ubah</span>
+          </button>
+          <button type="button" class="btn btn-outline card-btn-action btn-backup" title="Backup Project">
+            ${icon('download', 14)} <span>Backup</span>
+          </button>
+          <button type="button" class="btn btn-danger-outline card-btn-action btn-delete" title="Hapus Project">
+            ${icon('trash', 14)} <span>Hapus</span>
+          </button>
+        </div>
+      </div>
+    `;
+
+    card.querySelector('.btn-open')?.addEventListener('click', async function(this: HTMLButtonElement) {
+      this.disabled = true;
+      this.textContent = 'Membuka...';
+      try {
         await openProject(p.id, await fetchProjectData(p.id));
-        this.disabled = false; this.textContent = 'Buka';
-      }),
-      createProjectButton('Ubah Nama', 'btn btn-outline btn-sm', async function() {
-        this.disabled = true; this.textContent = 'Memproses...';
+      } finally {
+        this.disabled = false;
+        this.innerHTML = `${icon('arrow-right', 17)} <span>Buka Project</span>`;
+      }
+    });
+
+    card.querySelector('.btn-rename')?.addEventListener('click', async function(this: HTMLButtonElement) {
+      this.disabled = true;
+      try {
         await renameDashboardProject(p.id, p.name, await fetchProjectData(p.id));
-        this.disabled = false; this.textContent = 'Ubah Nama';
-      }),
-      createProjectButton('Backup', 'btn btn-outline btn-sm', async function() {
-        this.disabled = true; this.textContent = 'Membackup...';
+      } finally {
+        this.disabled = false;
+      }
+    });
+
+    card.querySelector('.btn-backup')?.addEventListener('click', async function(this: HTMLButtonElement) {
+      this.disabled = true;
+      try {
         await backupDashboardProject(p.name, await fetchProjectData(p.id), p.id);
-        this.disabled = false; this.textContent = 'Backup';
-      }),
-      createProjectButton('Hapus', 'btn btn-danger btn-sm', async function() {
-        this.disabled = true; this.textContent = 'Menghapus...';
+      } finally {
+        this.disabled = false;
+      }
+    });
+
+    card.querySelector('.btn-delete')?.addEventListener('click', async function(this: HTMLButtonElement) {
+      if (!confirm(`Hapus permanen proyek "${p.name}"?`)) return;
+      this.disabled = true;
+      this.textContent = 'Menghapus...';
+      try {
         await deleteProject(p.id, await fetchProjectData(p.id));
-      }),
-    );
-    card.append(info, actions);
+      } finally {
+        this.disabled = false;
+        this.innerHTML = `${icon('trash', 14)} <span>Hapus</span>`;
+      }
+    });
+
     frag.appendChild(card);
   }
   (ui.projectList as HTMLElement).appendChild(frag);
@@ -563,6 +732,7 @@ export async function createNewProject(): Promise<void> {
     enableBackgroundChaining: !!d.enableBackgroundChaining,
     currentBackground: '',
     summary_prompt: d.summaryPrompt !== undefined ? d.summaryPrompt : '',
+    show_epub_images: d.showEpubImages !== undefined ? !!d.showEpubImages : true,
     imported_files: [], file_order: [], lines: [],
     prompt_header: d.promptHeader !== undefined ? d.promptHeader : getDefaultPromptHeaderForFormat(d.aiFormat),
     ai_translation_format: d.aiFormat || DEFAULT_AI_TRANSLATION_FORMAT,
@@ -792,6 +962,7 @@ function buildProjectPersistenceData(): Record<string, any> {
     currentBackground: state.currentBackground,
     summary_prompt: state.summaryPrompt,
     enable_logging: state.projectLoggingEnabled,
+    show_epub_images: state.showEpubImages === true,
     proofread_settings: getProofreadSettings(),
   };
 }
@@ -1055,6 +1226,7 @@ export async function openProject(id: string, data: any): Promise<void> {
   state.agentMaxTurns = (typeof data.agent_max_turns === 'number' && data.agent_max_turns >= 3) ? data.agent_max_turns : 10;
   state.showFurigana = !!data.show_furigana;
   state.furiganaType = data.furigana_type || 'hiragana';
+  state.showEpubImages = data.show_epub_images !== undefined ? !!data.show_epub_images : (getDefaultSettings().showEpubImages !== false);
   state.enableDictionary = !!data.enable_dictionary;
   state.dictionaryEngine = data.dictionary_engine === 'jisho' ? 'jisho' : 'llm';
   state.dictionaryPrompt = data.dictionary_prompt || 'Jelaskan arti kata "{word}" dalam konteks kalimat "{context}". Berikan bentuk dasar, cara baca (hiragana/romaji), kelas kata, dan terjemahan/penjelasan singkat dalam bahasa Indonesia.';
@@ -1124,6 +1296,11 @@ export async function openProject(id: string, data: any): Promise<void> {
     : state.projectName;
   (ui.dashboardView as HTMLElement).classList.remove('open');
   (ui.workspaceView as HTMLElement).style.display = 'flex';
+  if (state.projectType === 'epub' && state.epubSourceId && state.showEpubImages === true) {
+    preloadEpubImages().then(() => {
+      refreshAll();
+    });
+  }
   refreshAll();
   applyHtlMode();
   switchWorkspaceTab('translate');
@@ -1170,6 +1347,7 @@ export function finishClose(): void {
   state.lines = [];
   state.selectedLines.clear();
   resetSelectionHistory();
+  clearEpubImageCache();
   (ui.workspaceView as HTMLElement).style.display = 'none';
   (ui.dashboardView as HTMLElement).classList.add('open');
   loadDashboardProjects();

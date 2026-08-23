@@ -80,6 +80,8 @@ export function onOpenSettings(): void {
   (ui.settingsGlossaryPromptInput as HTMLTextAreaElement).value = state.glossaryPrompt;
   (ui.settingsAiCheckPromptInput as HTMLTextAreaElement).value = state.aiCheckPrompt;
   (ui.settingsEpubTagsInput as HTMLInputElement).value = state.epubTags || 'p';
+  const showEpubCheckbox = (document.getElementById('settingsShowEpubImages') || ui.settingsShowEpubImages) as HTMLInputElement | null;
+  if (showEpubCheckbox) showEpubCheckbox.checked = state.showEpubImages !== false;
   (ui.settingsGlossaryInput as HTMLTextAreaElement).value = state.glossaryText || '';
   (ui.settingsContextLinesInput as HTMLInputElement).value = String(state.contextLines);
   if (ui.settingsContextTypeSelect) {
@@ -190,6 +192,12 @@ export function onSavePromptSettings(): void {
     return alert('Ctrl+ArrowUp dan Ctrl+ArrowDown sudah dipakai untuk riwayat pilihan.');
   }
 
+  const oldShowEpubImages = state.showEpubImages;
+  const showEpubCheckbox = (document.getElementById('settingsShowEpubImages') || ui.settingsShowEpubImages) as HTMLInputElement | null;
+  if (showEpubCheckbox) {
+    state.showEpubImages = showEpubCheckbox.checked;
+  }
+
   state.sourceLang = sourceLang;
   state.targetLang = targetLang;
   state.translationMode = translationMode as any;
@@ -242,7 +250,11 @@ export function onSavePromptSettings(): void {
   (ui.settingsSelectionNextShortcutInput as HTMLInputElement).value = nextShortcut;
   closeModal(ui.settingsModal as HTMLElement);
   applyHtlMode();
-  refreshAll();
+  if (!oldShowEpubImages && state.showEpubImages && state.projectType === 'epub' && state.epubSourceId) {
+    import('./epub-images').then(m => m.preloadEpubImages()).then(() => refreshAll());
+  } else {
+    refreshAll();
+  }
   renderGlossaryPreview();
   queueAutoSave();
 }

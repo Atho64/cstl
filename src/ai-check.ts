@@ -1,7 +1,7 @@
 // @module ai-check.ts — AI Check tab: copy, parse, render, apply corrections
 
 import { state, ui } from './state';
-import { isTranslated } from './state';
+import { isTranslated, isIlustrasiLine } from './state';
 import { unescapeStoredNewlines, escapeStoredNewlines, applyReplaceRules } from './string-utils';
 import { getLineDisplayName, formatLineLabel } from './luca-engine';
 import { rebuildDisplayState, renderPreviewRows, syncCheckboxUI, updateButtonStates, pushUndoSnapshot, refreshAll, flashHint } from './render';
@@ -34,7 +34,7 @@ function normalizeCategory(raw: string): string {
 }
 
 export function getSelectedTranslatedLines(): Line[] {
-  return state.lines.filter(l => state.selectedLines.has(l.line_num) && isTranslated(l));
+  return state.lines.filter(l => state.selectedLines.has(l.line_num) && isTranslated(l) && !isIlustrasiLine(l));
 }
 
 // ─── Context building (once, at the start — same logic as Copy for AI) ────────

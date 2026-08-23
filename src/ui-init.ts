@@ -67,10 +67,10 @@ function debounce(func: Function, wait: number) {
 
 export function cacheElements(): void {
   const ids = [
-    'dashboardView', 'workspaceView', 'projectList', 'projectFilterInput', 'btnNewProject', 'btnRestoreProject', 'btnBackupAllProjects', 'btnFolderBackup', 'btnFolderRestore',
+    'dashboardView', 'workspaceView', 'projectList', 'projectFilterInput', 'projectSortSelect', 'projectCountBadge', 'btnNewProject', 'btnRestoreProject', 'btnBackupAllProjects', 'btnFolderBackup', 'btnFolderRestore',
     'btnBackToDashboard', 'btnBackupProject', 'btnBatchPrev', 'btnBatchNext', 'projectNameDisplay', 'restoreProjectInput', 'btnDropdownImport', 'dropdownImportMenu', 'btnDropdownImportOther', 'dropdownImportOtherMenu', 'btnImportFile',
     'btnDropdownDashboardSettings', 'dropdownDashboardSettingsMenu', 'btnDashboardSettings', 'dashboardSettingsModal', 'btnDashboardSettingsSave', 'btnDashboardSettingsReset', 'paletteSelect', 'btnDashboardSettingsCancel', 'btnDashboardPrompts', 'dashboardPromptsModal', 'dpPromptInput', 'dpPromptTemplateSelect', 'dpGlossaryPromptInput', 'dpAiCheckPromptInput', 'dpAgentPromptInput', 'dpSummaryPromptInput', 'btnDashboardPromptsSave', 'btnDashboardPromptsReset', 'btnDashboardPromptsCancel',
-    'dsSourceLang', 'dsTargetLang', 'dsTranslationMode', 'dsAiFormat', 'dsContextLines', 'dsContextType', 'dsSelectionBatch', 'dsGlossaryBatch', 'dsAiCheckBatch', 'dsParallelBatch', 'dsSubagentWorkers', 'dsShowFurigana', 'dsFuriganaType', 'dsFontSize', 'dsEnableDictionary', 'dsDictionaryEngine', 'dsDictionaryPrompt', 'dsRegexFilter', 'dsDisableEmptyLineValidation', 'dsCheckKanaResidue', 'dsCheckSimilarity', 'dsSimilarityThreshold', 'dsSimilarityThresholdWrap', 'dsCheckLengthRatio', 'dsLengthRatioThreshold', 'dsLengthRatioWrap', 'dsCheckLinebreak', 'dsCheckLanguage', 'dsCheckPunctuation', 'dsCheckUntransName', 'dsEnableBackgroundChaining', 'dsEnableUncertainMarking', 'dsSafeTagsForChatgpt', 'dsAgentMaxTurns', 'dsEpubTags', 'dsSelectionPrevShortcut', 'dsSelectionNextShortcut', 'dsEnableLogging',
+    'dsSourceLang', 'dsTargetLang', 'dsTranslationMode', 'dsAiFormat', 'dsContextLines', 'dsContextType', 'dsSelectionBatch', 'dsGlossaryBatch', 'dsAiCheckBatch', 'dsParallelBatch', 'dsSubagentWorkers', 'dsShowFurigana', 'dsFuriganaType', 'dsFontSize', 'dsEnableDictionary', 'dsDictionaryEngine', 'dsDictionaryPrompt', 'dsRegexFilter', 'dsDisableEmptyLineValidation', 'dsCheckKanaResidue', 'dsCheckSimilarity', 'dsSimilarityThreshold', 'dsSimilarityThresholdWrap', 'dsCheckLengthRatio', 'dsLengthRatioThreshold', 'dsLengthRatioWrap', 'dsCheckLinebreak', 'dsCheckLanguage', 'dsCheckPunctuation', 'dsCheckUntransName', 'dsEnableBackgroundChaining', 'dsEnableUncertainMarking', 'dsSafeTagsForChatgpt', 'dsAgentMaxTurns', 'dsEpubTags', 'dsShowEpubImages', 'dsSelectionPrevShortcut', 'dsSelectionNextShortcut', 'dsEnableLogging',
     'btnImportFolder', 'btnImportZip', 'btnImportTranslatedFile', 'btnImportTranslatedFolder', 'btnExport', 'btnProofread',
     'previewViewport', 'previewContainer', 'currentFileBar', 'progressFill', 'progressText', 'btnSelectAll',
     'btnClearSelection', 'copyCount', 'btnCopyForAi', 'copyStatus', 'pasteArea', 'btnApply', 'checkIgnorePasteNames',
@@ -81,7 +81,7 @@ export function cacheElements(): void {
     'btnCopyNamesForAi', 'copyNameCount', 'pasteNameArea', 'btnApplyNameTranslations', 'btnResetNameTranslations',
     'glossaryPreviewWrap', 'glossaryPreviewText',
     'importZipInput', 'importLucaTxtInput', 'importLucaTxtFolderInput', 'btnImportLucaTxt', 'btnImportLucaTxtFolder',
-    'glossaryFileInput', 'settingsModal', 'settingsPromptInput', 'settingsGlossaryPromptInput', 'settingsAiCheckPromptInput', 'settingsAgentPromptInput', 'settingsEpubTagsInput',
+    'glossaryFileInput', 'settingsModal', 'settingsPromptInput', 'settingsGlossaryPromptInput', 'settingsAiCheckPromptInput', 'settingsAgentPromptInput', 'settingsEpubTagsInput', 'settingsShowEpubImages',
     'settingsLucaWrap', 'settingsLucaProfileSelect', 'settingsLucaMcWrap', 'settingsLucaMcDisplayNameInput', 'settingsLucaExportLangWrap', 'settingsLucaExportLangSelect', 'settingsSourceLangSelect', 'settingsTargetLangSelect', 'settingsTranslationModeSelect', 'settingsRegexFilterInput', 'settingsRefLangWrap', 'settingsRefLang1Select', 'settingsRefLang2Select', 'btnImportRefLang1', 'btnImportRefLang2', 'btnImportRefLang1Folder', 'btnImportRefLang2Folder', 'btnClearRefLang1', 'btnClearRefLang2', 'refLang1Input', 'refLang2Input', 'refLang1FolderInput', 'refLang2FolderInput',
     'settingsDisableEmptyLineValidation', 'settingsShowFurigana', 'settingsFuriganaType', 'settingsFontSize', 'settingsEnableDictionary', 'settingsDictionaryEngine', 'settingsDictionaryPrompt', 'settingsAiCheckReviewMode', 'dictionaryPopup', 'dictPopupWord', 'dictPopupClose', 'dictPopupContent', 'settingsAiTranslationFormatSelect', 'settingsGlossaryInput', 'settingsContextLinesInput', 'settingsSelectionBatchSizeInput', 'settingsGlossaryBatchSizeInput', 'settingsAiCheckBatchSizeInput', 'settingsParallelBatchSizeInput', 'settingsSubagentWorkersInput', 'settingsSelectionPrevShortcutInput', 'settingsSelectionNextShortcutInput', 'btnSettingsReset', 'btnSettingsGlossaryReset', 'btnSettingsAiCheckReset', 'btnSettingsAgentPromptReset', 'btnSettingsCancel', 'btnSettingsSave', 'lineEditorModal', 'lineEditorTitle',
     'btnDropdownSettings', 'dropdownSettingsMenu', 'btnSettingsGeneral', 'btnSettingsPrompts', 'btnSettingsGlossary', 'settingsPromptsModal', 'settingsGlossaryModal', 'btnSettingsPromptsCancel', 'btnSettingsPromptsSave', 'btnSettingsGlossaryCancel', 'btnSettingsGlossarySave', 'settingsEnableBackgroundChaining', 'settingsBackgroundInput', 'settingsSummaryPromptInput', 'btnSettingsSummaryPromptReset', 'settingsPromptTemplateSelect', 'btnSettingsClearBackground',
@@ -107,7 +107,8 @@ export function cacheElements(): void {
     'btnTextReplacer', 'textReplacerModal', 'replacerPreInput', 'replacerPostInput', 'btnTextReplacerCancel', 'btnTextReplacerSave',
     'btnFileList', 'fileListModal', 'fileListContainer', 'btnFileListAdd', 'btnFileListDelete', 'btnFileListClose',
     'btnToolbarBookmark', 'toolbarBookmarkBadge', 'btnLineBookmark',
-    'bookmarkModal', 'bookmarkModalCount', 'btnBookmarkModalCloseIcon', 'bookmarkSearchInput', 'btnClearAllBookmarks', 'bookmarkListContainer', 'btnBookmarkClose'
+    'bookmarkModal', 'bookmarkModalCount', 'btnBookmarkModalCloseIcon', 'bookmarkSearchInput', 'btnClearAllBookmarks', 'bookmarkListContainer', 'btnBookmarkClose',
+    'imageLightboxModal', 'imageLightboxImg', 'btnImageLightboxClose'
   ];
   for (const id of ids) {
     ui[id] = document.getElementById(id);
@@ -291,12 +292,21 @@ export function bindEvents(): void {
     (ui.btnFolderRestore as HTMLElement | null)?.style.setProperty('display', 'none');
   }
   ui.projectFilterInput?.addEventListener('input', () => renderDashboardProjects());
+  ui.projectSortSelect?.addEventListener('change', () => renderDashboardProjects());
   ui.btnBackToDashboard?.addEventListener('click', closeProject);
   ui.btnBackupProject?.addEventListener('click', backupCurrentProject);
   ui.btnBatchPrev?.addEventListener('click', () => selectActiveWorkspaceBatch(-1));
   ui.btnBatchNext?.addEventListener('click', () => selectActiveWorkspaceBatch(1));
   ui.btnRestoreProject?.addEventListener('click', () => (ui.restoreProjectInput as HTMLInputElement).click());
   ui.restoreProjectInput?.addEventListener('change', onRestoreProject);
+  ui.btnImageLightboxClose?.addEventListener('click', () => {
+    (ui.imageLightboxModal as HTMLElement | null)?.classList.remove('open');
+  });
+  ui.imageLightboxModal?.addEventListener('click', (e: MouseEvent) => {
+    if (e.target === ui.imageLightboxModal) {
+      (ui.imageLightboxModal as HTMLElement).classList.remove('open');
+    }
+  });
 
   // Closing the tab within the 1s autosave debounce would drop the last edit —
   // flush it best-effort on pagehide (OPFS writes are atomic-swap, so a write
@@ -1182,13 +1192,21 @@ const PALETTES: Record<string, ColorPalette> = {
 };
 
 function applyPalette(name: string): void {
-  const palette = PALETTES[name] || PALETTES['indigo'];
+  // Resolve the key first so an unknown name falls back fully to indigo (icon included).
+  const paletteKey = PALETTES[name] ? name : 'indigo';
+  const palette = PALETTES[paletteKey];
   const root = document.documentElement;
   for (const [key, value] of Object.entries(palette)) {
     root.style.setProperty(key, value);
   }
   const meta = document.querySelector('meta[name="theme-color"]');
   if (meta) meta.setAttribute('content', palette['--bg']);
+
+  const iconUrl = `./icon-${paletteKey}.svg`;
+  const logoImg = document.querySelector('.hero-logo-img') as HTMLImageElement | null;
+  if (logoImg) logoImg.src = iconUrl;
+  const favicon = document.querySelector('link[rel="icon"]') as HTMLLinkElement | null;
+  if (favicon) favicon.href = iconUrl;
 }
 
 function loadPalette(): void {
