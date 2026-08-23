@@ -19,6 +19,7 @@ import { normalizeLineDict } from './state';
 import { normalizeShortcutString } from './shortcuts';
 import { getDictHistory, setDictHistory } from './dictionary';
 import { applyProjectLoggingVisibility } from './logging';
+import { salvageJsonObject } from './json-repair';
 
 // ─── Luca raw-field recovery (migration for saves made before the luca_raw_index fix) ───
 function recoverLucaRawFields(): void {
@@ -349,19 +350,36 @@ export async function loadDashboardProjects(): Promise<void> {
     for await (const [name, handle] of (root as any).entries()) {
       if (name.endsWith(PROJECT_EXT) && handle.kind === 'file') {
         const file = await handle.getFile();
-        const text = await file.text();
+        let data: any = null;
         try {
-          const data = JSON.parse(text);
+          data = JSON.parse(await file.text());
+          if (!data || typeof data !== 'object') data = null;
+        } catch (_) { data = null; }
+        if (!data) {
+          // Keep unreadable files visible: silently skipping them makes a bad
+          // read look like the project vanished. The file is still on disk
+          // and can be replaced by restoring a backup.
           projects.push({
             id: name,
-            name: data.projectName || name.replace(PROJECT_EXT, ''),
-            updatedAt: data.updatedAt || file.lastModified,
-            fileCount: data.imported_files?.length || 0,
-            lineCount: data.lines?.length || 0,
-            projectType: data.projectType,
-            translationMode: data.translationMode,
+            name: name.replace(PROJECT_EXT, ''),
+            updatedAt: file.lastModified,
+            fileCount: 0,
+            lineCount: 0,
+            projectType: undefined,
+            translationMode: undefined,
+            corrupt: true,
           });
-        } catch (_) {}
+          continue;
+        }
+        projects.push({
+          id: name,
+          name: data.projectName || name.replace(PROJECT_EXT, ''),
+          updatedAt: data.updatedAt || file.lastModified,
+          fileCount: data.imported_files?.length || 0,
+          lineCount: data.lines?.length || 0,
+          projectType: data.projectType,
+          translationMode: data.translationMode,
+        });
       }
     }
     projects.sort((a, b) => b.updatedAt - a.updatedAt);
@@ -411,6 +429,51 @@ export function renderDashboardProjects(): void {
   for (const p of projects) {
     const card = document.createElement('div');
     card.className = 'project-card';
+    if (p.corrupt) {
+      card.classList.add('project-card-corrupt');
+      const info = document.createElement('div');
+      const title = document.createElement('h3');
+      title.textContent = p.name;
+      info.appendChild(title);
+      const meta = document.createElement('div');
+      meta.className = 'project-meta mt-2';
+      meta.style.color = 'var(--danger)';
+      meta.append(
+        document.createTextNode('File proyek tidak dapat dibaca (korup). File masih ada di storage — coba perbaiki, atau pulihkan dari backup.'),
+        document.createElement('br'),
+        document.createTextNode(`File: ${p.id} | Terakhir diubah: ${new Date(p.updatedAt).toLocaleString('id-ID')}`),
+      );
+      info.appendChild(meta);
+      const actions = document.createElement('div');
+      actions.className = 'project-actions';
+      actions.append(
+        createProjectButton('Coba Perbaiki', 'btn btn-primary btn-sm', async function() {
+          this.disabled = true; this.textContent = 'Memperbaiki...';
+          try {
+            const result = await tryRepairProject(p.id);
+            alert(result.message);
+            if (result.repaired) {
+              loadDashboardProjects();
+            } else {
+              this.disabled = false; this.textContent = 'Coba Perbaiki';
+            }
+          } catch (e: any) {
+            alert('Gagal memperbaiki: ' + (e?.message || e));
+            this.disabled = false; this.textContent = 'Coba Perbaiki';
+          }
+        }),
+        createProjectButton('Pulihkan dari Backup', 'btn btn-outline btn-sm', function() {
+          (ui.restoreProjectInput as HTMLInputElement | undefined)?.click();
+        }),
+        createProjectButton('Hapus', 'btn btn-danger btn-sm', async function() {
+          this.disabled = true; this.textContent = 'Menghapus...';
+          await deleteProject(p.id, {});
+        }),
+      );
+      card.append(info, actions);
+      frag.appendChild(card);
+      continue;
+    }
     const info = document.createElement('div');
     const title = document.createElement('h3');
     title.textContent = p.name;
@@ -549,11 +612,70 @@ export async function deleteProject(id: string, data: any): Promise<void> {
       const lucaId = id.replace(PROJECT_EXT, '_luca.json');
       await root.removeEntry(lucaId);
     } catch (_) {}
+    try {
+      await root.removeEntry(id + '.corrupt-bak');
+    } catch (_) {}
     await root.removeEntry(id);
     loadDashboardProjects();
   } catch (e: any) {
     alert('Gagal menghapus: ' + e.message);
   }
+}
+
+// ─── Corrupt project repair ───────────────────────────────────────────────────
+/**
+ * Attempt to salvage a project file that fails JSON.parse. Keeps every
+ * top-level field and every complete `lines` entry before the damage point,
+ * writes the result back under the same id (original bytes preserved as
+ * `<id>.corrupt-bak`), and reports what was recovered.
+ */
+export async function tryRepairProject(id: string): Promise<{ repaired: boolean; message: string }> {
+  const root = await getOpfsRoot();
+  const fileHandle = await root.getFileHandle(id);
+  const text = await (await fileHandle.getFile()).text();
+
+  // A transient read error can heal on retry — check before declaring damage.
+  try {
+    const ok = JSON.parse(text);
+    if (ok && typeof ok === 'object') {
+      return { repaired: true, message: 'File terbaca normal sekarang (kemungkinan error baca sementara). Daftar proyek dimuat ulang.' };
+    }
+  } catch (_) {}
+
+  const salvaged = salvageJsonObject(text);
+  if (!salvaged) {
+    return { repaired: false, message: 'Tidak ada data yang bisa diselamatkan dari file ini.\n\nPulihkan dari backup, atau hapus filenya.' };
+  }
+
+  const rawLines: any[] = Array.isArray(salvaged.lines) ? salvaged.lines : [];
+  const lines = rawLines.filter(l =>
+    l && typeof l === 'object' &&
+    typeof l.line_num === 'number' && typeof l.file === 'string'
+  );
+  if (!lines.length && typeof salvaged.projectName !== 'string') {
+    return { repaired: false, message: 'File hanya berisi pengaturan tanpa nama proyek dan baris — tidak layak diselamatkan.\n\nPulihkan dari backup, atau hapus filenya.' };
+  }
+  salvaged.lines = lines;
+  if (typeof salvaged.projectName !== 'string' || !salvaged.projectName) {
+    salvaged.projectName = id.replace(PROJECT_EXT, '');
+  }
+
+  // Preserve the original damaged bytes before overwriting, so a manual /
+  // deeper recovery attempt is still possible later.
+  const bakHandle = await root.getFileHandle(id + '.corrupt-bak', { create: true });
+  const bakWritable = await bakHandle.createWritable();
+  await bakWritable.write(text);
+  await bakWritable.close();
+
+  await saveProjectToOpfs(id, salvaged);
+
+  const lastLineNum = lines.reduce((m, l) => Math.max(m, l.line_num), 0);
+  const estLost = Math.max(0, lastLineNum - lines.length);
+  let msg = `Perbaikan selesai.\n\nData diselamatkan: ${lines.length} baris`;
+  if (estLost > 0) msg += ` (perkiraan hingga ~${estLost} baris hilang di titik kerusakan)`;
+  msg += `.\n\nSalinan file rusak asli disimpan sebagai ${id}.corrupt-bak.`;
+  msg += '\nCek hasilnya — kalau ada yang kurang, pulihkan dari backup.';
+  return { repaired: true, message: msg };
 }
 
 export async function renameDashboardProject(id: string, oldName: string, data: any): Promise<void> {
@@ -674,7 +796,9 @@ export async function backupCurrentProject(): Promise<void> {
 
 export async function backupAllProjectsAsZip(): Promise<void> {
   if (!(window as any).JSZip) { alert('JSZip tidak tersedia.'); return; }
-  const projects = state.dashboardProjects || [];
+  // Corrupt files cannot be read into the ZIP — skip them instead of failing
+  // the whole backup; they are already flagged on the dashboard.
+  const projects = (state.dashboardProjects || []).filter((p: any) => !p.corrupt);
   if (!projects.length) { alert('Belum ada proyek untuk dibackup.'); return; }
   if (!confirm(`Backup semua ${projects.length} proyek sebagai satu file ZIP?`)) return;
   const button = ui.btnBackupAllProjects as HTMLButtonElement | undefined;
@@ -766,6 +890,37 @@ export async function loadLucaDataFromOpfs(id: string): Promise<any> {
   }
 }
 
+// ─── Project exclusive-open lock (Web Locks) ──────────────────────────────────
+// Autosave always rewrites the whole project file from memory. If the same
+// project is open in two windows, the stale window's save silently erases the
+// newer one's edits. A held Web Lock per project makes the second open fail
+// loudly instead. Browsers without Web Locks fail open (app stays usable).
+const heldProjectLocks = new Map<string, () => void>();
+
+async function acquireProjectLock(id: string): Promise<boolean> {
+  const locks = (navigator as any).locks;
+  if (!locks?.request) return true;
+  return new Promise<boolean>(resolve => {
+    locks.request('cstl-project-' + id, { ifAvailable: true }, (lock: any) => {
+      if (!lock) { resolve(false); return; }
+      let release: () => void = () => {};
+      heldProjectLocks.set(id, () => release());
+      resolve(true);
+      // Never settles until releaseProjectLock() — that is what holds the lock.
+      return new Promise<void>(r => { release = r; });
+    }).catch(() => resolve(true));
+  });
+}
+
+function releaseProjectLock(id: string | null): void {
+  if (!id) return;
+  const release = heldProjectLocks.get(id);
+  if (release) {
+    heldProjectLocks.delete(id);
+    try { release(); } catch (_) {}
+  }
+}
+
 let activeAutoSavePromise: Promise<void> | null = null;
 let projectRevision = 0;
 let isClosingProject = false;
@@ -812,8 +967,29 @@ export function queueAutoSave(): void {
   setSaveTimeout(timeout);
 }
 
+/** Best-effort immediate save for page unload — skips the 1s debounce. */
+export function flushAutoSaveNow(): void {
+  const projectId = state.currentProjectId;
+  if (!projectId || isClosingProject || !getSaveTimeout()) return;
+  clearTimeout(getSaveTimeout()!);
+  setSaveTimeout(null);
+  const data = buildProjectPersistenceData();
+  const previousSave = activeAutoSavePromise;
+  const savePromise = (previousSave ? previousSave.catch(() => {}) : Promise.resolve())
+    .then(() => saveProjectToOpfs(projectId, data));
+  activeAutoSavePromise = savePromise;
+  savePromise.catch(() => {});
+}
+
 // ─── Open / Close project ─────────────────────────────────────────────────────
 export async function openProject(id: string, data: any): Promise<void> {
+  // Must be acquired before any state mutation. A second window holding the
+  // lock means this open is refused, not silently raced against its saves.
+  const lockAcquired = await acquireProjectLock(id);
+  if (!lockAcquired) {
+    alert('Proyek ini sedang terbuka di tab/jendela lain. Tutup dulu di sana untuk menghindari kehilangan data.');
+    return;
+  }
   const loadGeneration = ++projectLoadGeneration;
   const isCurrentLoad = () => state.currentProjectId === id && projectLoadGeneration === loadGeneration;
   state.currentProjectId = id;
@@ -931,7 +1107,11 @@ export async function openProject(id: string, data: any): Promise<void> {
   setDictHistory(data.dict_history || []);
 
   await lucaDataLoad;
-  if (!isCurrentLoad()) return;
+  if (!isCurrentLoad()) {
+    // A newer open superseded this one — release the lock it will never use.
+    releaseProjectLock(id);
+    return;
+  }
   // Legacy recovery must see the asynchronously loaded raw sidecar, and all
   // other project settings above must be ready before recovery queues a save.
   recoverLucaRawFields();
@@ -986,6 +1166,7 @@ export async function closeProject(): Promise<void> {
 }
 
 export function finishClose(): void {
+  releaseProjectLock(state.currentProjectId);
   state.currentProjectId = null;
   state.projectLoggingEnabled = false;
   state.lines = [];

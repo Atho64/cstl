@@ -42,7 +42,7 @@ import {
   createNewProject, closeProject, onRestoreProject, renderDashboardProjects,
   openDashboardSettings, saveDashboardSettings, resetDashboardSettings,
   queueAutoSave, openModal, closeModal, loadDashboardProjects,
-  backupCurrentProject, backupAllProjectsAsZip,
+  backupCurrentProject, backupAllProjectsAsZip, flushAutoSaveNow,
 } from './project';
 import { getDefaultPromptHeaderForFormat, getKagikakkoPromptHeaderForFormat } from './ai-format';
 import { getLucaProfile, populateLucaExportSlotSelect, DEFAULT_LUCA_PROFILE } from './luca-engine';
@@ -287,6 +287,11 @@ export function bindEvents(): void {
   ui.btnBatchNext?.addEventListener('click', () => selectActiveWorkspaceBatch(1));
   ui.btnRestoreProject?.addEventListener('click', () => (ui.restoreProjectInput as HTMLInputElement).click());
   ui.restoreProjectInput?.addEventListener('change', onRestoreProject);
+
+  // Closing the tab within the 1s autosave debounce would drop the last edit —
+  // flush it best-effort on pagehide (OPFS writes are atomic-swap, so a write
+  // that does not finish leaves the previous file intact).
+  window.addEventListener('pagehide', flushAutoSaveNow);
 
   ui.btnDashboardSettings?.addEventListener('click', openDashboardSettings);
   const paletteSel = document.getElementById('paletteSelect');
@@ -1204,6 +1209,15 @@ export async function init(): Promise<void> {
     alert('Browser kamu tidak mendukung Sistem File OPFS. Beberapa fitur tidak akan berjalan optimal.');
     (ui.projectList as HTMLElement).innerHTML = `<p class="hint" style="grid-column: 1/-1; color: var(--danger);">Browser tidak mendukung OPFS. Sistem penyimpanan tidak dapat diakses.</p>`;
   } else {
+    // OPFS is best-effort by default: under disk pressure the browser may evict
+    // the whole origin's storage without any user action. Ask once for
+    // persistent storage — installed PWAs and regularly-used sites are granted
+    // automatically; a denial is only logged, the app stays usable.
+    if (navigator.storage.persist) {
+      navigator.storage.persist().then(granted => {
+        if (!granted) console.warn('[CSTL] Persistent storage not granted — project data may be evicted under disk pressure.');
+      }).catch(() => {});
+    }
     await loadDashboardProjects();
   }
 

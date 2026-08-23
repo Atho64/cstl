@@ -272,6 +272,10 @@ input, textarea, button, select { font-family: inherit; font-size: inherit; }
   border-left-color: var(--primary);
   box-shadow: 0 0 0 3px var(--primary-soft);
 }
+.project-card-corrupt,
+.project-card-corrupt:hover {
+  border-left-color: var(--danger);
+}
 
 .project-card-main {
   text-align: left;

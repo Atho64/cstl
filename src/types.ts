@@ -254,6 +254,8 @@ export interface DashboardProject {
   totalLines: number;
   translatedLines: number;
   updatedAt: number;
+  /** Set when the .cstl file exists but cannot be parsed — shown as a recovery card. */
+  corrupt?: boolean;
 }
 
 // ─── AI Agent Memory ──────────────────────────────────────────────────────────
