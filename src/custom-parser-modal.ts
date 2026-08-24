@@ -18,7 +18,9 @@ let testFile: File | null = null;
 
 const JS_PARSE_TEMPLATE = `// Parser custom CSTL — JavaScript
 // ctx = { fileName, text, bytes, startLineNum }
-// Return: array of { name?, message, raw? } — message wajib.
+// Return: array of { name?, message, raw?, index? } — message wajib.
+//   index = angka bebas (posisi entri/offset di file asli) yang dikembalikan
+//   ke serialize(ctx) sebagai line.index — berguna saat raw bisa duplikat.
 async function parse(ctx) {
   const rows = [];
   for (const raw of ctx.text.split(/\\r?\\n/)) {
@@ -35,7 +37,8 @@ async function parse(ctx) {
 
 const JS_SERIALIZE_TEMPLATE = `// serialize(ctx) — opsional, untuk ekspor round-trip.
 // ctx = { fileName, text, bytes, lines } — setiap line punya field:
-//   name, message, trans_name, trans_message, is_translated, raw
+//   name, message, trans_name, trans_message, is_translated, raw,
+//   index (angka yang diberikan parse() saat impor — anchor patch by-index)
 // Return: string (atau Uint8Array untuk file biner).
 async function serialize(ctx) {
   const out = ctx.text.split(/\\r?\\n/);
@@ -54,7 +57,9 @@ async function serialize(ctx) {
 
 const PY_PARSE_TEMPLATE = `# Parser custom CSTL — Python (jalan di pyodide)
 # ctx = {"fileName": str, "text": str, "bytes": bytes, "startLineNum": int}
-# Return: list of {"name": str, "message": str, "raw": str} — message wajib.
+# Return: list of {"name", "message", "raw", "index"} — message wajib.
+#   "index" = angka bebas (posisi entri/offset di file asli), dikembalikan ke
+#   serialize(ctx) sebagai line["index"] — berguna saat raw bisa duplikat.
 import re
 
 def parse(ctx):
@@ -69,7 +74,8 @@ def parse(ctx):
 
 const PY_SERIALIZE_TEMPLATE = `# serialize(ctx) — opsional, untuk ekspor round-trip.
 # ctx = {"fileName", "text", "bytes", "lines"} — setiap line (dict) punya:
-#   name, message, trans_name, trans_message, is_translated, raw
+#   name, message, trans_name, trans_message, is_translated, raw,
+#   index (angka yang diberikan parse() saat impor — anchor patch by-index)
 # Return: str (atau bytes untuk format biner).
 def serialize(ctx):
     out = ctx["text"].splitlines()

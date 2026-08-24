@@ -438,6 +438,9 @@ export async function handleImportCustomLogic(files: FileList | File[]): Promise
             trans_message: null,
             is_translated: false,
             ...(entry.raw != null && entry.raw !== '' ? { custom_raw: entry.raw } : {}),
+            // Index bebas buatan parser (posisi entri/offset di file asli) —
+            // diteruskan balik ke serialize() sebagai line.index saat ekspor.
+            ...(entry.index != null ? { custom_index: entry.index } : {}),
           });
         }
         state.customRawFiles[baseName] = text;

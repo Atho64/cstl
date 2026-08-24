@@ -17,7 +17,7 @@
   <link rel="apple-touch-icon" href="./icon.jpg" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="./styles.css?v=23" />
+  <link rel="stylesheet" href="./styles.css?v=24" />
 
   <script type="module" src="./src/app.ts"></script>
 </head>
@@ -1569,8 +1569,8 @@
             <summary>Cara kerja parser custom?</summary>
             <div class="cp-help-body">
               <p>Tulis fungsi <code>parse(ctx)</code> untuk impor dan (opsional) <code>serialize(ctx)</code> untuk ekspor round-trip. JavaScript jalan di Web Worker, Python jalan di pyodide (unduhan pertama ~10MB, butuh internet sekali).</p>
-              <p><b>parse(ctx)</b> — <code>ctx = { fileName, text, bytes, startLineNum }</code>. Return array <code>[{ name?, message, raw? }</code>; field <code>message</code> wajib, <code>raw</code> = potongan baris asli yang disimpan untuk dipatch saat ekspor.</p>
-              <p><b>serialize(ctx)</b> — <code>ctx = { fileName, text, bytes, lines }</code> berisi file asli + baris proyek (<code>name, message, trans_name, trans_message, is_translated, raw</code>). Return string (atau bytes untuk format biner). Tanpa serialize(), ekspor jatuh ke JSON generik.</p>
+              <p><b>parse(ctx)</b> — <code>ctx = { fileName, text, bytes, startLineNum }</code>. Return array <code>[{ name?, message, raw?, index? }</code>; field <code>message</code> wajib, <code>raw</code> = potongan baris asli yang disimpan untuk dipatch saat ekspor, dan <code>index</code> (angka, opsional) = penanda posisi bebas buatan parser — dikembalikan di serialize() sebagai <code>line.index</code>, berguna saat raw bisa duplikat.</p>
+              <p><b>serialize(ctx)</b> — <code>ctx = { fileName, text, bytes, lines }</code> berisi file asli + baris proyek (<code>name, message, trans_name, trans_message, is_translated, raw, index</code>). Return string (atau bytes untuk format biner). Tanpa serialize(), ekspor jatuh ke JSON generik.</p>
               <p>Satu proyek terkunci ke satu parser. Parser tersimpan global di browser dan bisa dipakai lintas proyek.</p>
             </div>
           </details>

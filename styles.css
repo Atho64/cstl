@@ -3138,7 +3138,23 @@ body.htl-mode .panel-left { flex: 1 !important; height: 100% !important; min-hei
   margin-top: 2px;
   word-break: break-all;
 }
-.cp-card-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.cp-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* Mobile: card menumpuk (info di atas, tombol di bawah). Tanpa ini, 4 tombol
+   aksi memakan hampir seluruh lebar layar sehingga kolom info (min-width:0)
+   tergencet ke ~0px — nama/badge Aktif dan ekstensi (.scn) wrap satu huruf
+   per baris dan bocor keluar kartu. */
+@media (max-width: 640px) {
+  .cp-card {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
 .cp-badge {
   font-size: var(--text-2xs);
   font-weight: 600;

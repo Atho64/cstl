@@ -52,6 +52,10 @@ export interface Line {
   /** Original snippet captured by a custom parser at import time, handed back
    *  to the parser's serialize() at export time (patch-style round-trip). */
   custom_raw?: string;
+  /** Optional numeric index set by the parser at import time (mis. posisi
+   *  entri di file asli / offset), diteruskan balik ke serialize() sebagai
+   *  line.index agar patch tidak bergantung pada pencocokan teks raw. */
+  custom_index?: number | null;
 }
 
 // ─── Custom Parser (user-defined import/export formats) ───────────────────────
@@ -71,11 +75,16 @@ export interface CustomParser {
   updatedAt: number;
 }
 
-/** Entry returned by a custom parse() call before normalization into Line. */
+/** Entry returned by a custom parse() call before normalization into Line.
+ *  `index` (opsional) = penanda posisi bebas buatan parser (mis. nomor entri
+ *  di file asli, offset byte, atau indeks array) — diteruskan utuh ke
+ *  serialize(ctx) sebagai line.index untuk patch berbasis index, bukan
+ *  pencocokan teks raw yang bisa salah saat raw duplikat. */
 export interface CustomParsedEntry {
   name?: string | null;
   message: string;
   raw?: string | null;
+  index?: number | null;
 }
 
 // ─── Application State ────────────────────────────────────────────────────────

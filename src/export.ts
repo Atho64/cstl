@@ -458,6 +458,7 @@ export async function onExport(): Promise<void> {
               trans_message: l.trans_message,
               is_translated: isTranslated(l),
               raw: l.custom_raw ?? null,
+              index: (l as any).custom_index ?? null,
             })),
           });
           res.push({ fn: fileName, content: result.content });

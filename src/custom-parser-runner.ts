@@ -262,6 +262,8 @@ export async function runCustomParse(parser: CustomParser, ctx: CustomParseCtx):
       name: item.name == null ? null : String(item.name),
       message: String(item.message),
       raw: item.raw == null ? null : String(item.raw),
+      // index opsional dari parser — angka saja yang diterima, sisanya null.
+      index: item.index == null ? null : (Number.isFinite(Number(item.index)) ? Number(item.index) : null),
     });
   }
   return entries;
