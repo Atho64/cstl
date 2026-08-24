@@ -14,7 +14,9 @@ import { base64ToArrayBuffer, joinLinesToBuffer, arrayBufferToBase64, latin1Byte
 import { WINDOWS_FILE_ORDER_COLLATOR, APP_VERSION } from './constants';
 import { flashHint } from './render';
 import { getOpfsRoot } from './state';
-import { waitForLucaDataLoad } from './project';
+import { waitForLucaDataLoad, waitForCustomSourcesLoad } from './project';
+import { getCustomParser } from './custom-parsers';
+import { runCustomSerialize } from './custom-parser-runner';
 import type { Line } from './types';
 
 function writeTextNodeWithBreaks(node: Text, text: string): void {
@@ -352,45 +354,147 @@ export async function onExport(): Promise<void> {
       document.body.style.cursor = 'default';
     }
   } else {
-    const g = new Map<string, Line[]>();
-    for (const l of state.lines) {
-      if (!g.has(l.file)) g.set(l.file, []);
-      g.get(l.file)!.push(l);
-    }
-    const res = Array.from(g.entries()).map(([fn, lns]) => ({
-      fn: `${fn.replace(/\.xhtml|\.html/g, '')}.json`,
-      content: JSON.stringify(lns.map(l => {
-        const e: any = {};
-        e.name = isTranslated(l) ? ((l.trans_name || l.name || '').replace(/^\[?\?\]?\s*/,'') || l.name) : l.name;
-        e.message = isTranslated(l) ? (l.trans_message || '').replace(/^\[?\?\]?\s*/,'') : l.message;
-        if (e.name) {
-          e.name = e.name.replace(/\\n/g, '\n');
-        } else {
-          delete e.name;
-        }
-        if (e.message) e.message = e.message.replace(/\\n/g, '\n');
-        return e;
-      }), null, 2)
-    }));
-    if ((window as any).JSZip && res.length > 1) {
-      const zip = new (window as any).JSZip();
-      res.forEach(f => zip.file(f.fn, f.content));
-      const b = await zip.generateAsync({ type: 'blob' });
-      if (!exportStillActive()) return;
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(b);
-      const safeName = state.projectName.replace(/[<>:"\/\\|?*]/g, '_').trim() || 'export';
-      a.download = `${safeName}_export.zip`;
-      a.click();
-    } else {
-      for (const f of res) {
+    // Fallback generik: satu baris JSON per file — dipakai proyek JSON, dan
+    // proyek parser custom yang tidak punya serialize()/parser-nya hilang.
+    const exportLinesAsJson = async (): Promise<void> => {
+      const g = new Map<string, Line[]>();
+      for (const l of state.lines) {
+        if (!g.has(l.file)) g.set(l.file, []);
+        g.get(l.file)!.push(l);
+      }
+      const res = Array.from(g.entries()).map(([fn, lns]) => ({
+        fn: `${fn.replace(/\.xhtml|\.html/g, '')}.json`,
+        content: JSON.stringify(lns.map(l => {
+          const e: any = {};
+          e.name = isTranslated(l) ? ((l.trans_name || l.name || '').replace(/^\[?\?\]?\s*/,'') || l.name) : l.name;
+          e.message = isTranslated(l) ? (l.trans_message || '').replace(/^\[?\?\]?\s*/,'') : l.message;
+          if (e.name) {
+            e.name = e.name.replace(/\\n/g, '\n');
+          } else {
+            delete e.name;
+          }
+          if (e.message) e.message = e.message.replace(/\\n/g, '\n');
+          return e;
+        }), null, 2)
+      }));
+      if ((window as any).JSZip && res.length > 1) {
+        const zip = new (window as any).JSZip();
+        res.forEach(f => zip.file(f.fn, f.content));
+        const b = await zip.generateAsync({ type: 'blob' });
         if (!exportStillActive()) return;
-        const b = new Blob([f.content], { type: 'application/json' });
         const a = document.createElement('a');
         a.href = URL.createObjectURL(b);
-        a.download = f.fn;
+        const safeName = state.projectName.replace(/[<>:"\/\\|?*]/g, '_').trim() || 'export';
+        a.download = `${safeName}_export.zip`;
         a.click();
+      } else {
+        for (const f of res) {
+          if (!exportStillActive()) return;
+          const b = new Blob([f.content], { type: 'application/json' });
+          const a = document.createElement('a');
+          a.href = URL.createObjectURL(b);
+          a.download = f.fn;
+          a.click();
+        }
       }
+    };
+
+    if (state.projectType === 'custom') {
+      const parser = getCustomParser(state.customParserId);
+      if (!parser) {
+        alert('Parser custom untuk proyek ini sudah tidak ada (terhapus). Ekspor memakai format JSON.');
+        await exportLinesAsJson();
+        return;
+      }
+      if (!parser.enabled) {
+        alert(`Parser "${parser.name}" sedang nonaktif. Ekspor memakai format JSON.\n\nAktifkan parser di menu Parser Custom untuk round-trip.`);
+        await exportLinesAsJson();
+        return;
+      }
+      if (!parser.serializeScript.trim()) {
+        flashHint(`Parser "${parser.name}" tidak punya serialize() — ekspor memakai format JSON.`);
+        await exportLinesAsJson();
+        return;
+      }
+      try {
+        flashHint(`Mengekspor dengan parser "${parser.name}"...`, true);
+        document.body.style.cursor = 'wait';
+        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+        await waitForCustomSourcesLoad(exportProjectId);
+        if (!exportStillActive()) return;
+
+        const g = new Map<string, Line[]>();
+        for (const l of state.lines) {
+          if (!g.has(l.file)) g.set(l.file, []);
+          g.get(l.file)!.push(l);
+        }
+        const missingSources = Array.from(g.keys()).filter(fn => !state.customRawBuffers[fn] && !state.customRawFiles[fn]);
+        if (missingSources.length > 0) {
+          alert(
+            'File asli untuk proyek ini tidak tersedia di sidecar (kemungkinan dipulihkan dari backup lama):\n' +
+            `- ${missingSources.slice(0, 5).join('\n- ')}${missingSources.length > 5 ? '\n- ...' : ''}\n\n` +
+            'serialize() menerima text/bytes kosong untuk file tersebut. Impor ulang file asli untuk round-trip penuh.'
+          );
+        }
+
+        const entries = Array.from(g.entries());
+        const res: { fn: string; content: string | Uint8Array }[] = [];
+        for (let fileIdx = 0; fileIdx < entries.length; fileIdx++) {
+          if (!exportStillActive()) return;
+          const [fileName, lns] = entries[fileIdx];
+          const rawB64 = state.customRawBuffers[fileName];
+          const rawBytes = rawB64 ? new Uint8Array(base64ToArrayBuffer(rawB64)) : new Uint8Array(0);
+          const rawText = state.customRawFiles[fileName] ?? '';
+          const result = await runCustomSerialize(parser, {
+            fileName,
+            text: rawText,
+            bytes: rawBytes,
+            startLineNum: lns.length > 0 ? lns[0].line_num : 1,
+            lines: lns.map(l => ({
+              line_num: l.line_num,
+              name: l.name,
+              message: l.message,
+              trans_name: l.trans_name,
+              trans_message: l.trans_message,
+              is_translated: isTranslated(l),
+              raw: l.custom_raw ?? null,
+            })),
+          });
+          res.push({ fn: fileName, content: result.content });
+          if (fileIdx % 2 === 1) await new Promise((r) => setTimeout(r, 0));
+        }
+        if (!exportStillActive()) return;
+
+        if ((window as any).JSZip && res.length > 1) {
+          const zip = new (window as any).JSZip();
+          for (const f of res) zip.file(f.fn, f.content);
+          const b = await zip.generateAsync({ type: 'blob' });
+          if (!exportStillActive()) return;
+          const a = document.createElement('a');
+          a.href = URL.createObjectURL(b);
+          const safeName = state.projectName.replace(/[<>:"\/\\|?*]/g, '_').trim() || 'export';
+          a.download = `${safeName}_custom_export.zip`;
+          a.click();
+        } else {
+          for (const f of res) {
+            if (!exportStillActive()) return;
+            const isBytes = f.content instanceof Uint8Array;
+            const b = new Blob([f.content as unknown as BlobPart], { type: isBytes ? 'application/octet-stream' : 'text/plain;charset=utf-8' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(b);
+            a.download = f.fn;
+            a.click();
+          }
+        }
+        flashHint(`Berhasil ekspor dengan parser "${parser.name}"!`);
+      } catch (err: any) {
+        alert(`Gagal ekspor parser custom: ${err.message}\n\nMencoba ekspor JSON sebagai fallback...`);
+        await exportLinesAsJson();
+      } finally {
+        document.body.style.cursor = 'default';
+      }
+    } else {
+      await exportLinesAsJson();
     }
   }
 }

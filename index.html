@@ -131,6 +131,10 @@
               <div id="dropdownImportOtherMenu" class="dropdown-content">
                 <button id="btnImportLucaTxt" class="dropdown-item text-luca">Impor TXT (Luca)</button>
                 <button id="btnImportLucaTxtFolder" class="dropdown-item text-luca">Impor TXT Folder (Luca)</button>
+                <hr class="dropdown-divider">
+                <button id="btnImportCustom" class="dropdown-item">Impor Parser Custom</button>
+                <button id="btnImportCustomFolder" class="dropdown-item">Impor Folder Parser Custom</button>
+                <button id="btnCustomParsers" class="dropdown-item">Kelola Parser Custom…</button>
               </div>
             </div>
           </div>
@@ -365,6 +369,8 @@
   </div>
 
   <input id="importFileInput" type="file" accept=".json,.epub" multiple hidden />
+  <input id="importCustomInput" type="file" multiple hidden />
+  <input id="importCustomFolderInput" type="file" webkitdirectory directory multiple hidden />
   <input id="importFolderInput" type="file" accept=".json,.epub" webkitdirectory directory multiple hidden />
   <input id="importZipInput" type="file" accept=".zip" hidden />
   <input id="importLucaTxtInput" type="file" accept=".txt" multiple hidden />
@@ -1536,6 +1542,80 @@
         <span class="grow"></span>
         <button id="btnTextReplacerCancel" class="btn">Batal</button>
         <button id="btnTextReplacerSave" class="btn btn-primary">Simpan</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Custom Parser Modal -->
+  <div id="customParserModal" class="modal-backdrop">
+    <div class="modal modal-wide">
+      <div class="modal-head">
+        <h3><svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg> Parser Custom (JS/Python)</h3>
+      </div>
+      <div class="modal-body">
+        <div id="cpListView">
+          <div class="settings-section mb-2">
+            <div class="flex gap-2 wrap">
+              <button id="btnCpNew" class="btn btn-primary">+ Parser Baru</button>
+              <button id="btnCpImportNow" class="btn btn-outline">Impor dengan Parser</button>
+              <button id="btnCpImportFolderNow" class="btn btn-outline">Impor Folder dengan Parser</button>
+              <button id="btnCpExportAll" class="btn btn-outline">Ekspor Semua Parser</button>
+              <button id="btnCpImportParsers" class="btn btn-outline">Impor Parser…</button>
+              <input id="cpParserImportInput" type="file" accept=".json" hidden />
+            </div>
+          </div>
+          <div id="cpParserList" class="cp-parser-list"></div>
+          <details class="cp-help">
+            <summary>Cara kerja parser custom?</summary>
+            <div class="cp-help-body">
+              <p>Tulis fungsi <code>parse(ctx)</code> untuk impor dan (opsional) <code>serialize(ctx)</code> untuk ekspor round-trip. JavaScript jalan di Web Worker, Python jalan di pyodide (unduhan pertama ~10MB, butuh internet sekali).</p>
+              <p><b>parse(ctx)</b> — <code>ctx = { fileName, text, bytes, startLineNum }</code>. Return array <code>[{ name?, message, raw? }</code>; field <code>message</code> wajib, <code>raw</code> = potongan baris asli yang disimpan untuk dipatch saat ekspor.</p>
+              <p><b>serialize(ctx)</b> — <code>ctx = { fileName, text, bytes, lines }</code> berisi file asli + baris proyek (<code>name, message, trans_name, trans_message, is_translated, raw</code>). Return string (atau bytes untuk format biner). Tanpa serialize(), ekspor jatuh ke JSON generik.</p>
+              <p>Satu proyek terkunci ke satu parser. Parser tersimpan global di browser dan bisa dipakai lintas proyek.</p>
+            </div>
+          </details>
+        </div>
+        <div id="cpEditView" style="display:none;">
+          <div class="settings-section mb-2">
+            <div class="flex gap-2 wrap">
+              <input id="cpNameInput" class="text-input" style="flex:1;min-width:160px;" placeholder="Nama parser (mis. Script MGS)" />
+              <select id="cpLanguageSelect" class="text-input" style="max-width:150px;">
+                <option value="js">JavaScript</option>
+                <option value="python">Python</option>
+              </select>
+              <input id="cpExtensionsInput" class="text-input" style="flex:1;min-width:160px;" placeholder="Ekstensi: .mgs, .scp" />
+            </div>
+          </div>
+          <div class="replacer-grid">
+            <div class="settings-section mb-0">
+              <div class="settings-section-title">
+                parse(ctx) — Impor <button id="btnCpParseTemplate" class="btn btn-sm btn-outline" type="button" title="Isi contoh template">Contoh</button>
+              </div>
+              <textarea id="cpParseInput" class="mono input-area w-full" style="height: 250px; font-size: 13px;" placeholder="async function parse(ctx) { ... return [{ name, message, raw }] }"></textarea>
+            </div>
+            <div class="settings-section mb-0">
+              <div class="settings-section-title">
+                serialize(ctx) — Ekspor (opsional) <button id="btnCpSerializeTemplate" class="btn btn-sm btn-outline" type="button" title="Isi contoh template">Contoh</button>
+              </div>
+              <textarea id="cpSerializeInput" class="mono input-area w-full" style="height: 250px; font-size: 13px;" placeholder="async function serialize(ctx) { ... return teksHasil }"></textarea>
+            </div>
+          </div>
+          <div class="settings-section mb-2">
+            <div class="settings-section-title">Uji Parser</div>
+            <div class="flex gap-2 wrap">
+              <button id="btnCpTestFile" class="btn btn-outline btn-sm" type="button">Pilih File Uji…</button>
+              <button id="btnCpTestRun" class="btn btn-outline btn-sm" type="button" disabled>Uji parse()</button>
+              <span id="cpTestFileName" class="cp-test-file"></span>
+            </div>
+            <input id="cpTestFileInput" type="file" hidden />
+            <div id="cpTestResult" class="cp-test-result"></div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-actions mt-3">
+        <span class="grow"></span>
+        <button id="btnCpCancel" class="btn">Batal</button>
+        <button id="btnCpSave" class="btn btn-primary">Simpan</button>
       </div>
     </div>
   </div>

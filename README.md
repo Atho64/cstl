@@ -17,7 +17,59 @@ Tool bantu terjemahan visual novel yang jalan di browser. Dibuat karena capek bo
 - **File / Folder** — Impor file `.json` atau `.epub` satu-satu atau sekalian satu folder
 - **ZIP** — Impor banyak file sekaligus dari arsip `.zip`
 - **TXT LucaSystem** — Impor script dari game berbasis LucaSystem (format `.txt` khusus), bisa file tunggal maupun folder
+- **Parser Custom (JS/Python)** — Buat parser sendiri untuk format game apa pun, dengan round-trip ekspor. Lihat detail di bawah.
 - **File / Folder Terjemahan** — Merge hasil terjemahan ke proyek yang sudah ada
+
+### Parser Custom (JavaScript / Python)
+Format game tidak didukung bawaan? Tulis parser sendiri lewat menu **Impor → Format File Lainnya → Kelola Parser Custom…**. Parser tersimpan global di browser dan bisa dipakai lintas proyek; satu proyek terkunci ke satu parser.
+
+Script parser jalan sandbox di Web Worker (JavaScript) atau pyodide (Python — unduhan pertama ~10MB dari CDN, butuh internet sekali; setelah itu ikut cache browser). Ada tombol **Uji Parser** untuk mencoba `parse()` ke file lokal langsung dari editor.
+
+Definisi parser bisa diekspor/impor sebagai file JSON (**Ekspor Semua Parser**, tombol **Ekspor** per parser, atau **Impor Parser…**) — dan otomatis ikut dalam backup proyek, jadi restore backup di browser lain tetap bisa round-trip. Impor tersedia lewat menu khusus atau **Impor Folder Parser Custom** untuk memproses satu folder sekaligus. Catatan: impor via **ZIP** belum dirouting ke parser custom — gunakan File/Folder.
+
+**`parse(ctx)` — impor.** `ctx = { fileName, text, bytes, startLineNum }`. Return array `[{ name?, message, raw? }]` — `message` wajib; `raw` (opsional) adalah potongan baris asli yang disimpan CSTL untuk dipatch saat ekspor.
+
+```js
+// JavaScript
+async function parse(ctx) {
+  const rows = [];
+  for (const raw of ctx.text.split(/\r?\n/)) {
+    const m = raw.match(/^([A-Za-z0-9_]+)\s*:\s*(.+)$/);  // "Nama: dialog"
+    if (m) rows.push({ name: m[1], message: m[2], raw });
+    else if (raw.trim()) rows.push({ message: raw, raw });
+  }
+  return rows;
+}
+```
+
+```python
+# Python
+import re
+def parse(ctx):  # ctx = {"fileName", "text", "bytes", "startLineNum"}
+    rows = []
+    for raw in ctx["text"].splitlines():
+        m = re.match(r"^([A-Za-z0-9_]+)\s*:\s*(.+)$", raw)
+        if m: rows.append({"name": m.group(1), "message": m.group(2), "raw": raw})
+        elif raw.strip(): rows.append({"message": raw, "raw": raw})
+    return rows
+```
+
+**`serialize(ctx)` — ekspor round-trip (opsional).** `ctx = { fileName, text, bytes, lines }` berisi file asli plus baris proyek (`name, message, trans_name, trans_message, is_translated, raw`). Return string (atau `bytes`/`Uint8Array` untuk format biner). Kalau parser tidak punya `serialize()`, ekspor jatuh ke JSON generik — dan hasil JSON tetap bisa di-merge balik lewat **Impor TL File**.
+
+Impor bisa lewat menu khusus (**Impor Parser Custom**) atau otomatis: file yang ekstensinya cocok parser aktif dialihkan dari jalur impor biasa (termasuk Impor Folder). File asli tiap proyek disimpan di sidecar OPFS supaya ekspor bisa mem-patch teks asli, bukan membangun ulang dari nol.
+
+#### Membuat parser dengan bantuan AI eksternal
+
+Parser custom cukup sederhana untuk ditulis oleh AI chat (Claude, ChatGPT, dll) kalau diberi konteks yang tepat. Checklist yang perlu disertakan saat minta bantuan:
+
+1. **Link/dokumentasi ini** — kontrak `parse(ctx)`/`serialize(ctx)` ada di atas.
+2. **Contoh file asli** — paling menentukan. Untuk file teks langsung attach; untuk file biner, AI dengan fitur eksekusi kode bisa hexdump & analisis sendiri strukturnya (header, tabel offset, encoding), jadi upload 2–3 file contoh saja.
+3. **Sandbox-nya** — beri tahu batasan runtime:
+   - JavaScript: Web Worker polos, **tanpa import/library eksternal**, tanpa DOM; satu fungsi `parse(ctx)` + opsional `serialize(ctx)`; timeout 20 detik.
+   - Python: pyodide (stdlib tersedia, termasuk `re`/`struct`/`textwrap`); timeout 30 detik.
+4. Minta AI **menjelaskan asumsi strukturnya sebelum menulis kode**, lalu uji hasilnya dengan tombol **Uji Parser** ke file asli dan laporkan kembali error/pratinjau yang salah — biasanya 1–3 iterasi.
+
+Catatan: file terenkripsi/kompresi (entropi tinggi, tidak ada string yang terbaca) tidak bisa diparse langsung — butuh reverse engineering algoritma dekripsinya dulu.
 
 ### Terjemahan AI
 Alur kerjanya sederhana: pilih baris → copy → tempel ke AI → paste hasilnya → terapkan. CSTL yang urus parsing dan mapping ke baris yang benar.

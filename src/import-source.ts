@@ -7,7 +7,9 @@ import { parseLucaTxt, getLucaProfile, getActiveLucaProfile, normalizeLucaHeavyQ
 import { WINDOWS_FILE_ORDER_COLLATOR } from './constants';
 import { normalizeFileBaseName, windowsFileOrderCompare, getFileOrderPath } from './string-utils';
 import { refreshAll, flashHint } from './render';
-import { queueAutoSave, saveLucaDataToOpfs } from './project';
+import { queueAutoSave, saveLucaDataToOpfs, saveCustomSourcesToOpfs } from './project';
+import { findCustomParserForFile, getCustomParser } from './custom-parsers';
+import { runCustomParse } from './custom-parser-runner';
 import { resetSelectionHistory } from './selection';
 import { resolveZipPath, preloadEpubImages } from './epub-images';
 import type { Line } from './types';
@@ -346,17 +348,190 @@ export async function handleImportLogic(filesObj: FileList | File[] | File, isZi
   }
 }
 
+// ─── Custom parser import ─────────────────────────────────────────────────────
+
+/** Impor file via parser custom (JS/Python). Semua file dalam satu batch harus
+ *  cocok dengan satu parser yang sama — proyek terkunci ke satu parser. */
+export async function handleImportCustomLogic(files: FileList | File[]): Promise<void> {
+  flashHint('Memproses file parser custom... Mohon tunggu.', true);
+  document.body.style.cursor = 'wait';
+  await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+  const previousState = {
+    lines: state.lines,
+    importedFiles: [...state.importedFiles],
+    fileOrder: [...state.fileOrder],
+    selectedLines: [...state.selectedLines],
+    projectType: state.projectType,
+    customParserId: state.customParserId,
+    customRawFiles: { ...state.customRawFiles },
+    customRawBuffers: { ...state.customRawBuffers },
+  };
+  try {
+    const sortedFiles = Array.from(files).sort((a, b) =>
+      windowsFileOrderCompare(getFileOrderPath(a), getFileOrderPath(b))
+    );
+
+    const parserByFile = new Map<File, NonNullable<ReturnType<typeof findCustomParserForFile>>>();
+    const unsupportedFiles: string[] = [];
+    let parser: ReturnType<typeof findCustomParserForFile> = null;
+    for (const f of sortedFiles) {
+      const p = findCustomParserForFile(f.name);
+      if (!p) { unsupportedFiles.push(f.name); continue; }
+      if (parser && parser.id !== p.id) {
+        throw new Error(
+          'Campur beberapa parser dalam satu impor tidak didukung. ' +
+          `File "${f.name}" cocok dengan parser "${p.name}", bukan "${parser.name}". Impor per format.`
+        );
+      }
+      parser = p;
+      parserByFile.set(f, p);
+    }
+    if (!parser) {
+      flashHint('Tidak ada parser custom yang cocok dengan file yang dipilih.', false);
+      if (unsupportedFiles.length) {
+        setTimeout(() => alert(`Tidak ada parser custom aktif untuk:\n- ${unsupportedFiles.slice(0, 10).join('\n- ')}`), 10);
+      }
+      return;
+    }
+
+    if (state.lines.length > 0) {
+      if (state.projectType !== 'custom') {
+        throw new Error('Format parser custom tidak cocok dengan tipe proyek saat ini. Buat proyek baru untuk memakai parser custom.');
+      }
+      if (state.customParserId && state.customParserId !== parser.id) {
+        const activeParser = getCustomParser(state.customParserId);
+        throw new Error(
+          `Proyek ini memakai parser "${activeParser?.name || state.customParserId}". ` +
+          `Yang dipilih: "${parser.name}". Buat proyek baru atau impor dengan parser yang sama.`
+        );
+      }
+    }
+
+    let cur = state.lines.length > 0 ? state.lines.reduce((m, l) => l.line_num > m ? l.line_num : m, 0) + 1 : 1;
+    const existingFiles = new Set(state.importedFiles);
+    const skippedFiles: string[] = [];
+    const newLines: Line[] = [];
+
+    if (state.lines.length === 0) {
+      state.projectType = 'custom';
+      state.customParserId = parser.id;
+    }
+
+    for (const f of sortedFiles) {
+      const p = parserByFile.get(f);
+      if (!p) continue;
+      const baseName = f.name;
+      if (existingFiles.has(baseName)) { skippedFiles.push(baseName); continue; }
+      const buf = await f.arrayBuffer();
+      const bytes = new Uint8Array(buf);
+      const text = decodeArrayBuffer(bytes);
+      const entries = await runCustomParse(p, { fileName: baseName, text, bytes, startLineNum: cur });
+      if (entries.length > 0) {
+        existingFiles.add(baseName);
+        for (const entry of entries) {
+          newLines.push({
+            line_num: cur++,
+            file: baseName,
+            name: entry.name == null ? null : String(entry.name).replace(/\r?\n/g, '\\n').trim(),
+            message: String(entry.message).replace(/\r?\n/g, '\\n').trim(),
+            trans_name: null,
+            trans_message: null,
+            is_translated: false,
+            ...(entry.raw != null && entry.raw !== '' ? { custom_raw: entry.raw } : {}),
+          });
+        }
+        state.customRawFiles[baseName] = text;
+        state.customRawBuffers[baseName] = arrayBufferToBase64(buf);
+      }
+      await new Promise(r => setTimeout(r, 0));
+    }
+
+    if (newLines.length > 0) {
+      state.lines = state.lines.concat(newLines);
+      state.importedFiles = Array.from(existingFiles);
+      state.selectedLines.clear();
+      resetSelectionHistory();
+      refreshAll();
+      if (state.currentProjectId) {
+        await saveCustomSourcesToOpfs(state.currentProjectId, {
+          customRawFiles: state.customRawFiles,
+          customRawBuffers: state.customRawBuffers,
+        });
+        queueAutoSave();
+      } else {
+        queueAutoSave();
+      }
+      let msg = `Berhasil impor ${newLines.length} baris (parser "${parser.name}").`;
+      if (skippedFiles.length > 0) msg += ` (${skippedFiles.length} file duplikat diabaikan)`;
+      if (unsupportedFiles.length > 0) msg += ` (${unsupportedFiles.length} file tanpa parser diabaikan)`;
+      flashHint(msg);
+    } else if (skippedFiles.length > 0) {
+      (ui.copyStatus as HTMLElement).classList.add('empty');
+      setTimeout(() => alert(`Gagal impor: File duplikat.\n${skippedFiles.join('\n')}`), 10);
+    } else {
+      flashHint(`Parser "${parser.name}" tidak menemukan baris apa pun (message kosong semua).`, false);
+    }
+  } catch (err: any) {
+    state.lines = previousState.lines;
+    state.importedFiles = previousState.importedFiles;
+    state.fileOrder = previousState.fileOrder;
+    state.selectedLines.clear();
+    for (const lineNum of previousState.selectedLines) state.selectedLines.add(lineNum);
+    state.projectType = previousState.projectType;
+    state.customParserId = previousState.customParserId;
+    state.customRawFiles = previousState.customRawFiles;
+    state.customRawBuffers = previousState.customRawBuffers;
+    resetSelectionHistory();
+    refreshAll();
+    (ui.copyStatus as HTMLElement).classList.add('empty');
+    setTimeout(() => alert(`Terjadi kesalahan saat impor parser custom:\n${err.message}`), 10);
+  } finally {
+    document.body.style.cursor = 'default';
+  }
+}
+
+export async function onImportCustomChange(ev: Event): Promise<void> {
+  const target = ev.target as HTMLInputElement;
+  if (!target.files?.length) return;
+  await handleImportCustomLogic(target.files);
+  target.value = '';
+}
+
+/** Folder khusus parser custom: semua file langsung masuk jalur parser —
+ *  file yang tidak cocok dilaporkan oleh handleImportCustomLogic. */
+export async function onImportCustomFolderChange(ev: Event): Promise<void> {
+  const target = ev.target as HTMLInputElement;
+  if (!target.files?.length) return;
+  await handleImportCustomLogic(target.files);
+  target.value = '';
+}
+
+/** File/folder generik: file yang cocok parser custom aktif dialihkan ke
+ *  handleImportCustomLogic, sisanya ke jalur built-in. */
+export async function importWithCustomRouting(files: FileList | File[]): Promise<void> {
+  const all = Array.from(files);
+  if (all.length === 0) return;
+  const custom: File[] = [];
+  const rest: File[] = [];
+  for (const f of all) {
+    if (findCustomParserForFile(f.name)) custom.push(f);
+    else rest.push(f);
+  }
+  if (custom.length > 0) await handleImportCustomLogic(custom);
+  if (rest.length > 0) await handleImportLogic(rest);
+}
+
 export async function onImportFileChange(ev: Event): Promise<void> {
   const target = ev.target as HTMLInputElement;
   if (!target.files?.length) return;
-  await handleImportLogic(target.files);
+  await importWithCustomRouting(target.files);
   target.value = '';
 }
 
 export async function onImportFolderChange(ev: Event): Promise<void> {
   const target = ev.target as HTMLInputElement;
   if (!target.files?.length) return;
-  await handleImportLogic(target.files);
+  await importWithCustomRouting(target.files);
   target.value = '';
 }
 

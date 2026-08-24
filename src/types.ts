@@ -47,6 +47,35 @@ export interface Line {
   luca_jp?: string;
   luca_en?: string;
   luca_zh?: string;
+
+  // Custom parser fields
+  /** Original snippet captured by a custom parser at import time, handed back
+   *  to the parser's serialize() at export time (patch-style round-trip). */
+  custom_raw?: string;
+}
+
+// ─── Custom Parser (user-defined import/export formats) ───────────────────────
+
+export interface CustomParser {
+  id: string;
+  name: string;
+  language: 'js' | 'python';
+  /** Lowercase extensions including the dot, e.g. ['.xyz', '.dat'] */
+  extensions: string[];
+  /** Code defining parse(ctx) — runs sandboxed in a worker */
+  parseScript: string;
+  /** Optional code defining serialize(ctx) for round-trip export */
+  serializeScript: string;
+  enabled: boolean;
+  createdAt: number;
+  updatedAt: number;
+}
+
+/** Entry returned by a custom parse() call before normalization into Line. */
+export interface CustomParsedEntry {
+  name?: string | null;
+  message: string;
+  raw?: string | null;
 }
 
 // ─── Application State ────────────────────────────────────────────────────────
@@ -99,6 +128,12 @@ export interface AppState {
   lucaMcDisplayName: string;
   lucaRawFiles: Record<string, string[]>;
   lucaRawBuffers: Record<string, string>;
+  /** Active custom parser id when projectType === 'custom' */
+  customParserId: string | null;
+  /** Original decoded text per file for custom-parser round-trip export */
+  customRawFiles: Record<string, string>;
+  /** Original file bytes (base64) per file for custom-parser round-trip export */
+  customRawBuffers: Record<string, string>;
   lines: Line[];
   importedFiles: string[];
   fileOrder: string[];
@@ -260,6 +295,8 @@ export interface DashboardProject {
   updatedAt: number;
   /** Set when the .cstl file exists but cannot be parsed — shown as a recovery card. */
   corrupt?: boolean;
+  /** For projectType 'custom': which custom parser the project uses. */
+  customParserId?: string | null;
 }
 
 // ─── AI Agent Memory ──────────────────────────────────────────────────────────

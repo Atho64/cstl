@@ -36,7 +36,10 @@ import { loadApiSettings, onOpenApiSettings, onSaveApiSettings, onAutoTranslate,
 import {
   onImportFileChange, onImportFolderChange, onImportZipChange,
   onImportLucaTxtChange, onImportLucaTxtFolderChange,
+  onImportCustomChange, onImportCustomFolderChange,
 } from './import-source';
+import { initCustomParserModal, updateCustomImportAccept } from './custom-parser-modal';
+import { setPyodideColdStartHint } from './custom-parser-runner';
 import { onImportTranslatedFileChange, onImportTranslatedFolderChange } from './import-translated';
 import {
   createNewProject, closeProject, onRestoreProject, renderDashboardProjects,
@@ -105,6 +108,12 @@ export function cacheElements(): void {
     'btnFloatingAiAgent', 'btnFloatingLogging', 'loggingPanel', 'loggingHistory', 'btnLoggingClear', 'btnLoggingClose', 'aiAgentChatPanel', 'btnAgentClose', 'btnAgentClear', 'btnAgentMemory', 'agentChatHistory', 'agentInput', 'btnAgentSend',
     'agentMemoryModal', 'agentMemoryList', 'agentMemoryKey', 'agentMemoryCategory', 'agentMemoryScope', 'agentMemoryValue', 'btnAgentMemoryCancel', 'btnAgentMemorySave',
     'btnTextReplacer', 'textReplacerModal', 'replacerPreInput', 'replacerPostInput', 'btnTextReplacerCancel', 'btnTextReplacerSave',
+    'btnImportCustom', 'btnImportCustomFolder', 'btnCustomParsers', 'importCustomInput', 'importCustomFolderInput', 'customParserModal',
+    'cpListView', 'cpEditView', 'cpParserList', 'btnCpNew', 'btnCpImportNow', 'btnCpImportFolderNow',
+    'btnCpExportAll', 'btnCpImportParsers', 'cpParserImportInput',
+    'cpNameInput', 'cpLanguageSelect', 'cpExtensionsInput', 'cpParseInput', 'cpSerializeInput',
+    'btnCpParseTemplate', 'btnCpSerializeTemplate', 'btnCpTestFile', 'btnCpTestRun',
+    'cpTestFileName', 'cpTestFileInput', 'cpTestResult', 'btnCpCancel', 'btnCpSave',
     'btnFileList', 'fileListModal', 'fileListContainer', 'btnFileListAdd', 'btnFileListDelete', 'btnFileListClose',
     'btnToolbarBookmark', 'toolbarBookmarkBadge', 'btnLineBookmark',
     'bookmarkModal', 'bookmarkModalCount', 'btnBookmarkModalCloseIcon', 'bookmarkSearchInput', 'btnClearAllBookmarks', 'bookmarkListContainer', 'btnBookmarkClose',
@@ -363,6 +372,8 @@ export function bindEvents(): void {
   ui.btnImportZip?.addEventListener('click', () => (ui.importZipInput as HTMLInputElement).click());
   ui.btnImportLucaTxt?.addEventListener('click', () => (ui.importLucaTxtInput as HTMLInputElement).click());
   ui.btnImportLucaTxtFolder?.addEventListener('click', () => (ui.importLucaTxtFolderInput as HTMLInputElement).click());
+  ui.btnImportCustom?.addEventListener('click', () => (ui.importCustomInput as HTMLInputElement).click());
+  ui.btnImportCustomFolder?.addEventListener('click', () => (ui.importCustomFolderInput as HTMLInputElement).click());
   ui.btnImportTranslatedFile?.addEventListener('click', () => (ui.importTranslatedFileInput as HTMLInputElement).click());
   ui.btnImportTranslatedFolder?.addEventListener('click', () => (ui.importTranslatedFolderInput as HTMLInputElement).click());
 
@@ -371,6 +382,8 @@ export function bindEvents(): void {
   ui.importZipInput?.addEventListener('change', onImportZipChange);
   ui.importLucaTxtInput?.addEventListener('change', onImportLucaTxtChange);
   ui.importLucaTxtFolderInput?.addEventListener('change', onImportLucaTxtFolderChange);
+  ui.importCustomInput?.addEventListener('change', onImportCustomChange);
+  ui.importCustomFolderInput?.addEventListener('change', onImportCustomFolderChange);
   ui.importTranslatedFileInput?.addEventListener('change', onImportTranslatedFileChange);
   ui.importTranslatedFolderInput?.addEventListener('change', onImportTranslatedFolderChange);
   ui.glossaryFileInput?.addEventListener('change', onImportGlossaryFile);
@@ -1251,6 +1264,9 @@ export async function init(): Promise<void> {
 
   loadApiSettings();
   initDictionary();
+  initCustomParserModal();
+  updateCustomImportAccept();
+  setPyodideColdStartHint(() => flashHint('Memuat runtime Python (pyodide ~10MB, hanya sekali) — butuh internet...', true));
 }
 
 

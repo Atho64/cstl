@@ -22,6 +22,7 @@ import { applyProjectLoggingVisibility } from './logging';
 import { salvageJsonObject } from './json-repair';
 import { icon } from './icons';
 import { preloadEpubImages, clearEpubImageCache } from './epub-images';
+import { getCustomParser, isValidCustomParser, upsertCustomParser } from './custom-parsers';
 
 // ─── Luca raw-field recovery (migration for saves made before the luca_raw_index fix) ───
 function recoverLucaRawFields(): void {
@@ -431,6 +432,7 @@ export async function loadDashboardProjects(): Promise<void> {
           translatedLines,
           projectType: data.projectType,
           translationMode: data.translationMode,
+          customParserId: data.custom_parser_id || null,
         });
       }
     }
@@ -593,12 +595,24 @@ export function renderDashboardProjects(): void {
 
     let badgeClass = 'badge-json';
     let badgeText = 'JSON VNTP';
+    let badgeTitle = '';
     if (p.projectType === 'epub') {
       badgeClass = 'badge-epub';
       badgeText = 'EPUB';
     } else if (p.projectType === 'luca') {
       badgeClass = 'badge-luca';
       badgeText = 'TXT LUCA';
+    } else if (p.projectType === 'custom') {
+      const parser = getCustomParser(p.customParserId);
+      badgeClass = 'badge-custom';
+      if (parser) {
+        const parserName = parser.name.trim();
+        badgeText = 'CUSTOM • ' + (parserName.length > 18 ? parserName.slice(0, 17) + '…' : parserName);
+        badgeTitle = 'Parser Custom: ' + parserName;
+      } else {
+        badgeText = 'PARSER CUSTOM';
+        badgeTitle = p.customParserId ? 'Parser custom sudah tidak ada — ekspor jatuh ke JSON' : '';
+      }
     }
     if (p.translationMode === 'htl') {
       badgeText += ' • HTL';
@@ -607,7 +621,7 @@ export function renderDashboardProjects(): void {
     card.innerHTML = `
       <div class="project-card-header">
         <h3 title="${escapeHtml(p.name)}">${escapeHtml(p.name)}</h3>
-        <span class="badge ${badgeClass}">${badgeText}</span>
+        <span class="badge ${badgeClass}"${badgeTitle ? ` title="${escapeHtml(badgeTitle)}"` : ''}>${escapeHtml(badgeText)}</span>
       </div>
 
       <div class="project-progress-wrap">
@@ -706,6 +720,7 @@ export async function createNewProject(): Promise<void> {
     translationMode: d.translationMode || 'ai',
     jsonRefLang: '', epubTags: d.epubTags || 'p', epubSourceId: null, lucaExportLang: 'en',
     luca_profile: DEFAULT_LUCA_PROFILE, luca_mc_display_name: DEFAULT_LUCA_MC_DISPLAY_NAME,
+    custom_parser_id: null,
     lucaRawFiles: {}, lucaRawBuffers: {}, updatedAt: Date.now(),
     source_lang: d.sourceLang || 'Japanese',
     target_lang: d.targetLang || 'Indonesian',
@@ -781,6 +796,10 @@ export async function deleteProject(id: string, data: any): Promise<void> {
     try {
       const lucaId = id.replace(PROJECT_EXT, '_luca.json');
       await root.removeEntry(lucaId);
+    } catch (_) {}
+    try {
+      const customId = id.replace(PROJECT_EXT, '_custom_src.json');
+      await root.removeEntry(customId);
     } catch (_) {}
     try {
       await root.removeEntry(id + '.corrupt-bak');
@@ -892,6 +911,18 @@ export async function prepareProjectBackupData(data: any, id: string): Promise<R
       alert(`Backup dibuat tanpa file EPUB asli.\n\n${err.message}`);
     }
   }
+  // Custom-parser sidecar: missing sidecar only means empty original sources,
+  // so unlike Luca this never aborts the backup.
+  if (backupData.projectType === 'custom') {
+    const customData = await loadCustomSourcesFromOpfs(id);
+    if (customData) {
+      backupData.customRawFiles = customData.customRawFiles || {};
+      backupData.customRawBuffers = customData.customRawBuffers || {};
+    }
+    // Definisi parser ikut backup — tanpa ini restore di browser lain jatuh ke
+    // ekspor JSON karena script parser hanya hidup di localStorage browser ini.
+    backupData.customParserDef = getCustomParser(backupData.custom_parser_id);
+  }
   return backupData;
 }
 
@@ -930,6 +961,7 @@ function buildProjectPersistenceData(): Record<string, any> {
     lucaExportLang: state.lucaExportLang,
     luca_profile: state.lucaProfile || DEFAULT_LUCA_PROFILE,
     luca_mc_display_name: state.lucaMcDisplayName || DEFAULT_LUCA_MC_DISPLAY_NAME,
+    custom_parser_id: state.customParserId,
     regex_filter: state.regexFilter, pre_replace_rules: state.preReplaceRules,
     post_replace_rules: state.postReplaceRules,
     disable_empty_line_validation: state.disableEmptyLineValidation,
@@ -1059,6 +1091,31 @@ export async function loadLucaDataFromOpfs(id: string): Promise<any> {
   }
 }
 
+// ─── Custom parser source sidecar (round-trip export) ────────────────────────
+/** Simpan file asli proyek parser custom (teks + base64 bytes) ke OPFS sidecar,
+ *  mengikuti pola sidecar Luca — biar file .cstl utama tetap ramping. */
+export async function saveCustomSourcesToOpfs(id: string, customData: any): Promise<void> {
+  const root = await getOpfsRoot();
+  const customId = id.replace(PROJECT_EXT, '_custom_src.json');
+  const fileHandle = await root.getFileHandle(customId, { create: true });
+  const writable = await fileHandle.createWritable();
+  await writable.write(JSON.stringify(customData));
+  await writable.close();
+}
+
+export async function loadCustomSourcesFromOpfs(id: string): Promise<any> {
+  try {
+    const root = await getOpfsRoot();
+    const customId = id.replace(PROJECT_EXT, '_custom_src.json');
+    const fileHandle = await root.getFileHandle(customId);
+    const file = await fileHandle.getFile();
+    const text = await file.text();
+    return JSON.parse(text);
+  } catch (_) {
+    return null;
+  }
+}
+
 // ─── Project exclusive-open lock (Web Locks) ──────────────────────────────────
 // Autosave always rewrites the whole project file from memory. If the same
 // project is open in two windows, the stale window's save silently erases the
@@ -1100,6 +1157,14 @@ let activeLucaDataLoad: Promise<void> = Promise.resolve();
 export function waitForLucaDataLoad(projectId: string | null = state.currentProjectId): Promise<void> {
   if (!projectId || projectId !== activeLucaDataProjectId) return Promise.resolve();
   return activeLucaDataLoad;
+}
+
+let activeCustomDataProjectId: string | null = null;
+let activeCustomDataLoad: Promise<void> = Promise.resolve();
+
+export function waitForCustomSourcesLoad(projectId: string | null = state.currentProjectId): Promise<void> {
+  if (!projectId || projectId !== activeCustomDataProjectId) return Promise.resolve();
+  return activeCustomDataLoad;
 }
 
 export function queueAutoSave(): void {
@@ -1180,6 +1245,20 @@ export async function openProject(id: string, data: any): Promise<void> {
   state.lucaRawFiles = {};
   state.lucaRawBuffers = {};
   clearLucaFileLineBytesCache();
+  // Custom-parser sidecar (original sources for round-trip export) — same guard.
+  state.customParserId = data.custom_parser_id || null;
+  state.customRawFiles = {};
+  state.customRawBuffers = {};
+  const customDataLoad = (async () => {
+    const customData = await loadCustomSourcesFromOpfs(id);
+    if (!isCurrentLoad()) return;
+    if (customData) {
+      state.customRawFiles = customData.customRawFiles || {};
+      state.customRawBuffers = customData.customRawBuffers || {};
+    }
+  })();
+  activeCustomDataProjectId = id;
+  activeCustomDataLoad = customDataLoad;
   const lucaDataLoad = (async () => {
     const lucaData = await loadLucaDataFromOpfs(id);
     if (!isCurrentLoad()) return;
@@ -1277,6 +1356,7 @@ export async function openProject(id: string, data: any): Promise<void> {
   setDictHistory(data.dict_history || []);
 
   await lucaDataLoad;
+  await customDataLoad;
   if (!isCurrentLoad()) {
     // A newer open superseded this one — release the lock it will never use.
     releaseProjectLock(id);
@@ -1394,6 +1474,8 @@ export async function restoreProjectFromFile(f: File): Promise<boolean> {
     delete safeData.epub_source;
     delete safeData.lucaRawFiles;
     delete safeData.lucaRawBuffers;
+    delete safeData.customRawFiles;
+    delete safeData.customRawBuffers;
     Object.assign(safeData, {
       version: APP_VERSION, projectName: name, projectType: p.projectType || 'json',
       source_lang: p.source_lang || 'Japanese', target_lang: p.target_lang || 'Indonesian',
@@ -1402,6 +1484,7 @@ export async function restoreProjectFromFile(f: File): Promise<boolean> {
       lucaExportLang: p.lucaExportLang || 'en',
       luca_profile: p.luca_profile || DEFAULT_LUCA_PROFILE,
       luca_mc_display_name: p.luca_mc_display_name || DEFAULT_LUCA_MC_DISPLAY_NAME,
+      custom_parser_id: p.custom_parser_id || null,
       updatedAt: Date.now(), regex_filter: p.regex_filter || '',
       pre_replace_rules: p.pre_replace_rules || '', post_replace_rules: p.post_replace_rules || '',
       disable_empty_line_validation: !!p.disable_empty_line_validation,
@@ -1448,6 +1531,16 @@ export async function restoreProjectFromFile(f: File): Promise<boolean> {
       || (p.lucaRawBuffers && Object.keys(p.lucaRawBuffers).length > 0)) {
       await saveLucaDataToOpfs(id, { lucaRawFiles: p.lucaRawFiles || {}, lucaRawBuffers: p.lucaRawBuffers || {} });
     }
+    if ((p.customRawFiles && Object.keys(p.customRawFiles).length > 0)
+      || (p.customRawBuffers && Object.keys(p.customRawBuffers).length > 0)) {
+      await saveCustomSourcesToOpfs(id, { customRawFiles: p.customRawFiles || {}, customRawBuffers: p.customRawBuffers || {} });
+    }
+    // Definisi parser dari backup — pulihkan hanya kalau belum ada di browser
+    // ini (versi lokal selalu menang agar edit terbaru tidak tertimpa backup).
+    if (isValidCustomParser(p.customParserDef) && !getCustomParser(p.customParserDef.id)) {
+      upsertCustomParser(p.customParserDef);
+      restoreNote += `\n\nCatatan: definisi parser "${p.customParserDef.name}" ikut dipulihkan dari backup.`;
+    }
     loadDashboardProjects();
     alert(`Proyek "${name}" berhasil dipulihkan!${restoreNote}`);
     return true;
@@ -1457,6 +1550,7 @@ export async function restoreProjectFromFile(f: File): Promise<boolean> {
       if (restoreProjectId) {
         try { await root.removeEntry(restoreProjectId); } catch (_) {}
         try { await root.removeEntry(restoreProjectId.replace(PROJECT_EXT, '_luca.json')); } catch (_) {}
+        try { await root.removeEntry(restoreProjectId.replace(PROJECT_EXT, '_custom_src.json')); } catch (_) {}
       }
       if (createdEpubSourceId) {
         try { await root.removeEntry(createdEpubSourceId); } catch (_) {}

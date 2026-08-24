@@ -11,6 +11,7 @@ import { getActiveLineEditorLineNum, setActiveLineEditorLineNum } from './state'
 import { isClannadProtagonistToken, parseLucaTxtText, resolveLucaDisplayName } from './luca-engine';
 import { getFileDisplayOrder } from './file-list';
 import { getEpubImageBlobUrl, getEpubImagesForFile, preloadEpubImages, openImageLightbox } from './epub-images';
+import { getCustomParser } from './custom-parsers';
 import type { DisplayRow, Line } from './types';
 
 // ─── Lazy helpers (break circular deps) ──────────────────────────────────────
@@ -366,7 +367,13 @@ export function updateStatusBar(): void {
   if (state.importedFiles.length > 0) {
     if (state.projectType === 'epub') modeText = 'EPUB';
     else if (state.projectType === 'luca') modeText = `TXT LUCA (${getActiveLucaProfile().shortLabel})`;
-    else modeText = 'JSON VNTP';
+    else if (state.projectType === 'custom') {
+      const parser = getCustomParser(state.customParserId);
+      const parserName = parser?.name.trim();
+      modeText = parserName
+        ? `CUSTOM (${parserName.length > 24 ? parserName.slice(0, 23) + '…' : parserName})`
+        : 'CUSTOM';
+    } else modeText = 'JSON VNTP';
   }
 
   (ui.statusBar as HTMLElement).textContent = `${APP_VERSION} | Mode: ${modeText} | File: ${state.importedFiles.length > 1 ? state.importedFiles.length + ' file' : (state.importedFiles[0] || '-')} | Baris: ${total} | TL: ${trans}/${total} (${perc}%)`;

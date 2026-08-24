@@ -61,6 +61,9 @@ export const state: AppState = {
   lucaMcDisplayName: DEFAULT_LUCA_MC_DISPLAY_NAME,
   lucaRawFiles: {},
   lucaRawBuffers: {},
+  customParserId: null,
+  customRawFiles: {},
+  customRawBuffers: {},
   lines: [],
   importedFiles: [],
   fileOrder: [],
@@ -204,6 +207,7 @@ export function normalizeLineDict(line: any): Line {
   if (line.epub_selector != null) normalized.epub_selector = String(line.epub_selector);
   if (line.epub_id != null) normalized.epub_id = String(line.epub_id);
   if (line.epub_img_src != null) normalized.epub_img_src = String(line.epub_img_src);
+  if (line.custom_raw != null) normalized.custom_raw = String(line.custom_raw);
   if (line._hidden != null) normalized._hidden = Boolean(line._hidden);
   if (line._glossary_extracted != null) normalized._glossary_extracted = Boolean(line._glossary_extracted);
   if (line._ai_checked != null) normalized._ai_checked = Boolean(line._ai_checked);
