@@ -5,10 +5,12 @@
 
 import type { CustomParser, CustomParsedEntry } from './types';
 
-const JS_TIMEOUT_MS = 20000;
-const PY_EXEC_TIMEOUT_MS = 30000;
-/** Unduhan pertama pyodide ~10MB — beri waktu lama untuk koneksi lambat. */
-const PY_LOAD_TIMEOUT_MS = 180000;
+// Batas eksekusi 10 menit flat agar file besar / parser berat tidak kepangkas
+// di tengah jalan; infinite loop tetap terhenti (hanya lebih sabar menunggu).
+const JS_TIMEOUT_MS = 600000;
+const PY_EXEC_TIMEOUT_MS = 600000;
+/** Unduhan pertama pyodide ~10MB — ikut dilonggarkan untuk koneksi lambat. */
+const PY_LOAD_TIMEOUT_MS = 600000;
 
 const PYODIDE_VERSION = 'v314.0.5';
 const PYODIDE_BASE = `https://cdn.jsdelivr.net/pyodide/${PYODIDE_VERSION}/full/`;
