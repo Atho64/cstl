@@ -73,6 +73,17 @@ export interface CustomParser {
   enabled: boolean;
   createdAt: number;
   updatedAt: number;
+  /** Strategi pencocokan file saat impor. Default/tidak-ada = ['extension']. */
+  matchStrategy?: CpMatchStrategy[];
+  /** Wajib jika matchStrategy memuat 'magic'. */
+  magic?: CpMagicPattern[];
+  /** Wajib jika matchStrategy memuat 'filename'. Regex JS, dicoba case-insensitive. */
+  filenameRegex?: string;
+  /** File pendamping yang bisa dibaca parser via ctx.assets.<nama>. */
+  assets?: CustomParserAsset[];
+  /** Deklarasi setting (form otomatis). Nilai tersimpan terpisah per parser-id,
+   *  dikirim ke parse()/serialize() sebagai ctx.options. */
+  settings?: CpSettingSpec[];
 }
 
 /** Entry returned by a custom parse() call before normalization into Line.
@@ -85,6 +96,34 @@ export interface CustomParsedEntry {
   message: string;
   raw?: string | null;
   index?: number | null;
+}
+
+// ─── Custom Parser matching (strategi pencocokan file saat impor) ─────────────
+
+export type CpMatchStrategy = 'extension' | 'magic' | 'filename';
+
+/** Pattern magic bytes: bandingkan byte pada `offset` dengan hex (pasangan genap, spasi boleh). */
+export interface CpMagicPattern {
+  offset: number;
+  hex: string;
+}
+
+/** Aset file yang dibundle bersama parser (base64). */
+export interface CustomParserAsset {
+  name: string;       // path relatif, forward slash, tanpa '..'
+  dataBase64: string;
+}
+
+/** Spec setting per-parser — form otomatis; nilai dikirim ke parser sebagai ctx.options. */
+export interface CpSettingSpec {
+  key: string;            // /^[a-zA-Z_$][a-zA-Z0-9_$]*$/
+  label: string;
+  type?: 'string' | 'number' | 'boolean' | 'select' | 'textarea';
+  default?: string | number | boolean | null;
+  options?: { value: string | number | boolean; label: string }[]; // wajib utk select
+  description?: string;
+  placeholder?: string;
+  min?: number; max?: number; step?: number;
 }
 
 // ─── Application State ────────────────────────────────────────────────────────

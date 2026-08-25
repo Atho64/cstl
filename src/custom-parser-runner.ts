@@ -4,6 +4,7 @@
 // (bundle app & PWA precache tidak terpengaruh).
 
 import type { CustomParser, CustomParsedEntry } from './types';
+import { normalizeAssetName, bytesFromBase64 } from './custom-parsers';
 
 // Batas eksekusi 10 menit flat agar file besar / parser berat tidak kepangkas
 // di tengah jalan; infinite loop tetap terhenti (hanya lebih sabar menunggu).
@@ -20,6 +21,8 @@ export interface CustomParseCtx {
   text: string;
   bytes: Uint8Array;
   startLineNum: number;
+  /** Nilai per-parser settings (global), sudah di-merge default oleh host. */
+  options?: Record<string, any>;
 }
 
 export interface CustomSerializeCtx extends CustomParseCtx {
@@ -32,11 +35,21 @@ export type CustomSerializeResult =
 
 // ─── JavaScript runner (blob worker, fresh per panggilan) ─────────────────────
 
-function buildJsWorkerSource(parser: CustomParser): string {
+export function buildJsWorkerSource(parser: CustomParser): string {
   // Script user dibungkus function scope agar deklarasi `function parse(){}`
   // terlihat; RPC sederhana via postMessage.
   return '"use strict";\n'
     + 'var __parse = null, __serialize = null;\n'
+    + '["log","warn","error"].forEach(function (lv) {\n'
+    + '  var orig = console[lv] ? console[lv].bind(console) : function(){};\n'
+    + '  console[lv] = function () {\n'
+    + '    var parts = [].slice.call(arguments).map(function (a) {\n'
+    + '      try { return (typeof a === "string") ? a : JSON.stringify(a); } catch (_) { return String(a); }\n'
+    + '    });\n'
+    + '    self.postMessage({ __cstl_log: true, level: lv, text: parts.join(" ") });\n'
+    + '    try { orig.apply(null, arguments); } catch (_) {}\n'
+    + '  };\n'
+    + '});\n'
     + 'var __user = (function () {\n'
     + parser.parseScript + '\n\n'
     + parser.serializeScript + '\n'
@@ -54,6 +67,12 @@ function buildJsWorkerSource(parser: CustomParser): string {
     + '    if (typeof fn !== "function") {\n'
     + '      throw new Error("Fungsi " + msg.op + "(ctx) tidak ditemukan di script parser.");\n'
     + '    }\n'
+    + '    if (msg.ctx && typeof msg.ctx === "object") {\n'
+    + '      msg.ctx.progress = function (done, total, label) {\n'
+    + '        self.postMessage({ __cstl_progress: true,\n'
+    + '          done: Number(done) || 0, total: Number(total) || 0, label: String(label || "") });\n'
+    + '      };\n'
+    + '    }\n'
     + '    var result = await fn(msg.ctx);\n'
     + '    self.postMessage({ callId: msg.callId, ok: true, result: result });\n'
     + '  } catch (err) {\n'
@@ -62,7 +81,32 @@ function buildJsWorkerSource(parser: CustomParser): string {
     + '};\n';
 }
 
-function runJsCall(parser: CustomParser, op: 'parse' | 'serialize', ctx: any): Promise<any> {
+/** Hook opsional untuk komunikasi parser -> UI (log & progress). */
+export interface CustomRunHooks {
+  onLog?: (level: 'log' | 'warn' | 'error', text: string) => void;
+  onProgress?: (done: number, total: number, label?: string) => void;
+}
+
+/** Peta { nama -> Uint8Array } dari field CustomParser.assets (base64). */
+function buildAssetMap(parser: CustomParser): Record<string, Uint8Array> {
+  const map: Record<string, Uint8Array> = {};
+  for (const a of parser.assets || []) {
+    const name = normalizeAssetName(a.name);
+    if (name && !map[name]) {
+      try { map[name] = bytesFromBase64(a.dataBase64); } catch (_) { /* base64 rusak -> skip */ }
+    }
+  }
+  return map;
+}
+
+/** Gabungkan aset parser ke ctx sebagai ctx.assets (ctx asli tak dimodifikasi).
+ *  Tanpa aset -> ctx kembali apa adanya (tidak ada field kosong tambahan). */
+export function ctxWithAssets<C>(ctx: C, parser: CustomParser): C {
+  const assets = buildAssetMap(parser);
+  return Object.keys(assets).length ? { ...ctx, assets } as any : ctx;
+}
+
+function runJsCall(parser: CustomParser, op: 'parse' | 'serialize', ctx: any, hooks?: CustomRunHooks): Promise<any> {
   return new Promise((resolve, reject) => {
     let worker: Worker;
     let url: string;
@@ -91,25 +135,37 @@ function runJsCall(parser: CustomParser, op: 'parse' | 'serialize', ctx: any): P
     }, JS_TIMEOUT_MS);
     worker.onmessage = (ev: MessageEvent) => {
       const d: any = ev.data;
+      if (d && d.__cstl_log) {
+        try { hooks?.onLog?.(d.level, String(d.text)); } catch (_) {}
+        return;
+      }
+      if (d && d.__cstl_progress) {
+        try { hooks?.onProgress?.(Number(d.done) || 0, Number(d.total) || 0, d.label ? String(d.label) : undefined); } catch (_) {}
+        return;
+      }
       if (!d || d.callId === undefined) return;
       finish(() => d.ok ? resolve(d.result) : reject(new Error(String(d.error))));
     };
     worker.onerror = (ev: ErrorEvent) => {
       finish(() => reject(new Error('Error di script parser: ' + (ev.message || 'syntax error'))));
     };
-    worker.postMessage({ callId: 1, op, ctx });
+    const assets = buildAssetMap(parser);
+    worker.postMessage({ callId: 1, op, ctx, assets: Object.keys(assets).length ? assets : undefined });
   });
 }
 
 // ─── Python runner (pyodide worker singleton, lazy dari CDN) ─────────────────
 
-function buildPyodideWorkerSource(pyodideJs: string): string {
+export function buildPyodideWorkerSource(pyodideJs: string): string {
   // pyodide.js di-embed langsung ke blob worker (bukan importScripts) —
   // beberapa lingkungan browser memblokir importScripts lintas-origin di
   // worker, sementa fetch + embed tetap jalan. Aset berat (wasm/stdlib)
   // diambil sendiri oleh loadPyodide via fetch dari indexURL.
   return pyodideJs + '\n'
-    + 'var __ready = globalThis.loadPyodide({ indexURL: "' + PYODIDE_BASE + '" });\n'
+    + 'var __ready = globalThis.loadPyodide({ indexURL: "' + PYODIDE_BASE + '",\n'
+    + '  stdout: function (s) { self.postMessage({ __cstl_log: true, level: "log", text: String(s) }); },\n'
+    + '  stderr: function (s) { self.postMessage({ __cstl_log: true, level: "warn", text: String(s) }); }\n'
+    + '});\n'
     + 'self.onmessage = async function (e) {\n'
     + '  var msg = e.data || {};\n'
     + '  try {\n'
@@ -137,6 +193,19 @@ function buildPyodideWorkerSource(pyodideJs: string): string {
     + '      try {\n'
     + '        pyCtx.set("bytes", py.globals.get("__cstl_tobytes")(pyCtx.get("bytes")));\n'
     + '      } catch (_) {}\n'
+    + '      try {\n'
+    + '        var __assets = pyCtx.get("assets");\n'
+    + '        if (__assets) {\n'
+    + '          var __keys = Array.from(__assets.keys());\n'
+    + '          for (var __i = 0; __i < __keys.length; __i++) {\n'
+    + '            try { __assets.set(__keys[__i], py.globals.get("__cstl_tobytes")(__assets.get(__keys[__i]))); } catch (_) {}\n'
+    + '          }\n'
+    + '        }\n'
+    + '      } catch (_) {}\n'
+    + '      try { pyCtx.set("progress", function (d, t, l) {\n'
+    + '        self.postMessage({ __cstl_progress: true, done: Number(d) || 0,\n'
+    + '          total: Number(t) || 0, label: String(l || "") });\n'
+    + '      }); } catch (_) {}\n'
     + '      result = await fn(pyCtx);\n'
     + '    } finally {\n'
     + '      try { pyCtx.destroy(); } catch (_) {}\n'
@@ -176,7 +245,7 @@ export function setPyodideColdStartHint(hint: () => void): void {
   pyOnColdStart = hint;
 }
 
-function runPythonCall(parser: CustomParser, op: 'parse' | 'serialize', ctx: any): Promise<any> {
+function runPythonCall(parser: CustomParser, op: 'parse' | 'serialize', ctx: any, hooks?: CustomRunHooks): Promise<any> {
   // pyodide single instance — antre panggilan agar tidak tumpang tindih.
   const run = pyActive.then(async () => {
     let worker: Worker;
@@ -217,6 +286,14 @@ function runPythonCall(parser: CustomParser, op: 'parse' | 'serialize', ctx: any
       }, timeoutMs);
       worker.onmessage = (ev: MessageEvent) => {
         const d: any = ev.data;
+        if (d && d.__cstl_log) {
+          try { hooks?.onLog?.(d.level, String(d.text)); } catch (_) {}
+          return;
+        }
+        if (d && d.__cstl_progress) {
+          try { hooks?.onProgress?.(Number(d.done) || 0, Number(d.total) || 0, d.label ? String(d.label) : undefined); } catch (_) {}
+          return;
+        }
         if (!d || d.callId === undefined) return;
         if (settled) return;
         settled = true;
@@ -249,10 +326,10 @@ function typeName(v: any): string {
   return typeof v;
 }
 
-export async function runCustomParse(parser: CustomParser, ctx: CustomParseCtx): Promise<CustomParsedEntry[]> {
+export async function runCustomParse(parser: CustomParser, ctx: CustomParseCtx, hooks: CustomRunHooks = {}): Promise<CustomParsedEntry[]> {
   const raw = parser.language === 'python'
-    ? await runPythonCall(parser, 'parse', ctx)
-    : await runJsCall(parser, 'parse', ctx);
+    ? await runPythonCall(parser, 'parse', ctxWithAssets(ctx, parser), hooks)
+    : await runJsCall(parser, 'parse', ctxWithAssets(ctx, parser), hooks);
   if (!Array.isArray(raw)) {
     throw new Error(`parse() harus mengembalikan array [{ name?, message, raw? }], yang diterima: ${typeName(raw)}.`);
   }
@@ -271,10 +348,10 @@ export async function runCustomParse(parser: CustomParser, ctx: CustomParseCtx):
   return entries;
 }
 
-export async function runCustomSerialize(parser: CustomParser, ctx: CustomSerializeCtx): Promise<CustomSerializeResult> {
+export async function runCustomSerialize(parser: CustomParser, ctx: CustomSerializeCtx, hooks: CustomRunHooks = {}): Promise<CustomSerializeResult> {
   const raw = parser.language === 'python'
-    ? await runPythonCall(parser, 'serialize', ctx)
-    : await runJsCall(parser, 'serialize', ctx);
+    ? await runPythonCall(parser, 'serialize', ctxWithAssets(ctx, parser), hooks)
+    : await runJsCall(parser, 'serialize', ctxWithAssets(ctx, parser), hooks);
   if (typeof raw === 'string') return { kind: 'text', content: raw };
   if (raw instanceof Uint8Array) return { kind: 'bytes', content: raw };
   if (raw && (raw as any).buffer instanceof ArrayBuffer && (raw as any).constructor?.name?.endsWith('Array')) {

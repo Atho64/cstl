@@ -8,7 +8,7 @@ import { WINDOWS_FILE_ORDER_COLLATOR } from './constants';
 import { normalizeFileBaseName, windowsFileOrderCompare, getFileOrderPath } from './string-utils';
 import { refreshAll, flashHint } from './render';
 import { queueAutoSave, saveLucaDataToOpfs, saveCustomSourcesToOpfs } from './project';
-import { findCustomParserForFile, getCustomParser } from './custom-parsers';
+import { findCustomParserForFile, getCustomParser, buildParserOptions } from './custom-parsers';
 import { runCustomParse } from './custom-parser-runner';
 import { resetSelectionHistory } from './selection';
 import { resolveZipPath, preloadEpubImages } from './epub-images';
@@ -375,7 +375,9 @@ export async function handleImportCustomLogic(files: FileList | File[]): Promise
     const unsupportedFiles: string[] = [];
     let parser: ReturnType<typeof findCustomParserForFile> = null;
     for (const f of sortedFiles) {
-      const p = findCustomParserForFile(f.name);
+      let sample: Uint8Array | null = null;
+      try { sample = new Uint8Array(await f.slice(0, 64).arrayBuffer()); } catch { sample = null; }
+      const p = findCustomParserForFile(f.name, sample);
       if (!p) { unsupportedFiles.push(f.name); continue; }
       if (parser && parser.id !== p.id) {
         throw new Error(
@@ -417,6 +419,9 @@ export async function handleImportCustomLogic(files: FileList | File[]): Promise
       state.customParserId = parser.id;
     }
 
+    // Nilai setting user (global per parser) -> ctx.options utk parse().
+    const parserOptions = buildParserOptions(parser);
+
     for (const f of sortedFiles) {
       const p = parserByFile.get(f);
       if (!p) continue;
@@ -425,7 +430,15 @@ export async function handleImportCustomLogic(files: FileList | File[]): Promise
       const buf = await f.arrayBuffer();
       const bytes = new Uint8Array(buf);
       const text = decodeArrayBuffer(bytes);
-      const entries = await runCustomParse(p, { fileName: baseName, text, bytes, startLineNum: cur });
+      const entries = await runCustomParse(p, { fileName: baseName, text, bytes, startLineNum: cur, options: parserOptions }, {
+        // Progress determinate dari parser (ctx.progress) -> status bar.
+        onProgress: (done, total, label) => {
+          const st = ui.copyStatus as HTMLElement | undefined;
+          if (!st) return;
+          st.classList.remove('empty');
+          st.textContent = `Parser ${baseName}: ${done}/${total}${label ? ' — ' + label : ''}`;
+        },
+      });
       if (entries.length > 0) {
         existingFiles.add(baseName);
         for (const entry of entries) {
@@ -517,7 +530,9 @@ export async function importWithCustomRouting(files: FileList | File[]): Promise
   const custom: File[] = [];
   const rest: File[] = [];
   for (const f of all) {
-    if (findCustomParserForFile(f.name)) custom.push(f);
+    let sample: Uint8Array | null = null;
+    try { sample = new Uint8Array(await f.slice(0, 64).arrayBuffer()); } catch { sample = null; }
+    if (findCustomParserForFile(f.name, sample)) custom.push(f);
     else rest.push(f);
   }
   if (custom.length > 0) await handleImportCustomLogic(custom);

@@ -1559,12 +1559,13 @@
               <button id="btnCpNew" class="btn btn-primary">+ Parser Baru</button>
               <button id="btnCpImportNow" class="btn btn-outline">Impor dengan Parser</button>
               <button id="btnCpImportFolderNow" class="btn btn-outline">Impor Folder dengan Parser</button>
-              <button id="btnCpExportAll" class="btn btn-outline">Ekspor Semua Parser</button>
+              <button id="btnCpExportAll" class="btn btn-outline" title="Semua parser dalam satu file JSON (aset base64)">Ekspor Semua Parser</button>
               <button id="btnCpImportParsers" class="btn btn-outline">Impor Parser…</button>
-              <input id="cpParserImportInput" type="file" accept=".json" hidden />
+              <input id="cpParserImportInput" type="file" accept=".json,.zip" hidden />
             </div>
           </div>
           <div id="cpParserList" class="cp-parser-list"></div>
+          <div id="cpSettingsEditor" class="settings-section mb-2" style="display:none;"></div>
           <details class="cp-help">
             <summary>Cara kerja parser custom?</summary>
             <div class="cp-help-body">
@@ -1584,6 +1585,15 @@
                 <option value="python">Python</option>
               </select>
               <input id="cpExtensionsInput" class="text-input" style="flex:1;min-width:160px;" placeholder="Ekstensi: .mgs, .scp" />
+            </div>
+            <div class="flex gap-2 wrap mt-2">
+              <select id="cpMatchSelect" class="text-input" style="max-width:230px;" title="Cara CSTL mencocokkan file dengan parser ini">
+                <option value="extension" selected>Cocok ekstensi</option>
+                <option value="magic">Cocok magic bytes</option>
+                <option value="filename">Cocok nama file (regex)</option>
+              </select>
+              <input id="cpMagicInput" class="text-input mono" style="flex:1;min-width:200px;" placeholder='Magic bytes (hex@offset, koma utk multi): 4D41@0, 00FF@4' />
+              <input id="cpFilenameRegexInput" class="text-input mono" style="flex:1;min-width:160px;" placeholder="Regex nama file: ^scene_\w+" />
             </div>
           </div>
           <div class="replacer-grid">
@@ -1609,6 +1619,27 @@
             </div>
             <input id="cpTestFileInput" type="file" hidden />
             <div id="cpTestResult" class="cp-test-result"></div>
+          </div>
+          <div class="settings-section mb-2">
+            <div class="settings-section-title">Aset Parser <span id="cpAssetsSize" style="font-weight:normal;opacity:.7;"></span></div>
+            <div class="flex gap-2 wrap">
+              <button id="btnCpAddAssets" class="btn btn-outline btn-sm" type="button">Tambah File Aset…</button>
+              <input id="cpAssetsInput" type="file" multiple hidden />
+            </div>
+            <div id="cpAssetList" class="cp-asset-list"></div>
+          </div>
+          <div class="settings-section mb-2">
+            <div class="settings-section-title">Setelan Parser (opsional)</div>
+            <textarea id="cpSettingsInput" class="mono input-area w-full" style="height:140px; font-size:12.5px;" placeholder='[]  — atau contoh:
+[
+  {"key":"encoding","label":"Encoding","type":"select","default":"auto",
+   "options":[{"value":"auto","label":"Auto"},{"value":"sjis","label":"Shift_JIS"}]},
+  {"key":"skipComments","label":"Lewati komentar #","type":"boolean","default":true}
+]'></textarea>
+            <div style="opacity:.65;font-size:12px;margin-top:4px;">
+              Dibaca parser lewat <code>ctx.options.&lt;key&gt;</code>. Tipe: string/number/boolean/select/textarea.
+              Nilai yang dipilih user diedit lewat tombol <b>Setelan</b> di daftar parser.
+            </div>
           </div>
         </div>
       </div>

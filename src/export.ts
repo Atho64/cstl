@@ -15,7 +15,7 @@ import { WINDOWS_FILE_ORDER_COLLATOR, APP_VERSION } from './constants';
 import { flashHint } from './render';
 import { getOpfsRoot } from './state';
 import { waitForLucaDataLoad, waitForCustomSourcesLoad } from './project';
-import { getCustomParser } from './custom-parsers';
+import { getCustomParser, buildParserOptions } from './custom-parsers';
 import { runCustomSerialize } from './custom-parser-runner';
 import type { Line } from './types';
 
@@ -450,6 +450,7 @@ export async function onExport(): Promise<void> {
             text: rawText,
             bytes: rawBytes,
             startLineNum: lns.length > 0 ? lns[0].line_num : 1,
+            options: buildParserOptions(parser),
             lines: lns.map(l => ({
               line_num: l.line_num,
               name: l.name,
