@@ -315,7 +315,11 @@ function runPythonCall(parser: CustomParser, op: 'parse' | 'serialize', ctx: any
         else reject(new Error(String(d.error)));
       };
       worker.onerror = (ev: ErrorEvent) => {
-        fail(new Error('Error runtime Python: ' + (ev.message || 'gagal memuat pyodide dari CDN')));
+        // Pesan asli dari worker sering kalah detail (atau kosong) untuk error
+        // saat loadPyodide — sertakan lokasi file/baris kalau ada.
+        var loc = ev.filename ? ' (' + String(ev.filename).split('/').pop() + ':' + (ev.lineno || '?') + ')' : '';
+        fail(new Error('Error runtime Python: ' + (ev.message || 'tidak diketahui') + loc +
+          '. Kalau ini terjadi saat memuat pyodide pertama kali: cek koneksi internet / matikan pemblokir skrip, lalu coba lagi (cache browser membuat percobaan ke-2 jauh lebih cepat).'));
       };
       worker.postMessage({
         callId: 1,
