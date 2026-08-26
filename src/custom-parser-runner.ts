@@ -242,14 +242,47 @@ let pyActive: Promise<any> = Promise.resolve();
 let pyOnColdStart: (() => void) | null = null;
 let pyodideJsCache: string | null = null;
 
-async function fetchPyodideJs(): Promise<string> {
+/** Cache persisten untuk pyodide.js (±10MB) via Cache API.
+ *  Tanpa ini, tiap update PWA / reload = unduh ulang dari CDN padahal
+ *  file CDN immutable per-versi. Fallback ke fetch biasa kalau Cache API
+ *  tidak tersedia (mis. mode privat tertentu). */
+const PYODIDE_CACHE_NAME = 'cstl-pyodide-v1';
+
+async function cachedFetchPyodideJs(): Promise<string> {
   if (pyodideJsCache) return pyodideJsCache;
-  const res = await fetch(PYODIDE_BASE + 'pyodide.js');
+  const url = PYODIDE_BASE + 'pyodide.js';
+  try {
+    if (typeof caches !== 'undefined') {
+      const cache = await caches.open(PYODIDE_CACHE_NAME);
+      const hit = await cache.match(url);
+      if (hit) {
+        pyodideJsCache = await hit.text();
+        return pyodideJsCache;
+      }
+      const res = await fetch(url);
+      if (!res.ok) {
+        throw new Error(`Gagal mengunduh loader pyodide dari CDN (HTTP ${res.status}). Cek koneksi internet — Python parser butuh internet saat pemakaian pertama.`);
+      }
+      pyodideJsCache = await res.text();
+      // Simpan salinan untuk pemakaian berikutnya (best-effort).
+      try { await cache.put(url, new Response(pyodideJsCache, { headers: { 'Content-Type': 'application/javascript' } })); } catch (_) {}
+      return pyodideJsCache;
+    }
+  } catch (e: any) {
+    // Cache API gagal (quota/private mode) -> jangan gagalkan ekspor; lanjut
+    // dengan fetch langsung kalau errornya bukan dari HTTP CDN tadi.
+    if (String(e?.message || '').startsWith('Gagal mengunduh')) throw e;
+  }
+  const res = await fetch(url);
   if (!res.ok) {
     throw new Error(`Gagal mengunduh loader pyodide dari CDN (HTTP ${res.status}). Cek koneksi internet — Python parser butuh internet saat pemakaian pertama.`);
   }
   pyodideJsCache = await res.text();
   return pyodideJsCache;
+}
+
+async function fetchPyodideJs(): Promise<string> {
+  return cachedFetchPyodideJs();
 }
 
 /** Callback sekali untuk memberi tahu UI saat runtime Python mulai diunduh. */
