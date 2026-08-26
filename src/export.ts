@@ -14,7 +14,7 @@ import { base64ToArrayBuffer, joinLinesToBuffer, arrayBufferToBase64, latin1Byte
 import { WINDOWS_FILE_ORDER_COLLATOR, APP_VERSION } from './constants';
 import { flashHint } from './render';
 import { getOpfsRoot } from './state';
-import { waitForLucaDataLoad, waitForCustomSourcesLoad } from './project';
+import { waitForLucaDataLoad, waitForCustomSourcesLoad, readCustomSourceFile, customLazySourceHas } from './project';
 import { getCustomParser, buildParserOptions } from './custom-parsers';
 import { runCustomSerialize } from './custom-parser-runner';
 import type { Line } from './types';
@@ -428,27 +428,39 @@ export async function onExport(): Promise<void> {
           if (!g.has(l.file)) g.set(l.file, []);
           g.get(l.file)!.push(l);
         }
-        const missingSources = Array.from(g.keys()).filter(fn => !state.customRawBuffers[fn] && !state.customRawFiles[fn]);
-        if (missingSources.length > 0) {
+        // LAZY: deteksi file sumber yang benar-benar tidak ada (bukan sekadar
+        // belum ter-load di state) — tanya langsung ke lazy source / state.
+        const missingSourcesList: string[] = [];
+        for (const fn of g.keys()) {
+          const inLazy = customLazySourceHas(fn);
+          const inState = !!state.customRawBuffers[fn] || (state.customRawFiles[fn] ?? '') !== '';
+          if (!inLazy && !inState) missingSourcesList.push(fn);
+        }
+        if (missingSourcesList.length > 0) {
           alert(
             'File asli untuk proyek ini tidak tersedia di sidecar (kemungkinan dipulihkan dari backup lama):\n' +
-            `- ${missingSources.slice(0, 5).join('\n- ')}${missingSources.length > 5 ? '\n- ...' : ''}\n\n` +
+            `- ${missingSourcesList.slice(0, 5).join('\n- ')}${missingSourcesList.length > 5 ? '\n- ...' : ''}\n\n` +
             'serialize() menerima text/bytes kosong untuk file tersebut. Impor ulang file asli untuk round-trip penuh.'
           );
         }
+        const missingSourcesSet = new Set(missingSourcesList);
 
         const entries = Array.from(g.entries());
         const res: { fn: string; content: string | Uint8Array }[] = [];
         for (let fileIdx = 0; fileIdx < entries.length; fileIdx++) {
           if (!exportStillActive()) return;
           const [fileName, lns] = entries[fileIdx];
-          const rawB64 = state.customRawBuffers[fileName];
-          const rawBytes = rawB64 ? new Uint8Array(base64ToArrayBuffer(rawB64)) : new Uint8Array(0);
-          const rawText = state.customRawFiles[fileName] ?? '';
+          // LAZY: baca file asli per-file dari sidecar OPFS saat ekspor
+          // (fallback ke state in-memory utk proyek kecil/format lama).
+          const src = await readCustomSourceFile(fileName);
+          if (!src.bytes && !src.text && missingSourcesSet.has(fileName)) {
+            // sudah dilaporkan di atas; tetap lanjut dgn ctx kosong
+          }
+          const rawText = src.text ?? '';
           const result = await runCustomSerialize(parser, {
             fileName,
             text: rawText,
-            bytes: rawBytes,
+            bytes: src.bytes ?? new Uint8Array(0),
             startLineNum: lns.length > 0 ? lns[0].line_num : 1,
             options: buildParserOptions(parser),
             lines: lns.map(l => ({

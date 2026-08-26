@@ -13,7 +13,7 @@ import {
 import { DEFAULT_LUCA_PROFILE, clearLucaFileLineBytesCache, parseLucaTxt } from './luca-engine';
 import type { Line } from './types';
 import { normalizeAiTranslationFormat, getDefaultPromptHeaderForFormat } from './ai-format';
-import { readEpubSourceForBackup, writeEpubSourceFromBackup, cloneExistingEpubSource } from './binary-utils';
+import { readEpubSourceForBackup, writeEpubSourceFromBackup, cloneExistingEpubSource, bytesToBase64, base64ToBytes } from './binary-utils';
 import { resetSelectionHistory, switchWorkspaceTab, normalizeSelectionBatchSize } from './selection';
 import { normalizeLineDict, isIlustrasiLine } from './state';
 import { normalizeShortcutString } from './shortcuts';
@@ -926,15 +926,52 @@ export async function prepareProjectBackupData(data: any, id: string): Promise<R
   return backupData;
 }
 
+/** Batas ukuran payload raw (teks+base64, jumlah karakter) sebelum backup
+ *  beralih dari satu JSON .cstl ke container ZIP (project.json + custom_sources/).
+ *  Alasan: JSON.stringify gabungan >±500jt karakter = RangeError invalid string length. */
+const CUSTOM_BACKUP_RAW_LIMIT = 8 * 1024 * 1024;
+
+function customRawPayloadSize(backupData: any): number {
+  let n = 0;
+  for (const v of Object.values(backupData?.customRawFiles || {})) n += String(v as any).length;
+  for (const v of Object.values(backupData?.customRawBuffers || {})) n += String(v as any).length;
+  return n;
+}
+
+/** Bangun file backup: proyek kecil = JSON .cstl; besar = ZIP container
+ *  berisi project.json (tanpa raw) + custom_sources/<file> biner mentah. */
+async function buildBackupBlob(backupData: any): Promise<{ blob: Blob; isZip: boolean }> {
+  if (customRawPayloadSize(backupData) < CUSTOM_BACKUP_RAW_LIMIT) {
+    return { blob: new Blob([JSON.stringify(backupData)], { type: 'application/json' }), isZip: false };
+  }
+  const JSZipCtor = (window as any).JSZip;
+  if (!JSZipCtor) throw new Error('JSZip tidak tersedia untuk backup proyek besar.');
+  const { customRawFiles, customRawBuffers, ...rest } = backupData;
+  const zip = new JSZipCtor();
+  zip.file('project.json', JSON.stringify(rest));
+  const folder = zip.folder('custom_sources');
+  const written = new Set<string>();
+  const enc = new TextEncoder();
+  for (const [fname, text] of Object.entries(customRawFiles || {})) {
+    await folder.file(fname, enc.encode(String(text)));
+    written.add(fname);
+  }
+  for (const [fname, b64] of Object.entries(customRawBuffers || {})) {
+    if (written.has(fname)) continue;
+    await folder.file(fname, base64ToBytes(String(b64)));
+  }
+  const blob = await zip.generateAsync({ type: 'blob' });
+  return { blob, isZip: true };
+}
+
 export async function backupDashboardProject(name: string, data: any, id: string): Promise<void> {
   const backupData = await prepareProjectBackupData(data, id);
   if (!backupData) return;
-  const strData = JSON.stringify(backupData);
-  const b = new Blob([strData], { type: 'application/json' });
+  const { blob, isZip } = await buildBackupBlob(backupData);
   const a = document.createElement('a');
-  a.href = URL.createObjectURL(b);
+  a.href = URL.createObjectURL(blob);
   const safeName = name.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-  a.download = `${safeName}_backup${PROJECT_EXT}`;
+  a.download = `${safeName}_backup${isZip ? PROJECT_EXT + '.zip' : PROJECT_EXT}`;
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
@@ -1094,18 +1131,122 @@ export async function loadLucaDataFromOpfs(id: string): Promise<any> {
 // ─── Custom parser source sidecar (round-trip export) ────────────────────────
 /** Simpan file asli proyek parser custom (teks + base64 bytes) ke OPFS sidecar,
  *  mengikuti pola sidecar Luca — biar file .cstl utama tetap ramping. */
+/**
+ * Sidecar sumber custom — dua format:
+ * - LAMA (kompatibilitas baca): satu JSON `_custom_src.json` berisi
+ *   {customRawFiles: {nama: teks}, customRawBuffers: {nama: base64}}.
+ * - BARU (v2, untuk proyek besar): direktori `_custom_src/` berisi satu file
+ *   biner mentah per entri + `_custom_src_index.json` ringan
+ *   ({files:[nama], buffers:{nama: panjang byte}}). Tanpa base64 dan tanpa
+ *   string raksasa -> aman untuk ratusan MB (RangeError invalid string length).
+ */
+
+const CUSTOM_SRC_DIR = '_custom_src';
+const CUSTOM_SRC_INDEX = '_custom_src_index.json';
+
+function customSrcBaseId(id: string): string {
+  return id.replace(PROJECT_EXT, '');
+}
+
 export async function saveCustomSourcesToOpfs(id: string, customData: any): Promise<void> {
   const root = await getOpfsRoot();
-  const customId = id.replace(PROJECT_EXT, '_custom_src.json');
-  const fileHandle = await root.getFileHandle(customId, { create: true });
-  const writable = await fileHandle.createWritable();
-  await writable.write(JSON.stringify(customData));
-  await writable.close();
+  const files: Record<string, string> = customData?.customRawFiles || {};
+  const buffers: Record<string, string> = customData?.customRawBuffers || {};
+  const rawBytes: Record<string, Uint8Array> = customData?.customRawBytes || {};
+
+  // Jalur cepat: byte mentah sudah tersedia (restore dari backup ZIP) -> langsung tulis.
+  if (Object.keys(rawBytes).length > 0) {
+    const dirId = customSrcBaseId(id);
+    let dir2: FileSystemDirectoryHandle;
+    try { dir2 = await root.getDirectoryHandle(CUSTOM_SRC_DIR + '_' + dirId, { create: false }); }
+    catch { dir2 = await root.getDirectoryHandle(CUSTOM_SRC_DIR + '_' + dirId, { create: true }); }
+    for await (const [name] of (dir2 as any).entries()) { try { await dir2.removeEntry(name); } catch (_) {} }
+    const namesB: string[] = [];
+    const bufLensB: Record<string, number> = {};
+    for (const [name, bytes] of Object.entries(rawBytes)) {
+      const fh = await dir2.getFileHandle(name, { create: true });
+      const w = await fh.createWritable();
+      await w.write(bytes as Uint8Array<ArrayBuffer>);
+      await w.close();
+      namesB.push(name); bufLensB[name] = bytes.length;
+    }
+    const idxHandleB = await root.getFileHandle(CUSTOM_SRC_INDEX.replace('.json', '_' + dirId + '.json'), { create: true });
+    const iwB = await idxHandleB.createWritable();
+    await iwB.write(JSON.stringify({ version: 2, files: namesB, bufferLens: bufLensB }));
+    await iwB.close();
+    return;
+  }
+
+  // Proyek kecil (<8MB gabungan) tetap pakai format lama — sederhana & kompatibel.
+  const b64Len = Object.values(buffers).reduce((n: number, v) => n + String(v).length, 0) as number;
+  const txtLen = Object.values(files).reduce((n: number, v) => n + String(v).length, 0) as number;
+  if (b64Len + txtLen < 8 * 1024 * 1024) {
+    const customId = id.replace(PROJECT_EXT, '_custom_src.json');
+    const fileHandle = await root.getFileHandle(customId, { create: true });
+    const writable = await fileHandle.createWritable();
+    await writable.write(JSON.stringify(customData));
+    await writable.close();
+    return;
+  }
+
+  // Format baru: direktori per-proyek berisi biner mentah.
+  const dirId = customSrcBaseId(id);
+  let dir: FileSystemDirectoryHandle;
+  try { dir = await root.getDirectoryHandle(CUSTOM_SRC_DIR + '_' + dirId, { create: false }); }
+  catch { dir = await root.getDirectoryHandle(CUSTOM_SRC_DIR + '_' + dirId, { create: true }); }
+  // Bersihkan isi lama dulu.
+  for await (const [name] of (dir as any).entries()) { try { await dir.removeEntry(name); } catch (_) {} }
+
+  const names: string[] = [];
+  const bufLens: Record<string, number> = {};
+  const enc = new TextEncoder();
+  const writeOne = async (name: string, bytes: Uint8Array) => {
+    const fh = await dir.getFileHandle(name, { create: true });
+    const w = await fh.createWritable();
+    await w.write(bytes as Uint8Array<ArrayBuffer>);
+    await w.close();
+  };
+  for (const [name, text] of Object.entries(files)) {
+    await writeOne(name, enc.encode(String(text)));
+    names.push(name); bufLens[name] = enc.encode(String(text)).length;
+  }
+  for (const [name, b64] of Object.entries(buffers)) {
+    const bytes = base64ToBytes(String(b64));
+    await writeOne(name, bytes);
+    if (!names.includes(name)) names.push(name);
+    bufLens[name] = bytes.length;
+  }
+  // Index ringan di root (JSON kecil: nama + panjang saja).
+  const idxHandle = await root.getFileHandle(CUSTOM_SRC_INDEX.replace('.json', '_' + dirId + '.json'), { create: true });
+  const iw = await idxHandle.createWritable();
+  await iw.write(JSON.stringify({ version: 2, files: names, bufferLens: bufLens }));
+  await iw.close();
 }
 
 export async function loadCustomSourcesFromOpfs(id: string): Promise<any> {
   try {
     const root = await getOpfsRoot();
+    // Coba format BARU dulu.
+    const dirId = customSrcBaseId(id);
+    try {
+      const idx = await root.getFileHandle(CUSTOM_SRC_INDEX.replace('.json', '_' + dirId + '.json'));
+      const meta = JSON.parse(await (await idx.getFile()).text());
+      const dir = await root.getDirectoryHandle(CUSTOM_SRC_DIR + '_' + dirId);
+      // LAZY: kembalikan daftar file + handle baca per-file, TANPA memuat
+      // seluruh isi ke memori. Pemakai (state loader / ekspor) panggil
+      // readCustomSourceFile() hanya untuk file yang dibutuhkan.
+      return {
+        __lazy: true as const,
+        version: 2,
+        files: meta.files || [],
+        bufferLens: meta.bufferLens || {},
+        readFile: async (name: string): Promise<Uint8Array> => {
+          const fh = await dir.getFileHandle(name);
+          return new Uint8Array(await (await fh.getFile()).arrayBuffer());
+        },
+      };
+    } catch (_) { /* tidak ada format baru -> jatuh ke lama */ }
+    // Format LAMA.
     const customId = id.replace(PROJECT_EXT, '_custom_src.json');
     const fileHandle = await root.getFileHandle(customId);
     const file = await fileHandle.getFile();
@@ -1161,6 +1302,31 @@ export function waitForLucaDataLoad(projectId: string | null = state.currentProj
 
 let activeCustomDataProjectId: string | null = null;
 let activeCustomDataLoad: Promise<void> = Promise.resolve();
+/** Sumber lazy (format sidecar v2): daftar file + pembaca per-file dari OPFS. */
+let customLazySource: { files: string[]; bufferLens: Record<string, number>; readFile: (name: string) => Promise<Uint8Array> } | null = null;
+
+/** Baca file sumber asli milik proyek aktif — lazy dari OPFS bila tersedia,
+ *  fallback ke state in-memory (format lama / hasil impor). */
+export async function readCustomSourceFile(fileName: string): Promise<{ bytes: Uint8Array | null; text: string | null }> {
+  if (customLazySource && customLazySource.files.includes(fileName)) {
+    try {
+      const bytes = await customLazySource.readFile(fileName);
+      const text = new TextDecoder().decode(bytes);
+      return { bytes, text };
+    } catch (_) {
+      return { bytes: null, text: null };
+    }
+  }
+  const b64 = (state as any).customRawBuffers?.[fileName];
+  if (b64) return { bytes: base64ToBytes(b64), text: (state as any).customRawFiles?.[fileName] ?? null };
+  const txt = (state as any).customRawFiles?.[fileName];
+  return { bytes: null, text: typeof txt === 'string' && txt.length > 0 ? txt : null };
+}
+
+/** Apakah file sumber ada di lazy source (tanpa memuat isinya). */
+export function customLazySourceHas(fileName: string): boolean {
+  return !!customLazySource && customLazySource.files.includes(fileName);
+}
 
 export function waitForCustomSourcesLoad(projectId: string | null = state.currentProjectId): Promise<void> {
   if (!projectId || projectId !== activeCustomDataProjectId) return Promise.resolve();
@@ -1246,13 +1412,22 @@ export async function openProject(id: string, data: any): Promise<void> {
   state.lucaRawBuffers = {};
   clearLucaFileLineBytesCache();
   // Custom-parser sidecar (original sources for round-trip export) — same guard.
+  // LAZY v2: proyek besar tidak memuat semua file asli ke memori; state hanya
+  // menyimpan lazy source (daftar + readFile) dan ekspor membaca per-file.
   state.customParserId = data.custom_parser_id || null;
   state.customRawFiles = {};
   state.customRawBuffers = {};
   const customDataLoad = (async () => {
     const customData = await loadCustomSourcesFromOpfs(id);
     if (!isCurrentLoad()) return;
-    if (customData) {
+    if (!customData) return;
+    if ((customData as any).__lazy) {
+      const lz: any = customData;
+      customLazySource = { files: lz.files, bufferLens: lz.bufferLens, readFile: lz.readFile };
+      for (const name of lz.files) state.customRawFiles[name] = ''; // tanda "ada" tanpa isi
+      state.customRawBuffers = {};
+    } else {
+      customLazySource = null;
       state.customRawFiles = customData.customRawFiles || {};
       state.customRawBuffers = customData.customRawBuffers || {};
     }
@@ -1448,7 +1623,37 @@ export async function restoreProjectFromFile(f: File): Promise<boolean> {
   let restoreProjectId: string | null = null;
   let createdEpubSourceId: string | null = null;
   try {
-    const p = JSON.parse(await f.text());
+    // Backup proyek besar = container ZIP (project.json + custom_sources/).
+    const isZipBackup = f.name.toLowerCase().endsWith(PROJECT_EXT + '.zip');
+    let p: any;
+    let zipSources: Record<string, Uint8Array> | null = null;
+    if (isZipBackup) {
+      const JSZipCtor = (window as any).JSZip;
+      if (!JSZipCtor) throw new Error('JSZip tidak tersedia untuk restore backup besar.');
+      const zip = await JSZipCtor.loadAsync(await f.arrayBuffer());
+      const pj = zip.file('project.json');
+      if (!pj) throw new Error('project.json tidak ditemukan di backup ZIP.');
+      p = JSON.parse(await pj.async('string'));
+      zipSources = {};
+      zip.forEach((path: string, zf: any) => {
+        if (zf.dir) return;
+        const norm = String(path).replace(/\\/g, '/');
+        if (!norm.startsWith('custom_sources/')) return;
+        zip.file(norm).async('uint8array').then((u8: Uint8Array) => { zipSources![norm.slice('custom_sources/'.length)] = u8; });
+      });
+      // Tunggu semua entri terkumpul (forEach sinkron, async di atas).
+      await new Promise<void>((res) => {
+        const check = () => {
+          const expected = Object.keys(zipSources!).length;
+          let seen = 0;
+          zip.forEach((path: string, zf: any) => { if (!zf.dir && String(path).replace(/\\/g,'/').startsWith('custom_sources/')) seen++; });
+          if (seen === expected) res(); else setTimeout(check, 30);
+        };
+        check();
+      });
+    } else {
+      p = JSON.parse(await f.text());
+    }
     const name = p.projectName || f.name.replace(PROJECT_EXT, '');
     const id = 'proj_' + Date.now() + PROJECT_EXT;
     restoreProjectId = id;
@@ -1534,6 +1739,10 @@ export async function restoreProjectFromFile(f: File): Promise<boolean> {
     if ((p.customRawFiles && Object.keys(p.customRawFiles).length > 0)
       || (p.customRawBuffers && Object.keys(p.customRawBuffers).length > 0)) {
       await saveCustomSourcesToOpfs(id, { customRawFiles: p.customRawFiles || {}, customRawBuffers: p.customRawBuffers || {} });
+    }
+    // Backup ZIP besar: sumber mentah dari custom_sources/ -> sidecar format baru.
+    if (zipSources && Object.keys(zipSources).length > 0) {
+      await saveCustomSourcesToOpfs(id, { customRawBuffers: {}, customRawBytes: zipSources } as any);
     }
     // Definisi parser dari backup — pulihkan hanya kalau belum ada di browser
     // ini (versi lokal selalu menang agar edit terbaru tidak tertimpa backup).
