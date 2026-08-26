@@ -255,15 +255,8 @@ export function onApplyTranslation(options: ApplyTranslationOptions = {}): void 
 
   const { cleanText, summary } = extractSummaryAndPayload(rawText);
   rawText = cleanText;
-
-  if (state.enableBackgroundChaining && summary) {
-    state.currentBackground = summary;
-    flashHint('Ringkasan cerita diperbarui!');
-    if (ui.settingsBackgroundInput) {
-      (ui.settingsBackgroundInput as HTMLTextAreaElement).value = state.currentBackground;
-    }
-    queueAutoSave();
-  }
+  // Ringkasan TIDAK disimpan di sini — baru disimpan setelah lolos semua validasi (lihat akhir fungsi),
+  // supaya apply yang gagal tidak mengubah background/ringkasan cerita.
 
   const pasteFormat = detectTranslationPasteFormat(rawText);
   const selectedUntranslated = new Set(state.lines.filter(l =>
@@ -343,7 +336,8 @@ export function onApplyTranslation(options: ApplyTranslationOptions = {}): void 
     else {
       if (state.checkKanaResidue) {
         const rawForCheck = unescapeStoredNewlines(it.msg);
-        if (/[\u3040-\u309F\u30A0-\u30FF]/.test(rawForCheck)) {
+        // Kana saja (tanpa simbol ・ ゛ ゜ ゠)
+        if (/[\u3041-\u3096\u309D-\u309F\u30A1-\u30FA\u30FC-\u30FF]/.test(rawForCheck)) {
           errors.push(`[#${it.num}] Kana residue: masih ada karakter hiragana/katakana di terjemahan.`);
         }
       }
@@ -357,7 +351,8 @@ export function onApplyTranslation(options: ApplyTranslationOptions = {}): void 
       }
       if (state.checkUntransName && !ignoreNames) {
         const origName = (l.name || '').trim();
-        const kanaRegex = /[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]/;
+        // Kana + Kanji (termasuk 々〆〇), tanpa simbol (・ ゛ ゜ ゠)
+        const kanaRegex = /[\u3041-\u3096\u309D-\u309F\u30A1-\u30FA\u30FC-\u30FF\u4E00-\u9FFF\u3005-\u3007]/;
         if (origName && kanaRegex.test(origName)) {
           const transName = (it.name || '').trim();
           if (!transName) {
@@ -387,6 +382,17 @@ export function onApplyTranslation(options: ApplyTranslationOptions = {}): void 
   (ui.pasteArea as HTMLTextAreaElement).value = '';
   refreshAll();
   queueAutoSave();
+
+  // Ringkasan disimpan HANYA jika apply sukses (background chaining)
+  if (state.enableBackgroundChaining && summary) {
+    state.currentBackground = summary;
+    flashHint('Ringkasan cerita diperbarui!');
+    if (ui.settingsBackgroundInput) {
+      (ui.settingsBackgroundInput as HTMLTextAreaElement).value = state.currentBackground;
+    }
+    queueAutoSave();
+  }
+
   flashHint(`${updates.length} baris sukses diterapkan.`);
 }
 

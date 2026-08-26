@@ -1,6 +1,6 @@
 // @module custom-parser-modal.ts — UI kelola parser custom (list, editor, uji parser).
 
-import { ui } from './state';
+import { state, ui } from './state';
 import { openModal, closeModal } from './project';
 import { flashHint } from './render';
 import {
@@ -12,7 +12,11 @@ import {
   deleteParserSettingValues,
 } from './custom-parsers';
 import { runCustomParse } from './custom-parser-runner';
+import { icon } from './icons';
 import { decodeArrayBuffer } from './binary-utils';
+import { getLucaProfile, getActiveLucaProfile, populateLucaExportSlotSelect, DEFAULT_LUCA_PROFILE } from './luca-engine';
+import { DEFAULT_LUCA_MC_DISPLAY_NAME } from './constants';
+import { queueAutoSave, closeModal as closeModalEl } from './project';
 import type { CustomParser, CustomParsedEntry, CpMatchStrategy, CpMagicPattern, CustomParserAsset, CpSettingSpec } from './types';
 
 let editingId: string | null | undefined = undefined; // undefined = list view, null = parser baru
@@ -122,7 +126,55 @@ export function updateCustomImportAccept(): void {
 
 export function openCustomParserModal(): void {
   showListView();
+  populateLucaSettingsUI();
   (ui.customParserModal as HTMLElement) && openModal(ui.customParserModal as HTMLElement);
+}
+
+// ─── Luca settings (pindahan dari modal Settings) ─────────────────────────────
+
+/** Isi dropdown profil/slot/MC dari state — dipanggil saat modal Parser Custom dibuka. */
+function populateLucaSettingsUI(): void {
+  const showLuca = state.projectType !== 'epub';
+  if (ui.settingsLucaWrap) (ui.settingsLucaWrap as HTMLElement).style.display = showLuca ? '' : 'none';
+  if (!showLuca) return;
+  if (ui.settingsLucaProfileSelect) {
+    const sel = ui.settingsLucaProfileSelect as HTMLSelectElement;
+    sel.value = state.lucaProfile || DEFAULT_LUCA_PROFILE;
+    sel.disabled = state.lines.length > 0;
+  }
+  const active = getActiveLucaProfile();
+  if (ui.settingsLucaMcWrap) (ui.settingsLucaMcWrap as HTMLElement).style.display = active.nameAtFormat ? 'block' : 'none';
+  if (ui.settingsLucaMcDisplayNameInput) {
+    (ui.settingsLucaMcDisplayNameInput as HTMLInputElement).value = state.lucaMcDisplayName || '';
+  }
+  if (ui.settingsLucaExportLangWrap) (ui.settingsLucaExportLangWrap as HTMLElement).style.display = 'flex';
+  if (ui.settingsLucaExportLangSelect) {
+    const profileId = (ui.settingsLucaProfileSelect as HTMLSelectElement)?.value || state.lucaProfile || DEFAULT_LUCA_PROFILE;
+    populateLucaExportSlotSelect(profileId);
+    const saved = state.lucaExportLang || 'en';
+    const options = active.exportSlotOptions || [];
+    const sel = ui.settingsLucaExportLangSelect as HTMLSelectElement;
+    sel.value = options.some((o: any) => o.value === saved) ? saved : sel.value;
+  }
+}
+
+/** Simpan nilai Luca dari UI ke state — dipanggil saat modal Parser Custom ditutup. */
+function saveLucaSettingsFromUI(): void {
+  if (ui.settingsLucaWrap && (ui.settingsLucaWrap as HTMLElement).style.display === 'none') return; // epub
+  state.lucaExportLang = (ui.settingsLucaExportLangSelect as HTMLSelectElement)?.value || state.lucaExportLang || 'en';
+  if (ui.settingsLucaMcDisplayNameInput) {
+    state.lucaMcDisplayName = (ui.settingsLucaMcDisplayNameInput as HTMLInputElement).value.trim() || DEFAULT_LUCA_MC_DISPLAY_NAME;
+  }
+  if (ui.settingsLucaProfileSelect && state.lines.length === 0) {
+    state.lucaProfile = (ui.settingsLucaProfileSelect as HTMLSelectElement).value || DEFAULT_LUCA_PROFILE;
+  }
+  queueAutoSave();
+}
+
+/** Tutup modal Parser Custom + simpan nilai Luca dari UI (pindahan dari tombol Simpan Pengaturan). */
+function closeCpModal(): void {
+  saveLucaSettingsFromUI();
+  closeModalEl(ui.customParserModal as HTMLElement);
 }
 
 function showListView(): void {
@@ -217,7 +269,7 @@ function renderParserList(): void {
   const parsers = loadCustomParsers();
   if (parsers.length === 0) {
     container.innerHTML =
-      '<div class="cp-empty">Belum ada parser custom. Klik <b>+ Parser Baru</b> untuk membuat parser ' +
+      '<div class="cp-empty">Belum ada parser custom. Klik <b>Parser Baru</b> untuk membuat parser ' +
       'JavaScript/Python untuk format file game apa pun — atau salin template contoh yang tersedia.</div>';
     return;
   }
@@ -238,11 +290,11 @@ function renderParserList(): void {
         <div class="cp-card-ext">${escapeHtml(p.extensions.join(', ') || (strategies.includes('magic') ? 'magic: ' + (p.magic || []).map(m => m.hex.toUpperCase() + '@' + m.offset).join(', ') : strategies.includes('filename') ? 'regex: ' + (p.filenameRegex || '') : ''))}</div>
       </div>
       <div class="cp-card-actions">
-        <button class="btn btn-sm btn-outline" data-action="toggle" type="button">${p.enabled ? 'Nonaktifkan' : 'Aktifkan'}</button>
-        <button class="btn btn-sm btn-outline" data-action="edit" type="button">Edit</button>
-        ${p.settings?.length ? '<button class="btn btn-sm btn-outline" data-action="settings" type="button">Setelan</button>' : ''}
-        <button class="btn btn-sm btn-outline" data-action="export" type="button" title="Zip berisi parser.json + file asset asli (folder assets/)">Ekspor</button>
-        <button class="btn btn-sm btn-danger" data-action="delete" type="button">Hapus</button>
+        <button class="btn btn-sm btn-icon" data-action="toggle" type="button" aria-label="${p.enabled ? 'Nonaktifkan' : 'Aktifkan'}" title="${p.enabled ? 'Nonaktifkan' : 'Aktifkan'}">${icon(p.enabled ? 'power' : 'check', 16)}</button>
+        <button class="btn btn-sm btn-icon" data-action="edit" type="button" aria-label="Edit" title="Edit">${icon('pencil', 16)}</button>
+        ${p.settings?.length ? `<button class="btn btn-sm btn-icon" data-action="settings" type="button" aria-label="Setelan" title="Setelan">${icon('sliders', 16)}</button>` : ''}
+        <button class="btn btn-sm btn-icon" data-action="export" type="button" aria-label="Ekspor" title="Ekspor — zip berisi parser.json + file asset asli (folder assets/)">${icon('download', 16)}</button>
+        <button class="btn btn-sm btn-danger btn-icon" data-action="delete" type="button" aria-label="Hapus" title="Hapus">${icon('trash', 16)}</button>
       </div>
     </div>
   `;
@@ -665,13 +717,13 @@ export function initCustomParserModal(): void {
   ui.btnCpNew?.addEventListener('click', () => showEditView(null));
 
   ui.btnCpImportNow?.addEventListener('click', () => {
-    closeModal(ui.customParserModal as HTMLElement);
+    closeCpModal();
     updateCustomImportAccept();
     (ui.importCustomInput as HTMLInputElement).click();
   });
 
   ui.btnCpImportFolderNow?.addEventListener('click', () => {
-    closeModal(ui.customParserModal as HTMLElement);
+    closeCpModal();
     updateCustomImportAccept();
     (ui.importCustomFolderInput as HTMLInputElement).click();
   });
@@ -765,7 +817,7 @@ export function initCustomParserModal(): void {
     if (editingId !== undefined) {
       showListView();
     } else {
-      closeModal(ui.customParserModal as HTMLElement);
+      closeCpModal();
     }
   });
 

@@ -159,7 +159,8 @@ export function runQaCheck(): void {
     const transRawName = unescapeStoredNewlines(l.trans_name || '');
 
     const errors: string[] = [];
-    const kanaRegex = /[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]/;
+    // Kana (hiragana/katakana, termasuk ー dan tanda iterasi) + Kanji (termasuk 々〆〇) — TANPA simbol (・ ゛ ゜ ゠)
+    const kanaRegex = /[\u3041-\u3096\u309D-\u309F\u30A1-\u30FA\u30FC-\u30FF\u4E00-\u9FFF\u3005-\u3007]/;
 
     if (checkKana) {
       if (kanaRegex.test(transRawMsg) || (transRawName && kanaRegex.test(transRawName))) {

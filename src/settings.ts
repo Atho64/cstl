@@ -8,14 +8,12 @@ import {
   DEFAULT_GLOSSARY_PROMPT, DEFAULT_AI_CHECK_PROMPT,
   DEFAULT_SELECTION_BATCH_SIZE, DEFAULT_GLOSSARY_BATCH_SIZE, DEFAULT_AI_CHECK_BATCH_SIZE,
   DEFAULT_SELECTION_BATCH_PREV_SHORTCUT, DEFAULT_SELECTION_BATCH_NEXT_SHORTCUT,
-  DEFAULT_LUCA_MC_DISPLAY_NAME,
   DEFAULT_AGENT_PROMPT,
   DEFAULT_SUMMARY_PROMPT,
 } from './constants';
 import { getDefaultPromptHeaderForFormat, normalizeAiTranslationFormat } from './ai-format';
 import { normalizeSelectionBatchSize } from './selection';
 import { normalizeShortcutString, isReservedShortcut, bindShortcutCaptureInput } from './shortcuts';
-import { getLucaExportSlotOptions, populateLucaExportSlotSelect, getActiveLucaProfile, DEFAULT_LUCA_PROFILE } from './luca-engine';
 import { refreshAll } from './render';
 import { renderGlossaryPreview } from './glossary';
 import { queueAutoSave, openModal, closeModal, DS_STORAGE_KEY } from './project';
@@ -95,31 +93,7 @@ export function onOpenSettings(): void {
   (ui.settingsSelectionPrevShortcutInput as HTMLInputElement).value = state.selectionBatchPrevShortcut;
   (ui.settingsSelectionNextShortcutInput as HTMLInputElement).value = state.selectionBatchNextShortcut;
 
-  const showLucaSettings = state.projectType !== 'epub';
-  (ui.settingsLucaWrap as HTMLElement).style.display = showLucaSettings ? 'block' : 'none';
-  if (ui.settingsLucaProfileSelect) {
-    (ui.settingsLucaProfileSelect as HTMLSelectElement).value = state.lucaProfile || DEFAULT_LUCA_PROFILE;
-    (ui.settingsLucaProfileSelect as HTMLSelectElement).disabled = state.lines.length > 0;
-  }
-  const activeProfile = getActiveLucaProfile();
-  if (ui.settingsLucaMcWrap) {
-    (ui.settingsLucaMcWrap as HTMLElement).style.display = activeProfile.nameAtFormat ? 'block' : 'none';
-  }
-  if (ui.settingsLucaMcDisplayNameInput) {
-    (ui.settingsLucaMcDisplayNameInput as HTMLInputElement).value = state.lucaMcDisplayName || DEFAULT_LUCA_MC_DISPLAY_NAME;
-  }
-  if (ui.settingsLucaExportLangWrap) {
-    (ui.settingsLucaExportLangWrap as HTMLElement).style.display = showLucaSettings ? 'flex' : 'none';
-  }
-  if (ui.settingsLucaExportLangSelect && showLucaSettings) {
-    const profileId = (ui.settingsLucaProfileSelect as HTMLSelectElement)?.value || state.lucaProfile || DEFAULT_LUCA_PROFILE;
-    populateLucaExportSlotSelect(profileId);
-    const saved = state.lucaExportLang || 'en';
-    const options = getLucaExportSlotOptions(activeProfile);
-    (ui.settingsLucaExportLangSelect as HTMLSelectElement).value = options.some(o => o.value === saved)
-      ? saved
-      : (ui.settingsLucaExportLangSelect as HTMLSelectElement).value;
-  }
+  // Pengaturan LucaSystem sudah pindah ke modal Parser Custom (custom-parser-modal.ts)
   openModal(ui.settingsModal as HTMLElement);
 }
 
@@ -235,13 +209,7 @@ export function onSavePromptSettings(): void {
   state.subagentWorkers = Math.max(1, Math.min(10, parseInt((ui.settingsSubagentWorkersInput as HTMLInputElement)?.value) || 3));
   state.selectionBatchPrevShortcut = prevShortcut;
   state.selectionBatchNextShortcut = nextShortcut;
-  state.lucaExportLang = (ui.settingsLucaExportLangSelect as HTMLSelectElement)?.value || state.lucaExportLang || 'en';
-  if (ui.settingsLucaMcDisplayNameInput) {
-    state.lucaMcDisplayName = (ui.settingsLucaMcDisplayNameInput as HTMLInputElement).value.trim() || DEFAULT_LUCA_MC_DISPLAY_NAME;
-  }
-  if (ui.settingsLucaProfileSelect && state.lines.length === 0) {
-    state.lucaProfile = (ui.settingsLucaProfileSelect as HTMLSelectElement).value || DEFAULT_LUCA_PROFILE;
-  }
+  // Luca settings (export lang, MC name, profile) disimpan oleh modal Parser Custom — bukan di sini lagi.
 
   (ui.settingsSelectionBatchSizeInput as HTMLInputElement).value = String(selectionBatchSize);
   (ui.settingsGlossaryBatchSizeInput as HTMLInputElement).value = String(glossaryBatchSize);
