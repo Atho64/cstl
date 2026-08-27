@@ -802,7 +802,9 @@ input.dashboard-search-input,
 
 @media (min-width: 1024px) {
   .app-shell {
-    width: min(1600px, 98vw);
+    /* Wider workspace on desktop: fills up to 99vw, hard-capped at 2000px
+       (was min(1600px, 98vw) which wasted side space on large monitors) */
+    width: min(2000px, 99vw);
     height: calc(100vh - 16px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
     margin: max(8px, env(safe-area-inset-top)) auto max(8px, env(safe-area-inset-bottom));
     border: 1px solid var(--line);
