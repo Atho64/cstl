@@ -24,6 +24,7 @@ import { onOpenProofread, onResetProofread, onProofreadReplaceAll, renderProofre
 import { onOpenQa, onResetQa, runQaCheck, onRetranslateFlagged } from './qa';
 import { onOpenSettings, onSavePromptSettings, onOpenPromptsSettings, onOpenGlossarySettings, onSavePromptsSettings, onSaveGlossarySettings } from './settings';
 import { onExport } from './export';
+import { Shortcuts } from './shortcuts';
 import { onImportVndbNames, onImportAnilistNames } from './vndb-anilist';
 import { onExtractEpubRubyNames } from './epub-ruby';
 import { openFileListModal, closeFileListModal, onAddFile, onDeleteSelectedFiles } from './file-list';
@@ -50,11 +51,13 @@ import {
 import { isFolderBackupSupported, backupAllToFolder, openFolderRestorePicker } from './folder-backup';
 import { getDefaultPromptHeaderForFormat, getKagikakkoPromptHeaderForFormat } from './ai-format';
 import { getLucaProfile, populateLucaExportSlotSelect, DEFAULT_LUCA_PROFILE } from './luca-engine';
-import { bindShortcutCaptureInput } from './shortcuts';
 import { getMainScroller } from './state';
 import { initDictionary } from './dictionary';
 import { initExtensionBridge, isExtensionAvailable } from './extension-bridge';
 import { applyProjectLoggingVisibility, appendProjectLog, updateStreamingLog, finishStreamingLog } from './logging';
+import './plugins';
+import { createPluginHostBridge } from './plugin-host-bridge';
+import { ensureStoragePersistence, checkStorageQuota } from './project';
 
 // ─── Debounce Utility ─────────────────────────────────────────────────────────
 
@@ -73,7 +76,7 @@ export function cacheElements(): void {
     'dashboardView', 'workspaceView', 'projectList', 'projectFilterInput', 'projectSortSelect', 'projectCountBadge', 'btnNewProject', 'btnRestoreProject', 'btnBackupAllProjects', 'btnFolderBackup', 'btnFolderRestore',
     'btnBackToDashboard', 'btnBackupProject', 'btnBatchPrev', 'btnBatchNext', 'projectNameDisplay', 'restoreProjectInput', 'btnDropdownImport', 'dropdownImportMenu', 'btnDropdownImportOther', 'dropdownImportOtherMenu', 'btnImportFile',
     'btnDropdownDashboardSettings', 'dropdownDashboardSettingsMenu', 'btnDashboardSettings', 'dashboardSettingsModal', 'btnDashboardSettingsSave', 'btnDashboardSettingsReset', 'paletteSelect', 'btnDashboardSettingsCancel', 'btnDashboardPrompts', 'dashboardPromptsModal', 'dpPromptInput', 'dpPromptTemplateSelect', 'dpGlossaryPromptInput', 'dpAiCheckPromptInput', 'dpAgentPromptInput', 'dpSummaryPromptInput', 'btnDashboardPromptsSave', 'btnDashboardPromptsReset', 'btnDashboardPromptsCancel',
-    'dsSourceLang', 'dsTargetLang', 'dsTranslationMode', 'dsAiFormat', 'dsContextLines', 'dsContextType', 'dsSelectionBatch', 'dsGlossaryBatch', 'dsAiCheckBatch', 'dsParallelBatch', 'dsSubagentWorkers', 'dsShowFurigana', 'dsFuriganaType', 'dsFontSize', 'dsEnableDictionary', 'dsDictionaryEngine', 'dsDictionaryPrompt', 'dsRegexFilter', 'dsDisableEmptyLineValidation', 'dsCheckKanaResidue', 'dsCheckSimilarity', 'dsSimilarityThreshold', 'dsSimilarityThresholdWrap', 'dsCheckLengthRatio', 'dsLengthRatioThreshold', 'dsLengthRatioWrap', 'dsCheckLinebreak', 'dsCheckLanguage', 'dsCheckPunctuation', 'dsCheckUntransName', 'dsEnableBackgroundChaining', 'dsEnableUncertainMarking', 'dsSafeTagsForChatgpt', 'dsAgentMaxTurns', 'dsEpubTags', 'dsShowEpubImages', 'dsSelectionPrevShortcut', 'dsSelectionNextShortcut', 'dsEnableLogging',
+    'dsSourceLang', 'dsTargetLang', 'dsTranslationMode', 'dsAiFormat', 'dsContextLines', 'dsContextType', 'dsSelectionBatch', 'dsGlossaryBatch', 'dsAiCheckBatch', 'dsParallelBatch', 'dsSubagentWorkers', 'dsShowFurigana', 'dsFuriganaType', 'dsFontSize', 'dsEnableDictionary', 'dsDictionaryEngine', 'dsDictionaryPrompt', 'dsRegexFilter', 'dsDisableEmptyLineValidation', 'dsCheckKanaResidue', 'dsCheckSimilarity', 'dsSimilarityThreshold', 'dsSimilarityThresholdWrap', 'dsCheckLengthRatio', 'dsLengthRatioThreshold', 'dsLengthRatioWrap', 'dsCheckLinebreak', 'dsCheckLanguage', 'dsCheckPunctuation', 'dsCheckUntransName', 'dsEnableBackgroundChaining', 'dsEnableUncertainMarking', 'dsSafeTagsForChatgpt', 'dsAgentMaxTurns', 'dsEpubTags', 'dsShowEpubImages', 'dsEnableLogging',
     'btnImportFolder', 'btnImportZip', 'btnImportTranslatedFile', 'btnImportTranslatedFolder', 'btnExport', 'btnProofread',
     'previewViewport', 'previewContainer', 'currentFileBar', 'progressFill', 'progressText', 'btnSelectAll',
     'btnClearSelection', 'copyCount', 'btnCopyForAi', 'copyStatus', 'pasteArea', 'btnApply', 'checkIgnorePasteNames',
@@ -86,7 +89,7 @@ export function cacheElements(): void {
     'importZipInput', 'importLucaTxtInput', 'importLucaTxtFolderInput', 'btnImportLucaTxt', 'btnImportLucaTxtFolder',
     'glossaryFileInput', 'settingsModal', 'settingsPromptInput', 'settingsGlossaryPromptInput', 'settingsAiCheckPromptInput', 'settingsAgentPromptInput', 'settingsEpubTagsInput', 'settingsShowEpubImages',
     'settingsLucaWrap', 'settingsLucaProfileSelect', 'settingsLucaMcWrap', 'settingsLucaMcDisplayNameInput', 'settingsLucaExportLangWrap', 'settingsLucaExportLangSelect', 'settingsSourceLangSelect', 'settingsTargetLangSelect', 'settingsTranslationModeSelect', 'settingsRegexFilterInput', 'settingsRefLangWrap', 'settingsRefLang1Select', 'settingsRefLang2Select', 'btnImportRefLang1', 'btnImportRefLang2', 'btnImportRefLang1Folder', 'btnImportRefLang2Folder', 'btnClearRefLang1', 'btnClearRefLang2', 'refLang1Input', 'refLang2Input', 'refLang1FolderInput', 'refLang2FolderInput',
-    'settingsDisableEmptyLineValidation', 'settingsShowFurigana', 'settingsFuriganaType', 'settingsFontSize', 'settingsEnableDictionary', 'settingsDictionaryEngine', 'settingsDictionaryPrompt', 'settingsAiCheckReviewMode', 'dictionaryPopup', 'dictPopupWord', 'dictPopupClose', 'dictPopupContent', 'settingsAiTranslationFormatSelect', 'settingsGlossaryInput', 'settingsContextLinesInput', 'settingsSelectionBatchSizeInput', 'settingsGlossaryBatchSizeInput', 'settingsAiCheckBatchSizeInput', 'settingsParallelBatchSizeInput', 'settingsSubagentWorkersInput', 'settingsSelectionPrevShortcutInput', 'settingsSelectionNextShortcutInput', 'btnSettingsReset', 'btnSettingsGlossaryReset', 'btnSettingsAiCheckReset', 'btnSettingsAgentPromptReset', 'btnSettingsCancel', 'btnSettingsSave', 'lineEditorModal', 'lineEditorTitle',
+    'settingsDisableEmptyLineValidation', 'settingsShowFurigana', 'settingsFuriganaType', 'settingsFontSize', 'settingsEnableDictionary', 'settingsDictionaryEngine', 'settingsDictionaryPrompt', 'settingsAiCheckReviewMode', 'dictionaryPopup', 'dictPopupWord', 'dictPopupClose', 'dictPopupContent', 'settingsAiTranslationFormatSelect', 'settingsGlossaryInput', 'settingsContextLinesInput', 'settingsSelectionBatchSizeInput', 'settingsGlossaryBatchSizeInput', 'settingsAiCheckBatchSizeInput', 'settingsParallelBatchSizeInput', 'settingsSubagentWorkersInput', 'btnSettingsReset', 'btnSettingsGlossaryReset', 'btnSettingsAiCheckReset', 'btnSettingsAgentPromptReset', 'btnSettingsCancel', 'btnSettingsSave', 'lineEditorModal', 'lineEditorTitle',
     'btnDropdownSettings', 'dropdownSettingsMenu', 'btnSettingsGeneral', 'btnSettingsPrompts', 'btnSettingsGlossary', 'settingsPromptsModal', 'settingsGlossaryModal', 'btnSettingsPromptsCancel', 'btnSettingsPromptsSave', 'btnSettingsGlossaryCancel', 'btnSettingsGlossarySave', 'settingsEnableBackgroundChaining', 'settingsBackgroundInput', 'settingsSummaryPromptInput', 'btnSettingsSummaryPromptReset', 'settingsPromptTemplateSelect', 'btnSettingsClearBackground',
     'tabTranslate', 'tabGlossary', 'viewTranslate', 'viewGlossary', 'btnCopyForGlossaryAi', 'pasteGlossaryArea', 'btnSaveGlossary', 'btnImportGlossaryFile', 'btnExportGlossaryFile', 'copyGlossaryCount', 'btnDeleteTranslation', 'deleteTranslationCount', 'tabDelete', 'viewDelete',
     'tabAiCheck', 'viewAiCheck', 'btnCopyForAiCheck', 'copyAiCheckCount', 'aiCheckStatus', 'pasteAiCheckArea', 'btnParseAiCheck', 'btnApplyAiCheck', 'btnClearAiCheck', 'aiCheckResults',
@@ -121,7 +124,10 @@ export function cacheElements(): void {
     'btnFileList', 'fileListModal', 'fileListContainer', 'btnFileListAdd', 'btnFileListDelete', 'btnFileListClose',
     'btnToolbarBookmark', 'toolbarBookmarkBadge', 'btnLineBookmark',
     'bookmarkModal', 'bookmarkModalCount', 'btnBookmarkModalCloseIcon', 'bookmarkSearchInput', 'btnClearAllBookmarks', 'bookmarkListContainer', 'btnBookmarkClose',
-    'imageLightboxModal', 'imageLightboxImg', 'btnImageLightboxClose'
+    'imageLightboxModal', 'imageLightboxImg', 'btnImageLightboxClose',
+    'btnPluginManagerOpen', 'btnWorkspacePluginsOpen', 'pluginManagerModal', 'btnPluginRefresh', 'btnInstallPlugin', 'btnCreateCustomParser', 'btnPluginFilterAll', 'btnPluginFilterPlugins', 'btnPluginFilterParsers', 'pluginCountAll', 'pluginCountPlugins', 'pluginCountParsers', 'pluginFileInput', 'pluginList', 'btnPluginManagerClose', 'btnOpenPlugins', 'pluginMenu', 'pluginPanels', 'storageWarningBanner', 'storageWarningText',
+    'btnShortcutsOpen', 'btnWorkspaceShortcutsOpen', 'shortcutModal', 'shortcutList', 'shortcutStatus', 'btnShortcutsResetAll', 'btnShortcutsClose',
+    'settingsIncrementCheck', 'dsIncrementCheck'
   ];
   for (const id of ids) {
     ui[id] = document.getElementById(id);
@@ -268,6 +274,44 @@ export function bindEvents(): void {
         if (b2) b2.setAttribute('aria-expanded', 'false');
       }
     }
+
+    const isPluginBtn = target.closest('#btnOpenPlugins');
+    if (isPluginBtn) {
+      e.preventDefault();
+      const btn = isPluginBtn as HTMLElement;
+      const menu = document.getElementById('pluginMenu') || (ui.pluginMenu as HTMLElement);
+      const willShow = !menu?.classList.contains('show');
+      document.querySelectorAll('.dropdown-content.show').forEach(el => { if (el !== menu) el.classList.remove('show'); });
+      document.querySelectorAll('.dropdown-toggle[aria-expanded="true"]').forEach(el => el.setAttribute('aria-expanded', 'false'));
+      if (willShow && menu) {
+        (window as any).CSTL?.plugins?.renderPluginMenu();
+        menu.classList.add('show');
+        void menu.offsetWidth;
+        const rect = btn.getBoundingClientRect();
+        const mw = menu.offsetWidth || 220;
+        const mh = menu.offsetHeight || 140;
+        let top = rect.bottom + 6;
+        if (top + mh > window.innerHeight - 8) top = Math.max(8, rect.top - mh - 6);
+        menu.style.top = top + 'px';
+        let left = rect.right - mw;
+        const minLeft = 8;
+        const maxLeft = window.innerWidth - mw - 8;
+        left = Math.max(minLeft, Math.min(left, maxLeft));
+        menu.style.left = left + 'px';
+        menu.style.right = 'auto';
+        btn.setAttribute('aria-expanded', 'true');
+      } else if (menu) {
+        menu.classList.remove('show');
+        btn.setAttribute('aria-expanded', 'false');
+      }
+    } else if (!target.closest('#pluginMenu')) {
+      const menu = document.getElementById('pluginMenu') || ui.pluginMenu;
+      if (menu) {
+        menu.classList.remove('show');
+        const b = document.getElementById('btnOpenPlugins');
+        if (b) b.setAttribute('aria-expanded', 'false');
+      }
+    }
   });
 
   document.addEventListener('keydown', (e: KeyboardEvent) => {
@@ -336,6 +380,33 @@ export function bindEvents(): void {
     });
   }
   ui.btnDashboardPrompts?.addEventListener('click', () => { import('./project').then(m => m.openDashboardPrompts()); });
+  document.getElementById('btnPluginManagerOpen')?.addEventListener('click', () => {
+    (window as any).CSTL?.plugins?.openPluginManager?.();
+  });
+  document.getElementById('btnWorkspacePluginsOpen')?.addEventListener('click', () => {
+    (window as any).CSTL?.plugins?.openPluginManager?.();
+  });
+  document.getElementById('btnPluginManagerClose')?.addEventListener('click', () => {
+    const modal = document.getElementById('pluginManagerModal') || ui.pluginManagerModal;
+    if (modal) modal.classList.remove('open');
+  });
+  document.getElementById('btnPluginRefresh')?.addEventListener('click', () => {
+    (window as any).CSTL?.plugins?.renderPluginList();
+  });
+  document.getElementById('btnInstallPlugin')?.addEventListener('click', () => {
+    (document.getElementById('pluginFileInput') as HTMLInputElement)?.click();
+  });
+  document.getElementById('pluginFileInput')?.addEventListener('change', async (e: Event) => {
+    const target = e.target as HTMLInputElement;
+    const file = target.files?.[0];
+    target.value = '';
+    if (!file) return;
+    try {
+      await (window as any).CSTL?.plugins?.installZip(file);
+    } catch (err: any) {
+      alert(`Gagal memasang plugin: ${err.message || err}`);
+    }
+  });
   ui.btnDashboardPromptsSave?.addEventListener('click', () => { import('./project').then(m => m.saveDashboardPrompts()); });
   ui.btnDashboardPromptsReset?.addEventListener('click', () => { import('./project').then(m => m.resetDashboardPrompts()); });
   ui.btnDashboardPromptsCancel?.addEventListener('click', () => (ui.dashboardPromptsModal as HTMLElement).classList.remove('open'));
@@ -552,6 +623,14 @@ export function bindEvents(): void {
   ui.btnSettingsSave?.addEventListener('click', onSavePromptSettings);
   ui.btnSettingsPromptsSave?.addEventListener('click', onSavePromptsSettings);
   ui.btnSettingsGlossarySave?.addEventListener('click', onSaveGlossarySettings);
+
+  ui.btnShortcutsOpen?.addEventListener('click', () => Shortcuts.openModal());
+  ui.btnWorkspaceShortcutsOpen?.addEventListener('click', () => Shortcuts.openModal());
+  ui.btnShortcutsClose?.addEventListener('click', () => Shortcuts.closeModal());
+  ui.btnShortcutsResetAll?.addEventListener('click', () => {
+    if (!confirm('Kembalikan semua konfigurasi shortcut ke default?')) return;
+    Shortcuts.resetBindings();
+  });
 
   if (ui.settingsCheckLengthRatio) {
     ui.settingsCheckLengthRatio.addEventListener('change', () => {
@@ -785,11 +864,6 @@ if (ui.settingsCheckSimilarity) {
   }
   ui.btnLoggingClose?.addEventListener('click', () => { (ui.loggingPanel as HTMLElement).style.display = 'none'; });
   ui.btnLoggingClear?.addEventListener('click', () => { if (ui.loggingHistory) (ui.loggingHistory as HTMLElement).textContent = ''; });
-
-  bindShortcutCaptureInput(ui.settingsSelectionPrevShortcutInput as HTMLInputElement);
-  bindShortcutCaptureInput(ui.settingsSelectionNextShortcutInput as HTMLInputElement);
-  bindShortcutCaptureInput(ui.dsSelectionPrevShortcut as HTMLInputElement);
-  bindShortcutCaptureInput(ui.dsSelectionNextShortcut as HTMLInputElement);
 
   // AI Agent Events
   let isDraggingChat = false;
@@ -1213,8 +1287,15 @@ function applyPalette(name: string): void {
   const paletteKey = PALETTES[name] ? name : 'indigo';
   const palette = PALETTES[paletteKey];
   const root = document.documentElement;
-  for (const [key, value] of Object.entries(palette)) {
-    root.style.setProperty(key, value);
+  const hasPluginTheme = (window as any).CSTL?.plugins?.hasActiveTheme?.();
+  if (!hasPluginTheme) {
+    for (const [key, value] of Object.entries(palette)) {
+      root.style.setProperty(key, value);
+    }
+  } else {
+    for (const key of Object.keys(palette)) {
+      root.style.removeProperty(key);
+    }
   }
   const meta = document.querySelector('meta[name="theme-color"]');
   if (meta) meta.setAttribute('content', palette['--bg']);
@@ -1255,14 +1336,20 @@ export async function init(): Promise<void> {
     (ui.projectList as HTMLElement).innerHTML = `<p class="hint" style="grid-column: 1/-1; color: var(--danger);">Browser tidak mendukung OPFS. Sistem penyimpanan tidak dapat diakses.</p>`;
   } else {
     // OPFS is best-effort by default: under disk pressure the browser may evict
-    // the whole origin's storage without any user action. Ask once for
-    // persistent storage — installed PWAs and regularly-used sites are granted
-    // automatically; a denial is only logged, the app stays usable.
-    if (navigator.storage.persist) {
-      navigator.storage.persist().then(granted => {
-        if (!granted) console.warn('[CSTL] Persistent storage not granted — project data may be evicted under disk pressure.');
-      }).catch(() => {});
-    }
+    // the whole origin's storage without any user action. Ensure persistent storage.
+    ensureStoragePersistence().catch(() => {});
+    checkStorageQuota().then(quota => {
+      if (quota && quota.isLow) {
+        const banner = document.getElementById('storageWarningBanner');
+        const text = document.getElementById('storageWarningText');
+        if (banner && text) {
+          banner.style.display = 'block';
+          const freeMB = Math.round(quota.free / (1024 * 1024));
+          text.textContent = `Peringatan: Penyimpanan browser hampir penuh (${quota.percentUsed.toFixed(0)}% terpakai, sisa ~${freeMB} MB). Harap lakukan backup proyek Anda ke .zip!`;
+        }
+      }
+    }).catch(() => {});
+
     await loadDashboardProjects();
   }
 
@@ -1271,6 +1358,18 @@ export async function init(): Promise<void> {
   initCustomParserModal();
   updateCustomImportAccept();
   setPyodideColdStartHint(() => flashHint('Memuat runtime Python (pyodide ~10MB, hanya sekali) — butuh internet...', true));
+
+  // Initialize CSTL Plugins
+  try {
+    const bridge = createPluginHostBridge();
+    (window as any).CSTL?.plugins?.attach(bridge);
+    await (window as any).CSTL?.plugins?.init();
+  } catch (err) {
+    console.warn('[CSTL] Plugin initialization error:', err);
+  }
+
+  // Initialize Shortcuts
+  Shortcuts.init();
 }
 
 

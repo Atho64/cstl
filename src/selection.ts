@@ -2,7 +2,6 @@
 
 import { state, ui, getMainScroller } from './state';
 import { isTranslated } from './state';
-import { eventMatchesShortcut } from './shortcuts';
 import { DEFAULT_GLOSSARY_BATCH_SIZE, DEFAULT_AI_CHECK_BATCH_SIZE, DEFAULT_SELECTION_BATCH_SIZE } from './constants';
 import { getFileDisplayOrder } from './file-list';
 import type { Line, WorkspaceTab } from './types';
@@ -225,16 +224,6 @@ export function selectActiveWorkspaceBatch(direction: number): boolean {
 
 export function onSelectionHistoryKeydown(event: KeyboardEvent): void {
   if (isEditableShortcutTarget(event.target)) return;
-
-  const isPrevBatchShortcut = eventMatchesShortcut(event, state.selectionBatchPrevShortcut);
-  const isNextBatchShortcut = eventMatchesShortcut(event, state.selectionBatchNextShortcut);
-  if (isPrevBatchShortcut || isNextBatchShortcut) {
-    event.preventDefault();
-    if (event.repeat) return;
-    selectActiveWorkspaceBatch(isNextBatchShortcut ? 1 : -1);
-    return;
-  }
-
   if (!event.ctrlKey || event.altKey || event.metaKey) return;
   if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
   const direction = event.key === 'ArrowUp' ? -1 : 1;

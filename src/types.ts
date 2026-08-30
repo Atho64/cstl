@@ -216,8 +216,6 @@ export interface AppState {
   aiCheckBatchSize: number;
   parallelBatchSize: number;
   subagentWorkers: number;
-  selectionBatchPrevShortcut: string;
-  selectionBatchNextShortcut: string;
   undoStack: UndoSnapshot[];
   redoStack: UndoSnapshot[];
   selectedLines: Set<number>;
@@ -234,6 +232,7 @@ export interface AppState {
   projectLoggingEnabled: boolean;
   aiStreaming: boolean;
   autoRepeatOnFailure: boolean;
+  incrementEnabled?: boolean;
 }
 
 export type WorkspaceTab = 'translate' | 'glossary' | 'aiCheck' | 'delete';

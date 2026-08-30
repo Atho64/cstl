@@ -47,6 +47,14 @@ export function rebuildDisplayState(): void {
     line._hidden = shouldHide;
     if (!shouldHide) grouped.get(line.file)!.push(line);
   }
+  const allFileKeys = new Set(orderedImportedFiles);
+  for (const f of grouped.keys()) {
+    if (!allFileKeys.has(f)) {
+      orderedImportedFiles.push(f);
+      allFileKeys.add(f);
+    }
+  }
+
   state.displayRows = [];
   separatorIndices = [];
   fileLineRanges = new Map();
@@ -63,8 +71,34 @@ export function rebuildDisplayState(): void {
   }
 }
 
+/** Susun ulang state.lines mengikuti urutan tampilan file (getFileDisplayOrder)
+ *  dan nomori ulang line_num menjadi 1..N — supaya nomor baris selalu cocok
+ *  dengan posisi baris di tabel (baris paling atas = nomor 1).
+ *  Dipanggil setelah impor menambah baris baru. */
+export function renumberLinesToDisplayOrder(): void {
+  const order = getFileDisplayOrder();
+  const orderSet = new Set(order);
+  const byFile = new Map<string, Line[]>();
+  for (const line of state.lines) {
+    const arr = byFile.get(line.file);
+    if (arr) arr.push(line); else byFile.set(line.file, [line]);
+  }
+  const out: Line[] = [];
+  let n = 1;
+  const flush = (arr?: Line[]) => {
+    if (!arr) return;
+    for (const line of arr) { line.line_num = n++; out.push(line); }
+  };
+  for (const f of order) flush(byFile.get(f));
+  for (const [f, arr] of byFile) {
+    if (!orderSet.has(f)) flush(arr);
+  }
+  state.lines = out;
+}
+
 export function renderPreviewRows(): void {
   const mainScroller = getMainScroller();
+  if (!mainScroller) return;
   if (mainScroller.items && mainScroller.items.length === state.displayRows.length && mainScroller.items.length > 0) {
     mainScroller.items = state.displayRows;
     mainScroller.render(true);

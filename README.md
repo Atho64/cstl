@@ -16,60 +16,24 @@ Tool bantu terjemahan visual novel yang jalan di browser. Dibuat karena capek bo
 ### Impor
 - **File / Folder** — Impor file `.json` atau `.epub` satu-satu atau sekalian satu folder
 - **ZIP** — Impor banyak file sekaligus dari arsip `.zip`
-- **TXT LucaSystem** — Impor script dari game berbasis LucaSystem (format `.txt` khusus), bisa file tunggal maupun folder
-- **Parser Custom (JS/Python)** — Buat parser sendiri untuk format game apa pun, dengan round-trip ekspor. Lihat detail di bawah.
+- **TXT LucaSystem** — Impor script dari game berbasis LucaSystem (format `.txt` khusus: Summer Pockets Steam, CLANNAD Switch, Tomoyo After Switch, CLANNAD Side Stories)
+- **Impor File (Plugin/Parser)** — Impor format game lain yang didukung plugin terpasang (menu khusus + routing otomatis berdasarkan ekstensi/magic signature)
+- **Sistem Plugin & Parser (.zip / JS / Python)** — Pasang plugin ekstensi untuk format game, tema kustom, atau utilitas khusus. Lihat panduan lengkap di [PLUGIN_GUIDE.md](./PLUGIN_GUIDE.md).
 - **File / Folder Terjemahan** — Merge hasil terjemahan ke proyek yang sudah ada
 
-### Parser Custom (JavaScript / Python)
-Format game tidak didukung bawaan? Tulis parser sendiri lewat menu **Impor → Format File Lainnya → Kelola Parser Custom…**. Parser tersimpan global di browser dan bisa dipakai lintas proyek; satu proyek terkunci ke satu parser.
+### Plugin & Parser System
+Format game tidak didukung bawaan? Kamu bisa memasang paket plugin (`.zip`) atau menulis parser custom sendiri lewat menu **Setting → Plugin & Parser Manager** (shortcut `Alt + P`).
 
-Script parser jalan sandbox di Web Worker (JavaScript) atau pyodide (Python — unduhan pertama ~10MB dari CDN, butuh internet sekali; setelah itu ikut cache browser). Ada tombol **Uji Parser** untuk mencoba `parse()` ke file lokal langsung dari editor.
+Sistem plugin CSTL mencakup:
+1. **Parser Format Game**: Ekstraksi (`extract`) dan pengemasan kembali (`pack`) naskah format biner/teks dengan round-trip export.
+2. **Tema Visual & Watermark**: Personalisasi antarmuka dan palet warna via `theme.css`.
+3. **Panel Kustom (UI Panel)**: Widget tambahan di workspace dengan antarmuka interaktif.
+4. **Hook Clipboard & Terjemahan**: Pre-processing teks sebelum disalin ke AI dan post-processing sebelum terjemahan diterapkan.
+5. **Perintah Kustom & Shortcut**: Perintah khusus yang terdaftar di Shortcut Keyboard Manager.
+6. **Parser Legacy (JS / Python)**: Kompatibilitas penuh dengan parser skrip tunggal dan arsip `.zip` lama.
 
-Definisi parser bisa diekspor/impor sebagai file JSON (**Ekspor Semua Parser**, tombol **Ekspor** per parser, atau **Impor Parser…**) — dan otomatis ikut dalam backup proyek, jadi restore backup di browser lain tetap bisa round-trip. Impor tersedia lewat menu khusus atau **Impor Folder Parser Custom** untuk memproses satu folder sekaligus. Catatan: impor via **ZIP** belum dirouting ke parser custom — gunakan File/Folder.
-
-**`parse(ctx)` — impor.** `ctx = { fileName, text, bytes, startLineNum }`. Return array `[{ name?, message, raw? }]` — `message` wajib; `raw` (opsional) adalah potongan baris asli yang disimpan CSTL untuk dipatch saat ekspor.
-
-```js
-// JavaScript
-async function parse(ctx) {
-  const rows = [];
-  for (const raw of ctx.text.split(/\r?\n/)) {
-    const m = raw.match(/^([A-Za-z0-9_]+)\s*:\s*(.+)$/);  // "Nama: dialog"
-    if (m) rows.push({ name: m[1], message: m[2], raw });
-    else if (raw.trim()) rows.push({ message: raw, raw });
-  }
-  return rows;
-}
-```
-
-```python
-# Python
-import re
-def parse(ctx):  # ctx = {"fileName", "text", "bytes", "startLineNum"}
-    rows = []
-    for raw in ctx["text"].splitlines():
-        m = re.match(r"^([A-Za-z0-9_]+)\s*:\s*(.+)$", raw)
-        if m: rows.append({"name": m.group(1), "message": m.group(2), "raw": raw})
-        elif raw.strip(): rows.append({"message": raw, "raw": raw})
-    return rows
-```
-
-**`serialize(ctx)` — ekspor round-trip (opsional).** `ctx = { fileName, text, bytes, lines }` berisi file asli plus baris proyek (`name, message, trans_name, trans_message, is_translated, raw`). Return string (atau `bytes`/`Uint8Array` untuk format biner). Kalau parser tidak punya `serialize()`, ekspor jatuh ke JSON generik — dan hasil JSON tetap bisa di-merge balik lewat **Impor TL File**.
-
-Impor bisa lewat menu khusus (**Impor Parser Custom**) atau otomatis: file yang ekstensinya cocok parser aktif dialihkan dari jalur impor biasa (termasuk Impor Folder). File asli tiap proyek disimpan di sidecar OPFS supaya ekspor bisa mem-patch teks asli, bukan membangun ulang dari nol.
-
-#### Membuat parser dengan bantuan AI eksternal
-
-Parser custom cukup sederhana untuk ditulis oleh AI chat (Claude, ChatGPT, dll) kalau diberi konteks yang tepat. Checklist yang perlu disertakan saat minta bantuan:
-
-1. **Link/dokumentasi ini** — kontrak `parse(ctx)`/`serialize(ctx)` ada di atas.
-2. **Contoh file asli** — paling menentukan. Untuk file teks langsung attach; untuk file biner, AI dengan fitur eksekusi kode bisa hexdump & analisis sendiri strukturnya (header, tabel offset, encoding), jadi upload 2–3 file contoh saja.
-3. **Sandbox-nya** — beri tahu batasan runtime:
-   - JavaScript: Web Worker polos, **tanpa import/library eksternal**, tanpa DOM; satu fungsi `parse(ctx)` + opsional `serialize(ctx)`; timeout 20 detik.
-   - Python: pyodide (stdlib tersedia, termasuk `re`/`struct`/`textwrap`); timeout 30 detik.
-4. Minta AI **menjelaskan asumsi strukturnya sebelum menulis kode**, lalu uji hasilnya dengan tombol **Uji Parser** ke file asli dan laporkan kembali error/pratinjau yang salah — biasanya 1–3 iterasi.
-
-Catatan: file terenkripsi/kompresi (entropi tinggi, tidak ada string yang terbaca) tidak bisa diparse langsung — butuh reverse engineering algoritma dekripsinya dulu.
+> 📖 **Panduan Pembuatan Plugin & Parser**:
+> Untuk dokumentasi arsitektur, spesifikasi `manifest.json`, Host API, contoh kode lengkap, dan integrasi parser, silakan baca **[PLUGIN_GUIDE.md](./PLUGIN_GUIDE.md)**.
 
 ### Terjemahan AI
 Alur kerjanya sederhana: pilih baris → copy → tempel ke AI → paste hasilnya → terapkan. CSTL yang urus parsing dan mapping ke baris yang benar.
@@ -142,9 +106,10 @@ Kelola nama karakter, tempat, dan istilah khusus supaya terjemahan konsisten.
 ### Editor Baris
 Klik baris manapun untuk buka editor individual. Di sini bisa edit nama karakter, teks asli, terjemahan, dan tandai status terjemahan. Untuk proyek LucaSystem, referensi teks EN/ZH ditampilkan berdampingan.
 
-### Seleksi
+### Seleksi & Auto-Increment
 - Pilih semua, pilih range (baris X–Y), atau klik manual
-- Shortcut keyboard untuk navigasi batch — bisa dikustomisasi di Setting
+- **Auto-Increment Baris** — Setelah terjemahan berhasil diterapkan, rentang baris "Dari - Sampai" otomatis maju dan rentang berikutnya langsung dipilih mengikuti ukuran **Batch Translate**. Mempercepat alur kerja terjemahan bertahap tanpa perlu memilih baris baru secara manual.
+- **Shortcut Keyboard Manager** — Navigasi cepat dan pemicu aksi instan (buat proyek, navigasi batch, copy AI, terapkan terjemahan `Ctrl+Enter`, undo/redo) yang dapat dikustomisasi dan direkam langsung melalui menu **Shortcut Keyboard**.
 - Undo untuk batalkan penerapan terjemahan terakhir
 - Progress bar real-time
 
@@ -181,9 +146,34 @@ CSTL bisa menulis file backup **langsung ke satu folder di komputer kamu** yang 
 - **rclone** (power user) → `rclone sync D:\CSTLBackups drive:CSTL` dijadwalkan lewat Task Scheduler. Bekerja juga untuk Dropbox, OneDrive, S3, dll.
 - Dropbox / OneDrive / Syncthing juga sama saja — semua yang masuk ke folder itu ikut tersinkron.
 
-Intinya: **CSTL cuma menulis file ke folder; program lain yang meng-upload.** Jadi tidak ada login Google, tidak ada setup Google Console, dan ganti layanan cloud tidak perlu mengubah apa-apa di CSTL.
+### Shortcut Keyboard (Pintasan Keyboard)
+CSTL dilengkapi sistem pintasan keyboard bawaan yang dapat dikustomisasi dan direkam secara interaktif melalui menu **Shortcut Keyboard**:
 
-**Catatan:** backup dengan nama sama menimpa file lama di folder. Kalau kamu pakai Drive/rclone, versi lama biasanya masih tersimpan di riwayat versi layanan cloud masing-masing.
+| Kategori | Aksi | Shortcut Bawaan |
+|---|---|---|
+| **Dashboard** | Fokus Kolom Cari Project | `/` |
+| **Workspace (Umum)** | Ekspor Terjemahan | `Alt + E` |
+| | Buka Cari & Ganti (Proofread) | `Alt + R` |
+| | Buka Tab Glosarium | `Alt + G` |
+| | Buka Tab AI Check | `Alt + K` |
+| | Buka Plugin & Parser Manager | `Alt + P` |
+| | Buka Pengaturan Project | `Alt + S` |
+| | Kembali ke Dashboard | `Alt + B` |
+| | Buka Daftar Bookmark | `Alt + M` |
+| | Jalankan Auto Translate | `Alt + T` |
+| **Seleksi & Navigasi** | Pilih Semua Baris | `Alt + A` |
+| | Batal Pilih Baris | `Alt + Q` |
+| | Pilih Rentang Baris | `Alt + L` |
+| | Batch Sebelumnya | `Alt + ↑` |
+| | Batch Berikutnya | `Alt + ↓` |
+| **Terjemahan & Undo** | Copy untuk AI | `Alt + C` |
+| | Fokus Kolom Paste AI | `Alt + V` |
+| | Terapkan Terjemahan | `Ctrl + Enter` |
+| | Undo Terjemahan | `Alt + Z` |
+| | Redo Terjemahan | `Alt + Y` |
+| **Plugin Commands** | Perintah Kustom Plugin | *Dikonfigurasi per perintah di menu Shortcut* |
+
+> 💡 **Kustomisasi Shortcut**: Buka menu **Shortcut Keyboard** dari header atau dropdown settings &rarr; klik tombol kombinasi pada aksi yang diinginkan &rarr; tekan kombinasi tombol baru di keyboard. Tekan `Backspace` untuk menghapus shortcut atau tombol `Reset` untuk mengembalikan ke setelan default.
 
 ---
 
@@ -260,7 +250,7 @@ Gunakan tab **Proofread** untuk cari dan ganti teks secara massal:
 
 ### 9. Ekspor
 
-Kalau sudah selesai, klik **Ekspor** di toolbar. File hasil terjemahan akan didownload dalam format aslinya (`.json`, `.epub`, atau `.txt` LucaSystem).
+Kalau sudah selesai, klik **Ekspor** di toolbar. File hasil terjemahan akan didownload dalam format aslinya (`.json`, `.epub`, atau `.txt` LucaSystem). Untuk format game lain, ekspor round-trip dijalankan oleh plugin parser terpasang (`pack()`) — termasuk format biner dan multi-file arsip.
 
 Untuk backup proyek beserta semua datanya, klik **Backup** di halaman dashboard — file `.cstl` akan tersimpan dan bisa dipulihkan kapanpun lewat tombol **Pulihkan**.
 

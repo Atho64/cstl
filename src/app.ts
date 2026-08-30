@@ -33,17 +33,11 @@ import { initExtensionBridge } from './extension-bridge';
   document.head.appendChild(style);
 })();
 
-const appStartTime = performance.now();
-
 function removeLoader() {
   const loader = document.getElementById('startupLoader');
   if (!loader) return;
-  const elapsed = performance.now() - appStartTime;
-  const remaining = Math.max(0, 800 - elapsed);
-  setTimeout(() => {
-    loader.classList.add('fade-out');
-    setTimeout(() => loader.remove(), 400);
-  }, remaining);
+  loader.classList.add('fade-out');
+  setTimeout(() => loader.remove(), 250);
 }
 
 async function bootstrap() {

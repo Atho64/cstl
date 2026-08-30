@@ -22,6 +22,7 @@ import type { CustomParser, CustomParsedEntry, CpMatchStrategy, CpMagicPattern, 
 let editingId: string | null | undefined = undefined; // undefined = list view, null = parser baru
 let testFile: File | null = null;
 let editAssets: CustomParserAsset[] = []; // asset sesi editor (disimpan saat Simpan)
+let openedFromPluginManager = false;
 
 const CP_ASSETS_SOFT_LIMIT = 2 * 1024 * 1024; // 2MB — localStorage total ±5MB & dishare data lain
 
@@ -125,7 +126,18 @@ export function updateCustomImportAccept(): void {
 }
 
 export function openCustomParserModal(): void {
+  openedFromPluginManager = false;
   showListView();
+  populateLucaSettingsUI();
+  (ui.customParserModal as HTMLElement) && openModal(ui.customParserModal as HTMLElement);
+}
+
+export function openCustomParserEditor(id: string | null): void {
+  openedFromPluginManager = true;
+  const pmModal = document.getElementById('pluginManagerModal') || ui.pluginManagerModal;
+  if (pmModal) pmModal.classList.remove('open');
+  const parser = id ? getCustomParser(id) : null;
+  showEditView(parser);
   populateLucaSettingsUI();
   (ui.customParserModal as HTMLElement) && openModal(ui.customParserModal as HTMLElement);
 }
@@ -208,8 +220,8 @@ function showEditView(parser: CustomParser | null): void {
   syncMatchInputs();
   (ui.cpMagicInput as HTMLInputElement).value = magicToInput(parser?.magic);
   (ui.cpFilenameRegexInput as HTMLInputElement).value = parser?.filenameRegex || '';
-  (ui.cpParseInput as HTMLTextAreaElement).value = parser?.parseScript || '';
-  (ui.cpSerializeInput as HTMLTextAreaElement).value = parser?.serializeScript || '';
+  (ui.cpParseInput as HTMLTextAreaElement).value = parser?.parseScript || JS_PARSE_TEMPLATE;
+  (ui.cpSerializeInput as HTMLTextAreaElement).value = parser?.serializeScript || JS_SERIALIZE_TEMPLATE;
   (ui.cpSettingsInput as HTMLTextAreaElement).value = JSON.stringify(parser?.settings ?? [], null, 2);
   setTestFile(null);
   renderTestResult(null);
@@ -589,7 +601,7 @@ function exportParsersToJson(id?: string): void {
 
 /** Ekspor satu parser sebagai .zip distribusi: parser.json (bungkusan standar)
  *  + folder assets/ berisi file asli (bukan base64) — mudah diedit manusia. */
-async function exportParsersToZip(id: string): Promise<void> {
+export async function exportParsersToZip(id: string): Promise<void> {
   const JSZipCtor = (window as any).JSZip;
   if (!JSZipCtor) { alert('JSZip tidak tersedia — gunakan Ekspor JSON.'); return; }
   const parser = getCustomParser(id);
@@ -612,7 +624,7 @@ async function exportParsersToZip(id: string): Promise<void> {
 
 /** Terapkan array entri parser (hasil parse JSON / zip): validasi, upsert by id,
  *  opsional override asset dari file asli di zip. Return ringkasan utk flashHint. */
-async function applyParsedParsers(parsed: any, assetOverride?: Record<string, string> | null): Promise<string> {
+export async function applyParsedParsers(parsed: any, assetOverride?: Record<string, string> | null): Promise<string> {
   const arr = normalizeParserPayload(parsed);
   if (!arr) throw new Error('FORMAT');
   const { valid, skipped } = pickValidParsers(arr);
@@ -693,8 +705,6 @@ async function importParsersFromZip(file: File): Promise<void> {
 // ─── Init ─────────────────────────────────────────────────────────────────────
 
 export function initCustomParserModal(): void {
-  ui.btnCustomParsers?.addEventListener('click', openCustomParserModal);
-
   ui.btnCpExportAll?.addEventListener('click', () => {
     if (loadCustomParsers().length === 0) {
       alert('Belum ada parser untuk diekspor.');
@@ -747,6 +757,7 @@ export function initCustomParserModal(): void {
       setCustomParserEnabled(id, !parser.enabled);
       updateCustomImportAccept();
       renderParserList();
+      (window as any).CSTL?.plugins?.sync?.().then(() => (window as any).CSTL?.plugins?.renderList?.());
     } else if (action === 'delete') {
       if (confirm(`Hapus parser "${parser.name}"?\n\nProyek yang memakai parser ini tetap bisa dibuka, tapi ekspornya jatuh ke JSON.`)) {
         deleteCustomParser(id);
@@ -754,6 +765,7 @@ export function initCustomParserModal(): void {
         hideSettingsEditor();
         updateCustomImportAccept();
         renderParserList();
+        (window as any).CSTL?.plugins?.sync?.().then(() => (window as any).CSTL?.plugins?.renderList?.());
         flashHint(`Parser "${parser.name}" dihapus.`);
       }
     }
@@ -814,6 +826,12 @@ export function initCustomParserModal(): void {
   });
 
   ui.btnCpCancel?.addEventListener('click', () => {
+    if (openedFromPluginManager) {
+      closeCpModal();
+      (window as any).CSTL?.plugins?.openPluginManager?.();
+      openedFromPluginManager = false;
+      return;
+    }
     if (editingId !== undefined) {
       showListView();
     } else {
@@ -851,7 +869,14 @@ export function initCustomParserModal(): void {
     if (dupe && !confirm(`Sudah ada parser bernama "${dupe.name}". Simpan dengan nama yang sama?`)) return;
     upsertCustomParser(parser);
     updateCustomImportAccept();
+    (window as any).CSTL?.plugins?.sync?.().then(() => (window as any).CSTL?.plugins?.renderList?.());
     flashHint(`Parser "${parser.name}" disimpan.`);
-    showListView();
+    if (openedFromPluginManager) {
+      closeCpModal();
+      (window as any).CSTL?.plugins?.openPluginManager?.();
+      openedFromPluginManager = false;
+    } else {
+      showListView();
+    }
   });
 }

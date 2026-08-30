@@ -6,13 +6,13 @@ import { decodeArrayBuffer, arrayBufferToBase64, splitBufferToLines } from './bi
 import { parseLucaTxt, getLucaProfile, getActiveLucaProfile, normalizeLucaHeavyQuoteFields, parseJsonEntries, parseJsonFromFileObject, clearLucaFileLineBytesCache, DEFAULT_LUCA_PROFILE } from './luca-engine';
 import { WINDOWS_FILE_ORDER_COLLATOR } from './constants';
 import { normalizeFileBaseName, windowsFileOrderCompare, getFileOrderPath } from './string-utils';
-import { refreshAll, flashHint } from './render';
+import { refreshAll, flashHint, renumberLinesToDisplayOrder } from './render';
 import { queueAutoSave, saveLucaDataToOpfs, saveCustomSourcesToOpfs } from './project';
 import { findCustomParserForFile, getCustomParser, buildParserOptions } from './custom-parsers';
 import { runCustomParse } from './custom-parser-runner';
 import { resetSelectionHistory } from './selection';
 import { resolveZipPath, preloadEpubImages } from './epub-images';
-import type { Line } from './types';
+import type { Line, CustomParser } from './types';
 
 export async function handleImportLucaTxtLogic(files: FileList | File[]): Promise<void> {
   flashHint('Memproses file TXT... Mohon tunggu.', true);
@@ -75,6 +75,7 @@ export async function handleImportLucaTxtLogic(files: FileList | File[]): Promis
       clearLucaFileLineBytesCache();
       state.lines = state.lines.concat(newLines);
       state.importedFiles = Array.from(existingFiles);
+      renumberLinesToDisplayOrder();
       state.selectedLines.clear();
       resetSelectionHistory();
       refreshAll();
@@ -323,6 +324,10 @@ export async function handleImportLogic(filesObj: FileList | File[] | File, isZi
       }
       state.lines = state.lines.concat(lines);
       state.importedFiles = Array.from(existingFiles);
+      // EPUB: kunci urutan tampilan ke urutan SPINE (urutan baca buku) —
+      // bukan alfabetis — supaya tabel & penomoran mengikuti alur cerita.
+      state.fileOrder = Array.from(existingFiles);
+      renumberLinesToDisplayOrder();
       state.selectedLines.clear();
       resetSelectionHistory();
       refreshAll();
@@ -396,6 +401,11 @@ export async function handleImportCustomLogic(files: FileList | File[]): Promise
       return;
     }
 
+    if (parser.id === 'builtin-lucasystem') {
+      await handleImportLucaTxtLogic(files);
+      return;
+    }
+
     if (state.lines.length > 0) {
       if (state.projectType !== 'custom') {
         throw new Error('Format parser custom tidak cocok dengan tipe proyek saat ini. Buat proyek baru untuk memakai parser custom.');
@@ -430,21 +440,39 @@ export async function handleImportCustomLogic(files: FileList | File[]): Promise
       const buf = await f.arrayBuffer();
       const bytes = new Uint8Array(buf);
       const text = decodeArrayBuffer(bytes);
-      const entries = await runCustomParse(p, { fileName: baseName, text, bytes, startLineNum: cur, options: parserOptions }, {
-        // Progress determinate dari parser (ctx.progress) -> status bar.
-        onProgress: (done, total, label) => {
-          const st = ui.copyStatus as HTMLElement | undefined;
-          if (!st) return;
-          st.classList.remove('empty');
-          st.textContent = `Parser ${baseName}: ${done}/${total}${label ? ' — ' + label : ''}`;
-        },
-      });
+      let entries: { name?: string | null; message: string; raw?: any; index?: any }[] = [];
+      if ((p as any).isPlugin || !(p as any).parseScript) {
+        const extractRes = await (window as any).CSTL.plugins.callExtract(p, {
+          fileName: baseName,
+          buffer: buf,
+          settings: parserOptions
+        });
+        entries = (extractRes?.lines || []).map((l: any) => ({
+          file: l.file,
+          name: l.name ?? null,
+          message: l.message ?? '',
+          raw: l.raw ?? null,
+          index: l.index ?? null
+        }));
+      } else {
+        entries = await runCustomParse(p as CustomParser, { fileName: baseName, text, bytes, startLineNum: cur, options: parserOptions }, {
+          // Progress determinate dari parser (ctx.progress) -> status bar.
+          onProgress: (done, total, label) => {
+            const st = ui.copyStatus as HTMLElement | undefined;
+            if (!st) return;
+            st.classList.remove('empty');
+            st.textContent = `Parser ${baseName}: ${done}/${total}${label ? ' — ' + label : ''}`;
+          },
+        });
+      }
       if (entries.length > 0) {
         existingFiles.add(baseName);
         for (const entry of entries) {
+          const entryFile = (entry as any).file || baseName;
+          existingFiles.add(entryFile);
           newLines.push({
             line_num: cur++,
-            file: baseName,
+            file: entryFile,
             name: entry.name == null ? null : String(entry.name).replace(/\r?\n/g, '\\n').trim(),
             message: String(entry.message).replace(/\r?\n/g, '\\n').trim(),
             trans_name: null,
@@ -465,6 +493,7 @@ export async function handleImportCustomLogic(files: FileList | File[]): Promise
     if (newLines.length > 0) {
       state.lines = state.lines.concat(newLines);
       state.importedFiles = Array.from(existingFiles);
+      renumberLinesToDisplayOrder();
       state.selectedLines.clear();
       resetSelectionHistory();
       refreshAll();

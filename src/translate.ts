@@ -12,6 +12,7 @@ import { rebuildDisplayState, renderPreviewRows, syncCheckboxUI, flashHint, upda
 import { queueAutoSave } from './project';
 import { getGlossaryMatches, getGlossaryPrompt, sanitizeTagsForChatgpt } from './glossary';
 import { DEFAULT_SUMMARY_PROMPT, DEFAULT_SUMMARY_PROMPT_SAFE_TAGS } from './constants';
+import { applyIncrement } from './increment';
 
 function snapshotLine(l: any): any {
   return {
@@ -111,8 +112,11 @@ export function countSelectedUntranslated(): number {
 }
 
 export async function onCopyForAi(): Promise<void> {
-  const p = buildCopyForAiPrompt();
+  let p = buildCopyForAiPrompt();
   if (!p) return;
+  if ((window as any).CSTL?.plugins?.runCopyHook) {
+    try { p = await (window as any).CSTL.plugins.runCopyHook(p); } catch (_) {}
+  }
   const n = countSelectedUntranslated();
   try {
     await navigator.clipboard.writeText(p);
@@ -175,11 +179,11 @@ export function extractSummaryAndPayload(rawText: string): { cleanText: string; 
 
   // 2. Untagged summary extraction: identify non-payload text before or after translation items
   const lines = text.split(/\r?\n/);
-  const isPayloadLine = (line: string): boolean => {
+  const isPayloadStartLine = (line: string): boolean => {
     const t = line.trim();
     if (!t) return false;
-    // Numbered: 1. Text or 1) Text
-    if (/^\d+\s*[.)]\s*.+/.test(t)) return true;
+    // Numbered: 1. Text or 1) Text or #1 Text or #1: Text or # 1: Text or 1: Text
+    if (/^(?:#\s*)?\d+\s*[.):|]\s*.+/i.test(t)) return true;
     // Blocks: [line 1]
     if (/^\[line\s+\d+\]/i.test(t)) return true;
     // JSON Array: [1, "name", "text"] or [1, "text"]
@@ -191,41 +195,46 @@ export function extractSummaryAndPayload(rawText: string): { cleanText: string; 
     return false;
   };
 
+  const hasBlocks = lines.some(l => /^\[line\s+\d+\]/i.test(l.trim()));
+
   let firstPayloadIdx = -1;
   let lastPayloadIdx = -1;
 
   for (let i = 0; i < lines.length; i++) {
-    if (isPayloadLine(lines[i])) {
+    if (isPayloadStartLine(lines[i])) {
       if (firstPayloadIdx === -1) firstPayloadIdx = i;
       lastPayloadIdx = i;
     }
   }
 
-  if (firstPayloadIdx !== -1 && lastPayloadIdx >= firstPayloadIdx) {
+  if (firstPayloadIdx !== -1) {
     // Collect non-payload lines before the first translation line
     const topLines = lines.slice(0, firstPayloadIdx)
       .map(l => l.trim())
       .filter(l => l && !/^```(?:plaintext|text|json|jsonl|xml)?\s*$/i.test(l));
 
-    // Collect non-payload lines after the last translation line
-    const bottomLines = lines.slice(lastPayloadIdx + 1)
-      .map(l => l.trim())
-      .filter(l => l && !/^```\s*$/i.test(l));
-
     const topText = topLines.join('\n').trim();
-    const bottomText = bottomLines.join('\n').trim();
-
-    if (bottomText) {
-      summary = bottomText;
-    } else if (topText) {
-      // Avoid taking generic conversational greetings as summary
+    if (topText) {
       const isGenericIntro = /^(?:here\s+(?:is|are)\s+the\s+translations?|berikut\s+(?:adalah\s+)?(?:hasil\s+)?terjemahan(?:nya)?|tentu,?\s+ini\s+hasil\s+terjemahan(?:nya)?|sure,?\s+here\s+(?:is|are)\s+the\s+translations?|translating\s+into\s+\w+|hasil\s+terjemahan:?)\s*[:.]?$/i.test(topText);
       if (!isGenericIntro) {
         summary = topText;
       }
     }
 
-    text = lines.slice(firstPayloadIdx, lastPayloadIdx + 1).join('\n').trim();
+    if (hasBlocks) {
+      // In block mode, everything after the first [line \d+] is part of the payload
+      text = lines.slice(firstPayloadIdx).join('\n').trim();
+    } else {
+      // Collect non-payload lines after the last translation line (if non-empty)
+      const bottomLines = lines.slice(lastPayloadIdx + 1)
+        .map(l => l.trim())
+        .filter(l => l && !/^```\s*$/i.test(l));
+      const bottomText = bottomLines.join('\n').trim();
+      if (bottomText) {
+        summary = bottomText;
+      }
+      text = lines.slice(firstPayloadIdx, lastPayloadIdx + 1).join('\n').trim();
+    }
   }
 
   if (summary) {
@@ -238,7 +247,19 @@ export function extractSummaryAndPayload(rawText: string): { cleanText: string; 
   return { cleanText: text, summary };
 }
 
+let isApplyingTranslation = false;
+
 export function onApplyTranslation(options: ApplyTranslationOptions = {}): void {
+  if (isApplyingTranslation) return;
+  isApplyingTranslation = true;
+  try {
+    onApplyTranslationInternal(options);
+  } finally {
+    setTimeout(() => { isApplyingTranslation = false; }, 300);
+  }
+}
+
+function onApplyTranslationInternal(options: ApplyTranslationOptions = {}): void {
   const { suppressAlerts = false, selectedLineNums } = options;
   const fail = (message: string, details: string[] = []): never => {
     const suffix = details.length ? '\n\n' + details.join('\n') : '';
@@ -393,7 +414,14 @@ export function onApplyTranslation(options: ApplyTranslationOptions = {}): void 
     queueAutoSave();
   }
 
-  flashHint(`${updates.length} baris sukses diterapkan.`);
+  if (state.incrementEnabled) {
+    const appliedNums = updates.map(u => u.l.line_num);
+    const incMsg = applyIncrement(appliedNums);
+    if (incMsg) flashHint(`${updates.length} baris diterapkan.${incMsg}`);
+    else flashHint(`${updates.length} baris sukses diterapkan.`);
+  } else {
+    flashHint(`${updates.length} baris sukses diterapkan.`);
+  }
 }
 
 export async function onUndoLastApply(): Promise<void> {

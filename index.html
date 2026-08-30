@@ -55,6 +55,14 @@
               <svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
               <span>Prompt Defaults</span>
             </button>
+            <button id="btnPluginManagerOpen" class="dropdown-item" role="menuitem">
+              <svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 5h4.5a2.5 2.5 0 1 1 5 0H19v4.5a2.5 2.5 0 1 1 0 5V19h-4.5a2.5 2.5 0 1 0-5 0H5v-4.5a2.5 2.5 0 1 0 0-5z"/></svg>
+              <span>Plugin & Parser Manager</span>
+            </button>
+            <button id="btnShortcutsOpen" class="dropdown-item" role="menuitem">
+              <svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M6 8h.01"/><path d="M10 8h.01"/><path d="M14 8h.01"/><path d="M18 8h.01"/><path d="M8 12h.01"/><path d="M12 12h.01"/><path d="M16 12h.01"/><path d="M7 16h10"/></svg>
+              <span>Shortcut Keyboard</span>
+            </button>
             <div class="dropdown-divider"></div>
             <button id="btnBackupAllProjects" class="dropdown-item" role="menuitem">
               <svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="5" x="2" y="3" rx="1" /><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8" /><path d="M10 12h4" /></svg>
@@ -72,6 +80,13 @@
         </div>
       </div>
     </header>
+
+    <div id="storageWarningBanner" class="storage-warning-banner" style="display:none;">
+      <div class="storage-warning-inner">
+        <svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <span id="storageWarningText">Penyimpanan perangkat hampir penuh. Harap backup proyek kamu ke .zip untuk mencegah kehilangan data.</span>
+      </div>
+    </div>
 
     <div class="dashboard-hero-cta">
       <button id="btnNewProject" class="btn btn-primary btn-cta">
@@ -126,9 +141,8 @@
             <button id="btnImportTranslatedFile" class="dropdown-item">Impor TL File</button>
             <button id="btnImportTranslatedFolder" class="dropdown-item">Impor TL Folder</button>
             <hr class="dropdown-divider">
-            <button id="btnImportCustom" class="dropdown-item">Impor Parser Custom</button>
-            <button id="btnImportCustomFolder" class="dropdown-item">Impor Folder Parser Custom</button>
-            <button id="btnCustomParsers" class="dropdown-item">Kelola Parser Custom…</button>
+            <button id="btnImportCustom" class="dropdown-item">Impor File (Plugin/Parser)…</button>
+            <button id="btnImportCustomFolder" class="dropdown-item">Impor Folder (Plugin/Parser)</button>
           </div>
         </div>
         <button id="btnUndo" class="btn btn-icon" disabled title="Undo (Batalkan aksi terakhir)"><svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5" /><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11" /></svg></button>
@@ -154,6 +168,8 @@
             <button id="btnSettingsGeneral" class="dropdown-item">General Settings</button>
             <button id="btnSettingsPrompts" class="dropdown-item">Prompt Settings</button>
             <button id="btnSettingsGlossary" class="dropdown-item">Smart Glossary</button>
+            <button id="btnWorkspacePluginsOpen" class="dropdown-item">Plugin & Parser Manager</button>
+            <button id="btnWorkspaceShortcutsOpen" class="dropdown-item">Shortcut Keyboard</button>
           </div>
         </div>
         <button id="btnBackupProject" class="btn btn-outline" title="Backup proyek (Ctrl+S)"><svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg><span class="btn-text"> Backup</span></button>
@@ -353,6 +369,7 @@
           </div>
           <div id="aiCheckResults" class="ai-check-results mt-2"></div>
         </div>
+        <div id="pluginPanels" class="plugin-panels mt-2"></div>
       </section>
     </main>
     <footer id="statusBar" class="status-bar">
@@ -592,16 +609,18 @@
               <input id="dsAgentMaxTurns" type="number" class="text-input w-full" min="3" max="30" value="10" />
             </div>
           </div>
-          <div class="flex-center gap-4 wrap mt-2">
-            <div class="flex-col grow">
-              <label class="form-label" for="dsSelectionPrevShortcut">Shortcut Batch Sebelumnya</label>
-              <input id="dsSelectionPrevShortcut" class="text-input w-full" type="text" value="Alt+ArrowUp" readonly />
-            </div>
-            <div class="flex-col grow">
-              <label class="form-label" for="dsSelectionNextShortcut">Shortcut Batch Berikutnya</label>
-              <input id="dsSelectionNextShortcut" class="text-input w-full" type="text" value="Alt+ArrowDown" readonly />
-            </div>
+        </div>
+
+        <!-- SECTION: Auto-Increment Baris -->
+        <div class="settings-section">
+          <div class="settings-section-title">
+            <svg class="lucide-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></svg>
+            Auto-Increment Baris
           </div>
+          <label class="checkbox-line">
+            <input id="dsIncrementCheck" type="checkbox" />
+            <span>Aktifkan Auto-Increment (mengikuti ukuran Batch Translate)</span>
+          </label>
         </div>
 
         <!-- SECTION: Preferensi & Eksternal -->
@@ -916,16 +935,18 @@
               <input id="settingsAgentMaxTurns" type="number" class="text-input w-full" min="3" max="30" value="10" />
             </div>
           </div>
-          <div class="flex-center gap-4 wrap mt-2">
-            <div class="flex-col grow">
-              <label class="form-label" for="settingsSelectionPrevShortcutInput">Shortcut Batch Sebelumnya</label>
-              <input id="settingsSelectionPrevShortcutInput" class="text-input w-full" type="text" value="Alt+ArrowUp" readonly />
-            </div>
-            <div class="flex-col grow">
-              <label class="form-label" for="settingsSelectionNextShortcutInput">Shortcut Batch Berikutnya</label>
-              <input id="settingsSelectionNextShortcutInput" class="text-input w-full" type="text" value="Alt+ArrowDown" readonly />
-            </div>
+        </div>
+
+        <!-- SECTION: Auto-Increment Baris -->
+        <div class="settings-section">
+          <div class="settings-section-title">
+            <svg class="lucide-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></svg>
+            Auto-Increment Baris
           </div>
+          <label class="checkbox-line">
+            <input id="settingsIncrementCheck" type="checkbox" />
+            <span>Aktifkan Auto-Increment (mengikuti ukuran Batch Translate)</span>
+          </label>
         </div>
 
         <!-- SECTION: Format & Eksternal -->
@@ -1714,6 +1735,71 @@
         <svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
       </button>
       <img id="imageLightboxImg" class="image-lightbox-img" src="" alt="EPUB Image Full Preview" />
+    </div>
+  </div>
+
+  <!-- Plugin & Parser Manager Modal -->
+  <div id="pluginManagerModal" class="modal-backdrop backdrop">
+    <div class="modal modal-wide" role="dialog" aria-modal="true">
+      <div class="modal-head flex-between">
+        <div class="flex-center gap-2">
+          <svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 5h4.5a2.5 2.5 0 1 1 5 0H19v4.5a2.5 2.5 0 1 1 0 5V19h-4.5a2.5 2.5 0 1 0-5 0H5v-4.5a2.5 2.5 0 1 0 0-5z"/></svg>
+          <h3 class="m-0">Plugin &amp; Parser Manager</h3>
+        </div>
+        <button id="btnPluginRefresh" class="btn btn-outline btn-xs" title="Muat ulang daftar plugin &amp; parser">
+          <svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v5h-5"/></svg>
+          <span>Refresh</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p class="hint m-0 mt-1 mb-2">Kelola paket plugin (.zip) dan script custom parser (JavaScript/Python) untuk membaca dan mengekspor berbagai format game visual novel.</p>
+        <div class="flex gap-2 wrap mb-2">
+          <button id="btnInstallPlugin" class="btn btn-primary grow">
+            <svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span>+ Pasang Plugin (.zip)</span>
+          </button>
+          <button id="btnCreateCustomParser" class="btn btn-outline grow">
+            <svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+            <span>+ Tulis Parser (JS/Python)</span>
+          </button>
+        </div>
+        <input type="file" id="pluginFileInput" accept=".zip" style="display:none;" />
+        <div class="plugin-filters flex gap-1 mb-2">
+          <button id="btnPluginFilterAll" class="btn btn-xs btn-outline is-active" type="button">Semua (<span id="pluginCountAll">0</span>)</button>
+          <button id="btnPluginFilterPlugins" class="btn btn-xs btn-ghost" type="button">Paket Plugin (<span id="pluginCountPlugins">0</span>)</button>
+          <button id="btnPluginFilterParsers" class="btn btn-xs btn-ghost" type="button">Script Parser (<span id="pluginCountParsers">0</span>)</button>
+        </div>
+        <div id="pluginList" class="plugin-list"></div>
+      </div>
+      <div class="modal-actions">
+        <span class="grow"></span>
+        <button id="btnPluginManagerClose" class="btn btn-primary" type="button">Tutup</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Shortcut Keyboard Modal -->
+  <div id="shortcutModal" class="modal-backdrop backdrop">
+    <div class="modal modal-wide" role="dialog" aria-modal="true">
+      <div class="modal-head flex-between">
+        <div class="flex-center gap-2">
+          <svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M6 8h.01"/><path d="M10 8h.01"/><path d="M14 8h.01"/><path d="M18 8h.01"/><path d="M8 12h.01"/><path d="M12 12h.01"/><path d="M16 12h.01"/><path d="M7 16h10"/></svg>
+          <h3 class="m-0">Shortcut Keyboard</h3>
+        </div>
+        <button id="btnShortcutsResetAll" class="btn btn-outline btn-xs" title="Reset semua shortcut ke default" type="button">
+          <svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v5h-5"/></svg>
+          <span>Reset Semua</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p class="hint m-0 mt-1 mb-2">Klik tombol kombinasi lalu tekan tombol keyboard untuk mengubah. Gunakan <kbd>Backspace</kbd> untuk menghapus atau <kbd>Escape</kbd> untuk membatalkan.</p>
+        <p id="shortcutStatus" class="hint shortcut-status m-0 mb-2" hidden></p>
+        <div id="shortcutList" class="shortcut-list"></div>
+      </div>
+      <div class="modal-actions">
+        <span class="grow"></span>
+        <button id="btnShortcutsClose" class="btn btn-primary" type="button">Tutup</button>
+      </div>
     </div>
   </div>
 

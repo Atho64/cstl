@@ -22,9 +22,20 @@ export function saveCustomParsers(parsers: CustomParser[]): void {
   localStorage.setItem(CP_STORAGE_KEY, JSON.stringify(parsers));
 }
 
-export function getCustomParser(id: string | null | undefined): CustomParser | null {
+export function getCustomParser(id: string | null | undefined): any {
   if (!id) return null;
-  return loadCustomParsers().find(p => p.id === id) || null;
+  const legacy = loadCustomParsers().find(p => p.id === id);
+  if (legacy) return legacy;
+
+  try {
+    const pluginsApi = (typeof window !== 'undefined' && (window as any).CSTL?.plugins);
+    if (pluginsApi) {
+      const p = pluginsApi.getMeta(id);
+      if (p) return { ...p, isPlugin: true };
+    }
+  } catch (_) {}
+
+  return null;
 }
 
 export function upsertCustomParser(parser: CustomParser): void {
@@ -49,10 +60,22 @@ export function setCustomParserEnabled(id: string, enabled: boolean): void {
   }
 }
 
-/** Parser aktif (enabled) yang cocok untuk file ini, atau null.
+/** Parser atau Plugin aktif (enabled) yang cocok untuk file ini, atau null.
  *  sampleBytes opsional = 64 byte pertama file, dipakai strategi 'magic'. */
-export function findCustomParserForFile(fileName: string, sampleBytes?: Uint8Array | null): CustomParser | null {
-  return loadCustomParsers().find(p => p.enabled && matchCustomParser(p, fileName, sampleBytes)) || null;
+export function findCustomParserForFile(fileName: string, sampleBytes?: Uint8Array | null): any {
+  const legacy = loadCustomParsers().find(p => p.enabled && matchCustomParser(p, fileName, sampleBytes));
+  if (legacy) return legacy;
+
+  try {
+    const pluginsApi = (typeof window !== 'undefined' && (window as any).CSTL?.plugins);
+    if (pluginsApi) {
+      const p = pluginsApi.resolveByExtension(fileName) ||
+        (sampleBytes ? pluginsApi.resolveByMagic(sampleBytes) : null);
+      if (p) return { ...p, isPlugin: true };
+    }
+  } catch (_) {}
+
+  return null;
 }
 
 // ─── Matching multi-strategi (extension / magic bytes / filename regex) ───────
@@ -94,7 +117,11 @@ export function effectiveMatchStrategies(p: CustomParser): CpMatchStrategy[] {
 export function matchCustomParser(p: CustomParser, fileName: string, sampleBytes?: Uint8Array | null): boolean {
   const lower = fileName.toLowerCase();
   for (const s of effectiveMatchStrategies(p)) {
-    if (s === 'extension' && p.extensions.some(ext => lower.endsWith(ext))) return true;
+    if (s === 'extension' && p.extensions.some(ext => {
+      const e = String(ext || '').toLowerCase().trim();
+      const withDot = e.startsWith('.') ? e : '.' + e;
+      return lower.endsWith(withDot);
+    })) return true;
     if (s === 'magic' && matchMagic(sampleBytes, p.magic)) return true;
     if (s === 'filename' && matchFilenameRegex(fileName, p.filenameRegex)) return true;
   }
@@ -248,10 +275,16 @@ export function deleteParserSettingValues(id: string): void {
 }
 
 /** Merge default (dari spec) + nilai user + coerce tipe -> ctx.options. */
-export function buildParserOptions(parser: CustomParser): Record<string, any> {
+export function buildParserOptions(parser: any): Record<string, any> {
+  if (parser.isPlugin || (!Array.isArray(parser.settings) && typeof parser.settings === 'object' && parser.settings !== null)) {
+    try {
+      const pluginsApi = (typeof window !== 'undefined' && (window as any).CSTL?.plugins);
+      if (pluginsApi) return pluginsApi.globalValuesFor(parser) || {};
+    } catch (_) {}
+  }
   const user = loadParserSettingValues(parser.id);
   const out: Record<string, any> = {};
-  for (const s of parser.settings || []) {
+  for (const s of (Array.isArray(parser.settings) ? parser.settings : [])) {
     let v = user[s.key] !== undefined ? user[s.key] : s.default;
     const t = s.type || 'string';
     if (t === 'number') {
@@ -274,6 +307,15 @@ export function getCustomImportAccept(): string {
     if (!p.enabled) continue;
     for (const ext of p.extensions) exts.add(ext);
   }
+  try {
+    const pluginsApi = (typeof window !== 'undefined' && (window as any).CSTL?.plugins);
+    if (pluginsApi) {
+      const active = pluginsApi.activeParserInfo?.();
+      if (active?.extensions) {
+        for (const ext of active.extensions) exts.add(ext);
+      }
+    }
+  } catch (_) {}
   return Array.from(exts).join(',');
 }
 

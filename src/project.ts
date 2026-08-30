@@ -8,7 +8,6 @@ import {
   DEFAULT_LUCA_MC_DISPLAY_NAME,
   DEFAULT_AI_TRANSLATION_FORMAT,
   DEFAULT_SELECTION_BATCH_SIZE, DEFAULT_GLOSSARY_BATCH_SIZE, DEFAULT_AI_CHECK_BATCH_SIZE,
-  DEFAULT_SELECTION_BATCH_PREV_SHORTCUT, DEFAULT_SELECTION_BATCH_NEXT_SHORTCUT,
 } from './constants';
 import { DEFAULT_LUCA_PROFILE, clearLucaFileLineBytesCache, parseLucaTxt } from './luca-engine';
 import type { Line } from './types';
@@ -23,6 +22,7 @@ import { salvageJsonObject } from './json-repair';
 import { icon } from './icons';
 import { preloadEpubImages, clearEpubImageCache } from './epub-images';
 import { getCustomParser, isValidCustomParser, upsertCustomParser } from './custom-parsers';
+import { prefillIncrement } from './increment';
 
 // ─── Luca raw-field recovery (migration for saves made before the luca_raw_index fix) ───
 function recoverLucaRawFields(): void {
@@ -148,8 +148,15 @@ export function applyPalette(name: string): void {
   const key = PALETTES[name] ? name : 'indigo';
   const vars = PALETTES[key];
   const root = document.documentElement;
-  for (const [prop, val] of Object.entries(vars)) {
-    root.style.setProperty(prop, val);
+  const hasPluginTheme = (window as any).CSTL?.plugins?.hasActiveTheme?.();
+  if (!hasPluginTheme) {
+    for (const [prop, val] of Object.entries(vars)) {
+      root.style.setProperty(prop, val);
+    }
+  } else {
+    for (const prop of Object.keys(vars)) {
+      root.style.removeProperty(prop);
+    }
   }
   const iconUrl = `./icon-${key}.svg`;
   const logoImg = document.querySelector('.hero-logo-img') as HTMLImageElement | null;
@@ -204,8 +211,7 @@ export function getDefaultSettings(): Record<string, any> {
     enableBackgroundChaining: false,
     epubTags: 'p',
     showEpubImages: true,
-    selectionPrevShortcut: DEFAULT_SELECTION_BATCH_PREV_SHORTCUT,
-    selectionNextShortcut: DEFAULT_SELECTION_BATCH_NEXT_SHORTCUT,
+    incrementEnabled: false,
   };
 }
 
@@ -246,10 +252,11 @@ export function openDashboardSettings(): void {
   if (ui.dsEpubTags) (ui.dsEpubTags as HTMLInputElement).value = d.epubTags || 'p';
   const dsShowEpub = (document.getElementById('dsShowEpubImages') || ui.dsShowEpubImages) as HTMLInputElement | null;
   if (dsShowEpub) dsShowEpub.checked = d.showEpubImages !== false;
-  if (ui.dsSelectionPrevShortcut) (ui.dsSelectionPrevShortcut as HTMLInputElement).value = d.selectionPrevShortcut || DEFAULT_SELECTION_BATCH_PREV_SHORTCUT;
-  if (ui.dsSelectionNextShortcut) (ui.dsSelectionNextShortcut as HTMLInputElement).value = d.selectionNextShortcut || DEFAULT_SELECTION_BATCH_NEXT_SHORTCUT;
   if (ui.dsEnableLogging) (ui.dsEnableLogging as HTMLInputElement).checked = !!d.enableLogging;
   if (ui.paletteSelect) (ui.paletteSelect as HTMLSelectElement).value = d.palette || 'indigo';
+
+  const dsIncCheck = document.getElementById('dsIncrementCheck') as HTMLInputElement | null;
+  if (dsIncCheck) dsIncCheck.checked = !!d.incrementEnabled;
 
   // Sync conditional wrap displays
   if (ui.dsSimilarityThresholdWrap) {
@@ -299,10 +306,11 @@ export function saveDashboardSettings(): void {
   if (ui.dsEpubTags) d.epubTags = (ui.dsEpubTags as HTMLInputElement).value || 'p';
   const dsShowEpub = (document.getElementById('dsShowEpubImages') || ui.dsShowEpubImages) as HTMLInputElement | null;
   if (dsShowEpub) d.showEpubImages = dsShowEpub.checked;
-  if (ui.dsSelectionPrevShortcut) d.selectionPrevShortcut = (ui.dsSelectionPrevShortcut as HTMLInputElement).value || DEFAULT_SELECTION_BATCH_PREV_SHORTCUT;
-  if (ui.dsSelectionNextShortcut) d.selectionNextShortcut = (ui.dsSelectionNextShortcut as HTMLInputElement).value || DEFAULT_SELECTION_BATCH_NEXT_SHORTCUT;
   if (ui.dsEnableLogging) d.enableLogging = !!(ui.dsEnableLogging as HTMLInputElement).checked;
   if (ui.paletteSelect) d.palette = (ui.paletteSelect as HTMLSelectElement)?.value || 'indigo';
+
+  const dsIncCheck = document.getElementById('dsIncrementCheck') as HTMLInputElement | null;
+  if (dsIncCheck) d.incrementEnabled = dsIncCheck.checked;
 
   localStorage.setItem(DS_STORAGE_KEY, JSON.stringify(d));
   applyPalette(d.palette);
@@ -762,8 +770,7 @@ export async function createNewProject(): Promise<void> {
     ai_check_batch_size: d.aiCheckBatch || DEFAULT_AI_CHECK_BATCH_SIZE,
     parallel_batch_size: d.parallelBatchSize || 1,
     subagent_workers: d.subagentWorkers || 3,
-    selection_batch_prev_shortcut: d.selectionPrevShortcut || DEFAULT_SELECTION_BATCH_PREV_SHORTCUT,
-    selection_batch_next_shortcut: d.selectionNextShortcut || DEFAULT_SELECTION_BATCH_NEXT_SHORTCUT,
+    increment_enabled: !!d.incrementEnabled,
     enable_logging: !!d.enableLogging,
   };
   try {
@@ -1025,13 +1032,12 @@ function buildProjectPersistenceData(): Record<string, any> {
     glossary_batch_size: state.glossaryBatchSize, ai_check_batch_size: state.aiCheckBatchSize,
     parallel_batch_size: state.parallelBatchSize,
     subagent_workers: state.subagentWorkers,
-    selection_batch_prev_shortcut: state.selectionBatchPrevShortcut,
-    selection_batch_next_shortcut: state.selectionBatchNextShortcut,
     enableBackgroundChaining: state.enableBackgroundChaining,
     currentBackground: state.currentBackground,
     summary_prompt: state.summaryPrompt,
     enable_logging: state.projectLoggingEnabled,
     show_epub_images: state.showEpubImages === true,
+    increment_enabled: state.incrementEnabled === true,
     proofread_settings: getProofreadSettings(),
   };
 }
@@ -1097,22 +1103,133 @@ export async function backupAllProjectsAsZip(): Promise<void> {
   }
 }
 
+// ─── Storage Persistence (Chrome Android & Quota Protection) ───────────────
+export async function ensureStoragePersistence(): Promise<boolean> {
+  if (navigator.storage && navigator.storage.persist) {
+    try {
+      const isPersisted = await navigator.storage.persisted();
+      if (!isPersisted) {
+        const granted = await navigator.storage.persist();
+        console.log('[CSTL] Storage persistence granted:', granted);
+        return granted;
+      }
+      return true;
+    } catch (e) {
+      console.warn('[CSTL] Gagal meminta persistence storage:', e);
+    }
+  }
+  return false;
+}
+
+export async function checkStorageQuota(): Promise<{ usage: number; quota: number; free: number; percentUsed: number; isLow: boolean } | null> {
+  if (navigator.storage && navigator.storage.estimate) {
+    try {
+      const est = await navigator.storage.estimate();
+      const usage = est.usage || 0;
+      const quota = est.quota || 0;
+      const free = quota > usage ? quota - usage : 0;
+      const percentUsed = quota > 0 ? (usage / quota) * 100 : 0;
+      const isLow = percentUsed > 85 || (quota > 0 && free < 50 * 1024 * 1024);
+      return { usage, quota, free, percentUsed, isLow };
+    } catch (_) {}
+  }
+  return null;
+}
+
+// ─── Plugin Storage & Blob Backend ──────────────────────────────────────────
+export const PLUGINS_FILE = '_plugins.json';
+export const PLUGIN_SETTINGS_FILE = '_plugin_settings.json';
+export const PLUGIN_PREFIX = '_plug_';
+export const BLOBS_DIR = '_blobs';
+
+export async function savePluginBlob(projectId: string | null, pluginId: string, key: string, data: Blob | Uint8Array | ArrayBuffer | string): Promise<void> {
+  const root = await getOpfsRoot();
+  const top = await root.getDirectoryHandle(BLOBS_DIR, { create: true });
+  const projDir = await top.getDirectoryHandle(projectId || '__global__', { create: true });
+  const pluginDir = await projDir.getDirectoryHandle(pluginId, { create: true });
+  const fh = await pluginDir.getFileHandle(key, { create: true });
+  const w = await fh.createWritable();
+  if (data instanceof Blob) {
+    await w.write(data);
+  } else if (typeof data === 'string') {
+    await w.write(data);
+  } else {
+    await w.write(data as any);
+  }
+  await w.close();
+}
+
+export async function loadPluginBlob(projectId: string | null, pluginId: string, key: string): Promise<Blob | null> {
+  try {
+    const root = await getOpfsRoot();
+    const top = await root.getDirectoryHandle(BLOBS_DIR, { create: false });
+    const projDir = await top.getDirectoryHandle(projectId || '__global__', { create: false });
+    const pluginDir = await projDir.getDirectoryHandle(pluginId, { create: false });
+    const fh = await pluginDir.getFileHandle(key, { create: false });
+    return await fh.getFile();
+  } catch {
+    return null;
+  }
+}
+
+export async function deletePluginBlob(projectId: string | null, pluginId: string, key: string): Promise<void> {
+  try {
+    const root = await getOpfsRoot();
+    const top = await root.getDirectoryHandle(BLOBS_DIR, { create: false });
+    const projDir = await top.getDirectoryHandle(projectId || '__global__', { create: false });
+    const pluginDir = await projDir.getDirectoryHandle(pluginId, { create: false });
+    await pluginDir.removeEntry(key);
+  } catch {}
+}
+
+export async function listPluginBlobs(projectId: string | null, pluginId: string): Promise<string[]> {
+  try {
+    const root = await getOpfsRoot();
+    const top = await root.getDirectoryHandle(BLOBS_DIR, { create: false });
+    const projDir = await top.getDirectoryHandle(projectId || '__global__', { create: false });
+    const pluginDir = await projDir.getDirectoryHandle(pluginId, { create: false });
+    const out: string[] = [];
+    for await (const [name, h] of (pluginDir as any).entries()) {
+      if (h.kind === 'file') out.push(name);
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
 // ─── OPFS persistence ─────────────────────────────────────────────────────────
 export async function saveProjectToOpfs(id: string, dataObj: any): Promise<void> {
   dataObj.updatedAt = Date.now();
   const root = await getOpfsRoot();
   const fileHandle = await root.getFileHandle(id, { create: true });
   const writable = await fileHandle.createWritable();
-  await writable.write(JSON.stringify(dataObj));
-  await writable.close();
+  try {
+    await writable.write(JSON.stringify(dataObj));
+    await writable.close();
+  } catch (err: any) {
+    try { await writable.abort(); } catch (_) {}
+    if (err?.name === 'QuotaExceededError') {
+      alert('Penyimpanan browser penuh! Harap lakukan backup/ekspor proyek dan bersihkan file yang tidak diperlukan.');
+    }
+    throw err;
+  }
 }
 export async function saveLucaDataToOpfs(id: string, lucaData: any): Promise<void> {
   const root = await getOpfsRoot();
   const lucaId = id.replace(PROJECT_EXT, '_luca.json');
   const fileHandle = await root.getFileHandle(lucaId, { create: true });
   const writable = await fileHandle.createWritable();
-  await writable.write(JSON.stringify(lucaData));
-  await writable.close();
+  try {
+    await writable.write(JSON.stringify(lucaData));
+    await writable.close();
+  } catch (err: any) {
+    try { await writable.abort(); } catch (_) {}
+    if (err?.name === 'QuotaExceededError') {
+      alert('Penyimpanan browser penuh! Harap lakukan backup/ekspor proyek dan bersihkan file yang tidak diperlukan.');
+    }
+    throw err;
+  }
 }
 
 export async function loadLucaDataFromOpfs(id: string): Promise<any> {
@@ -1308,24 +1425,27 @@ let customLazySource: { files: string[]; bufferLens: Record<string, number>; rea
 /** Baca file sumber asli milik proyek aktif — lazy dari OPFS bila tersedia,
  *  fallback ke state in-memory (format lama / hasil impor). */
 export async function readCustomSourceFile(fileName: string): Promise<{ bytes: Uint8Array | null; text: string | null }> {
-  if (customLazySource && customLazySource.files.includes(fileName)) {
+  const baseName = fileName && fileName.includes('/') ? fileName.split('/')[0] : fileName;
+  if (customLazySource && (customLazySource.files.includes(fileName) || customLazySource.files.includes(baseName))) {
     try {
-      const bytes = await customLazySource.readFile(fileName);
+      const target = customLazySource.files.includes(fileName) ? fileName : baseName;
+      const bytes = await customLazySource.readFile(target);
       const text = new TextDecoder().decode(bytes);
       return { bytes, text };
     } catch (_) {
       return { bytes: null, text: null };
     }
   }
-  const b64 = (state as any).customRawBuffers?.[fileName];
-  if (b64) return { bytes: base64ToBytes(b64), text: (state as any).customRawFiles?.[fileName] ?? null };
-  const txt = (state as any).customRawFiles?.[fileName];
+  const b64 = (state as any).customRawBuffers?.[fileName] || (state as any).customRawBuffers?.[baseName];
+  if (b64) return { bytes: base64ToBytes(b64), text: (state as any).customRawFiles?.[fileName] ?? (state as any).customRawFiles?.[baseName] ?? null };
+  const txt = (state as any).customRawFiles?.[fileName] ?? (state as any).customRawFiles?.[baseName];
   return { bytes: null, text: typeof txt === 'string' && txt.length > 0 ? txt : null };
 }
 
 /** Apakah file sumber ada di lazy source (tanpa memuat isinya). */
 export function customLazySourceHas(fileName: string): boolean {
-  return !!customLazySource && customLazySource.files.includes(fileName);
+  const baseName = fileName && fileName.includes('/') ? fileName.split('/')[0] : fileName;
+  return !!customLazySource && (customLazySource.files.includes(fileName) || customLazySource.files.includes(baseName));
 }
 
 export function waitForCustomSourcesLoad(projectId: string | null = state.currentProjectId): Promise<void> {
@@ -1506,8 +1626,7 @@ export async function openProject(id: string, data: any): Promise<void> {
   state.aiCheckBatchSize = normalizeSelectionBatchSize(data.ai_check_batch_size, DEFAULT_AI_CHECK_BATCH_SIZE);
   state.parallelBatchSize = Math.max(1, Math.min(10, parseInt(data.parallel_batch_size) || 1));
   state.subagentWorkers = Math.max(1, Math.min(10, parseInt(data.subagent_workers) || 3));
-  state.selectionBatchPrevShortcut = normalizeShortcutString(data.selection_batch_prev_shortcut, DEFAULT_SELECTION_BATCH_PREV_SHORTCUT);
-  state.selectionBatchNextShortcut = normalizeShortcutString(data.selection_batch_next_shortcut, DEFAULT_SELECTION_BATCH_NEXT_SHORTCUT);
+  state.incrementEnabled = !!(data.increment_enabled ?? data.incrementEnabled ?? false);
   
   const proofreadSettings = data.proofread_settings || {};
   if (ui.proofreadScope) (ui.proofreadScope as HTMLSelectElement).value = proofreadSettings.scope || 'all';
@@ -1557,9 +1676,13 @@ export async function openProject(id: string, data: any): Promise<void> {
     });
   }
   refreshAll();
+  if (state.incrementEnabled && state.lines.length) {
+    prefillIncrement();
+  }
   applyHtlMode();
   switchWorkspaceTab('translate');
   applyProjectLoggingVisibility();
+  try { (window as any).CSTL?.plugins?.onProjectOpened(); } catch (_) {}
 }
 
 export async function closeProject(): Promise<void> {
@@ -1596,6 +1719,7 @@ export async function closeProject(): Promise<void> {
 }
 
 export function finishClose(): void {
+  try { (window as any).CSTL?.plugins?.onProjectClosed(); } catch (_) {}
   releaseProjectLock(state.currentProjectId);
   state.currentProjectId = null;
   state.projectLoggingEnabled = false;
@@ -1725,8 +1849,6 @@ export async function restoreProjectFromFile(f: File): Promise<boolean> {
       selection_batch_size: normalizeSelectionBatchSize(p.selection_batch_size),
       glossary_batch_size: normalizeSelectionBatchSize(p.glossary_batch_size, DEFAULT_GLOSSARY_BATCH_SIZE),
       ai_check_batch_size: normalizeSelectionBatchSize(p.ai_check_batch_size, DEFAULT_AI_CHECK_BATCH_SIZE),
-      selection_batch_prev_shortcut: normalizeShortcutString(p.selection_batch_prev_shortcut, DEFAULT_SELECTION_BATCH_PREV_SHORTCUT),
-      selection_batch_next_shortcut: normalizeShortcutString(p.selection_batch_next_shortcut, DEFAULT_SELECTION_BATCH_NEXT_SHORTCUT),
       enableBackgroundChaining: !!p.enableBackgroundChaining,
       currentBackground: p.currentBackground || '', enable_logging: !!p.enable_logging,
       proofread_settings: p.proofread_settings || {},

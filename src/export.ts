@@ -411,7 +411,8 @@ export async function onExport(): Promise<void> {
         await exportLinesAsJson();
         return;
       }
-      if (!parser.serializeScript.trim()) {
+      const isPlugin = (parser as any).isPlugin || !(parser as any).serializeScript;
+      if (!isPlugin && !(parser as any).serializeScript?.trim()) {
         flashHint(`Parser "${parser.name}" tidak punya serialize() — ekspor memakai format JSON.`);
         await exportLinesAsJson();
         return;
@@ -425,8 +426,9 @@ export async function onExport(): Promise<void> {
 
         const g = new Map<string, Line[]>();
         for (const l of state.lines) {
-          if (!g.has(l.file)) g.set(l.file, []);
-          g.get(l.file)!.push(l);
+          const groupKey = isPlugin && l.file && l.file.includes('/') ? l.file.split('/')[0] : l.file;
+          if (!g.has(groupKey)) g.set(groupKey, []);
+          g.get(groupKey)!.push(l);
         }
         // LAZY: deteksi file sumber yang benar-benar tidak ada (bukan sekadar
         // belum ter-load di state) — tanya langsung ke lazy source / state.
@@ -457,24 +459,58 @@ export async function onExport(): Promise<void> {
             // sudah dilaporkan di atas; tetap lanjut dgn ctx kosong
           }
           const rawText = src.text ?? '';
-          const result = await runCustomSerialize(parser, {
-            fileName,
-            text: rawText,
-            bytes: src.bytes ?? new Uint8Array(0),
-            startLineNum: lns.length > 0 ? lns[0].line_num : 1,
-            options: buildParserOptions(parser),
-            lines: lns.map(l => ({
-              line_num: l.line_num,
-              name: l.name,
-              message: l.message,
-              trans_name: l.trans_name,
-              trans_message: l.trans_message,
-              is_translated: isTranslated(l),
-              raw: l.custom_raw ?? null,
-              index: (l as any).custom_index ?? null,
-            })),
-          });
-          res.push({ fn: fileName, content: result.content });
+          const isPlugin = (parser as any).isPlugin || !(parser as any).serializeScript;
+          if (isPlugin) {
+            const packRes = await (window as any).CSTL.plugins.callPack(parser, {
+              fileName,
+              projectName: state.projectName || undefined,
+              buffer: src.bytes ? src.bytes.buffer : new ArrayBuffer(0),
+              lines: lns.map(l => ({
+                line_num: l.line_num,
+                file: l.file,
+                name: l.name,
+                message: l.message,
+                trans_name: l.trans_name,
+                trans_message: l.trans_message,
+                character_name: l.trans_name || l.name,
+                text: l.trans_message || l.message,
+                is_translated: isTranslated(l),
+                raw: l.custom_raw ?? null,
+                index: (l as any).custom_index ?? null,
+              })),
+              settings: buildParserOptions(parser)
+            });
+            let content: string | Uint8Array;
+            if (packRes.blob instanceof Blob) {
+              content = new Uint8Array(await packRes.blob.arrayBuffer());
+            } else if (packRes.buffer instanceof Uint8Array) {
+              content = packRes.buffer;
+            } else if (packRes.buffer instanceof ArrayBuffer) {
+              content = new Uint8Array(packRes.buffer);
+            } else {
+              content = String(packRes.content || '');
+            }
+            res.push({ fn: packRes.fileName || fileName, content });
+          } else {
+            const result = await runCustomSerialize(parser, {
+              fileName,
+              text: rawText,
+              bytes: src.bytes ?? new Uint8Array(0),
+              startLineNum: lns.length > 0 ? lns[0].line_num : 1,
+              options: buildParserOptions(parser),
+              lines: lns.map(l => ({
+                line_num: l.line_num,
+                name: l.name,
+                message: l.message,
+                trans_name: l.trans_name,
+                trans_message: l.trans_message,
+                is_translated: isTranslated(l),
+                raw: l.custom_raw ?? null,
+                index: (l as any).custom_index ?? null,
+              })),
+            });
+            res.push({ fn: fileName, content: result.content });
+          }
           if (fileIdx % 2 === 1) await new Promise((r) => setTimeout(r, 0));
         }
         if (!exportStillActive()) return;

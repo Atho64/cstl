@@ -11,8 +11,6 @@ import {
   DEFAULT_SELECTION_BATCH_SIZE,
   DEFAULT_GLOSSARY_BATCH_SIZE,
   DEFAULT_AI_CHECK_BATCH_SIZE,
-  DEFAULT_SELECTION_BATCH_PREV_SHORTCUT,
-  DEFAULT_SELECTION_BATCH_NEXT_SHORTCUT,
 } from './constants';
 
 // ─── Shared Application State ────────────────────────────────────────────────────
@@ -98,8 +96,6 @@ export const state: AppState = {
   aiCheckBatchSize: DEFAULT_AI_CHECK_BATCH_SIZE,
   parallelBatchSize: 1,
   subagentWorkers: 3,
-  selectionBatchPrevShortcut: DEFAULT_SELECTION_BATCH_PREV_SHORTCUT,
-  selectionBatchNextShortcut: DEFAULT_SELECTION_BATCH_NEXT_SHORTCUT,
   undoStack: [],
   redoStack: [],
   selectedLines: new Set(),
@@ -115,6 +111,7 @@ export const state: AppState = {
   agentMemories: [],
   projectLoggingEnabled: false,
   autoRepeatOnFailure: false,
+  incrementEnabled: false,
 };
 
 // ─── Shared UI Element Cache ──────────────────────────────────────────────────

@@ -7,17 +7,16 @@ import {
   DEFAULT_AI_TRANSLATION_FORMAT,
   DEFAULT_GLOSSARY_PROMPT, DEFAULT_AI_CHECK_PROMPT,
   DEFAULT_SELECTION_BATCH_SIZE, DEFAULT_GLOSSARY_BATCH_SIZE, DEFAULT_AI_CHECK_BATCH_SIZE,
-  DEFAULT_SELECTION_BATCH_PREV_SHORTCUT, DEFAULT_SELECTION_BATCH_NEXT_SHORTCUT,
   DEFAULT_AGENT_PROMPT,
   DEFAULT_SUMMARY_PROMPT,
 } from './constants';
 import { getDefaultPromptHeaderForFormat, normalizeAiTranslationFormat } from './ai-format';
 import { normalizeSelectionBatchSize } from './selection';
-import { normalizeShortcutString, isReservedShortcut, bindShortcutCaptureInput } from './shortcuts';
 import { refreshAll } from './render';
 import { renderGlossaryPreview } from './glossary';
 import { queueAutoSave, openModal, closeModal, DS_STORAGE_KEY } from './project';
 import { applyHtlMode } from './htl-mode';
+import { prefillIncrement } from './increment';
 
 export function onOpenSettings(): void {
   (ui.settingsSourceLangSelect as HTMLSelectElement).value = state.sourceLang || 'Japanese';
@@ -90,8 +89,9 @@ export function onOpenSettings(): void {
   (ui.settingsAiCheckBatchSizeInput as HTMLInputElement).value = String(state.aiCheckBatchSize);
   if (ui.settingsParallelBatchSizeInput) (ui.settingsParallelBatchSizeInput as HTMLInputElement).value = String(state.parallelBatchSize ?? 1);
   if (ui.settingsSubagentWorkersInput) (ui.settingsSubagentWorkersInput as HTMLInputElement).value = String(state.subagentWorkers ?? 3);
-  (ui.settingsSelectionPrevShortcutInput as HTMLInputElement).value = state.selectionBatchPrevShortcut;
-  (ui.settingsSelectionNextShortcutInput as HTMLInputElement).value = state.selectionBatchNextShortcut;
+
+  const incCheck = document.getElementById('settingsIncrementCheck') as HTMLInputElement | null;
+  if (incCheck) incCheck.checked = !!state.incrementEnabled;
 
   // Pengaturan LucaSystem sudah pindah ke modal Parser Custom (custom-parser-modal.ts)
   openModal(ui.settingsModal as HTMLElement);
@@ -159,12 +159,6 @@ export function onSavePromptSettings(): void {
   const glossaryBatchSize = normalizeSelectionBatchSize((ui.settingsGlossaryBatchSizeInput as HTMLInputElement).value, DEFAULT_GLOSSARY_BATCH_SIZE);
   const aiCheckBatchSize = normalizeSelectionBatchSize((ui.settingsAiCheckBatchSizeInput as HTMLInputElement).value, DEFAULT_AI_CHECK_BATCH_SIZE);
   const parallelBatchSize = Math.max(1, Math.min(10, parseInt((ui.settingsParallelBatchSizeInput as HTMLInputElement)?.value) || 1));
-  const prevShortcut = normalizeShortcutString((ui.settingsSelectionPrevShortcutInput as HTMLInputElement).value, DEFAULT_SELECTION_BATCH_PREV_SHORTCUT);
-  const nextShortcut = normalizeShortcutString((ui.settingsSelectionNextShortcutInput as HTMLInputElement).value, DEFAULT_SELECTION_BATCH_NEXT_SHORTCUT);
-  if (prevShortcut === nextShortcut) return alert('Shortcut batch sebelumnya dan berikutnya tidak boleh sama.');
-  if (isReservedShortcut(prevShortcut) || isReservedShortcut(nextShortcut)) {
-    return alert('Ctrl+ArrowUp dan Ctrl+ArrowDown sudah dipakai untuk riwayat pilihan.');
-  }
 
   const oldShowEpubImages = state.showEpubImages;
   const showEpubCheckbox = (document.getElementById('settingsShowEpubImages') || ui.settingsShowEpubImages) as HTMLInputElement | null;
@@ -207,21 +201,24 @@ export function onSavePromptSettings(): void {
   state.aiCheckBatchSize = aiCheckBatchSize;
   state.parallelBatchSize = parallelBatchSize;
   state.subagentWorkers = Math.max(1, Math.min(10, parseInt((ui.settingsSubagentWorkersInput as HTMLInputElement)?.value) || 3));
-  state.selectionBatchPrevShortcut = prevShortcut;
-  state.selectionBatchNextShortcut = nextShortcut;
+
+  const prevInc = state.incrementEnabled;
+  const incCheck = document.getElementById('settingsIncrementCheck') as HTMLInputElement | null;
+  if (incCheck) state.incrementEnabled = incCheck.checked;
   // Luca settings (export lang, MC name, profile) disimpan oleh modal Parser Custom — bukan di sini lagi.
 
   (ui.settingsSelectionBatchSizeInput as HTMLInputElement).value = String(selectionBatchSize);
   (ui.settingsGlossaryBatchSizeInput as HTMLInputElement).value = String(glossaryBatchSize);
   (ui.settingsAiCheckBatchSizeInput as HTMLInputElement).value = String(aiCheckBatchSize);
-  (ui.settingsSelectionPrevShortcutInput as HTMLInputElement).value = prevShortcut;
-  (ui.settingsSelectionNextShortcutInput as HTMLInputElement).value = nextShortcut;
   closeModal(ui.settingsModal as HTMLElement);
   applyHtlMode();
   if (!oldShowEpubImages && state.showEpubImages && state.projectType === 'epub' && state.epubSourceId) {
     import('./epub-images').then(m => m.preloadEpubImages()).then(() => refreshAll());
   } else {
     refreshAll();
+  }
+  if (!prevInc && state.incrementEnabled && state.lines.length) {
+    prefillIncrement();
   }
   renderGlossaryPreview();
   queueAutoSave();
