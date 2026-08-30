@@ -12,16 +12,23 @@
 // in the same undo/redo stacks, but with a `fileAction` field that signals
 // they are file-level operations.
 
-import { state, ui } from './state';
+import { state, ui, getMainScroller } from './state';
 import { openModal, closeModal, queueAutoSave } from './project';
 import { onImportFileChange } from './import-source';
-import { rebuildDisplayState, renderPreviewRows, refreshAll } from './render';
+import { rebuildDisplayState, renderPreviewRows, refreshAll, flashHint } from './render';
+import { switchWorkspaceTab } from './selection';
 import type { FileActionSnapshot, Line } from './types';
 import { windowsFileOrderCompare } from './string-utils';
 
 // ─── Module state ──────────────────────────────────────────────────────────────
 
 let _draggingIndex = -1;
+
+export interface FileLineStats {
+  count: number;
+  firstLine: number;
+  lastLine: number;
+}
 
 // ─── Public API ────────────────────────────────────────────────────────────────
 
@@ -48,11 +55,22 @@ export function renderFileList(): void {
   // Determine display order: use fileOrder if populated, otherwise sort
   const orderedFiles = getFileDisplayOrder();
 
-  // Build a map of file -> line count for display
-  const lineCounts = new Map<string, number>();
+  // Build a map of file -> line statistics (count, firstLine, lastLine)
+  const fileStatsMap = new Map<string, FileLineStats>();
   for (const line of state.lines) {
     const f = line.file;
-    lineCounts.set(f, (lineCounts.get(f) || 0) + 1);
+    const stats = fileStatsMap.get(f);
+    if (!stats) {
+      fileStatsMap.set(f, {
+        count: 1,
+        firstLine: line.line_num,
+        lastLine: line.line_num,
+      });
+    } else {
+      stats.count++;
+      if (line.line_num < stats.firstLine) stats.firstLine = line.line_num;
+      if (line.line_num > stats.lastLine) stats.lastLine = line.line_num;
+    }
   }
 
   container.innerHTML = '';
@@ -64,8 +82,8 @@ export function renderFileList(): void {
 
   for (let i = 0; i < orderedFiles.length; i++) {
     const fileName = orderedFiles[i];
-    const count = lineCounts.get(fileName) || 0;
-    const item = createFileListItem(fileName, count, i);
+    const stats = fileStatsMap.get(fileName) || { count: 0, firstLine: 0, lastLine: 0 };
+    const item = createFileListItem(fileName, stats, i);
     container.appendChild(item);
   }
 
@@ -328,11 +346,15 @@ export function onFileDragEnd(e: DragEvent): void {
 
 // ─── Helper: Create a file list item element ───────────────────────────────────
 
-function createFileListItem(fileName: string, count: number, index: number): HTMLElement {
+function createFileListItem(fileName: string, stats: FileLineStats, index: number): HTMLElement {
   const item = document.createElement('div');
   item.className = 'file-list-item';
   item.dataset.file = fileName;
   item.draggable = true;
+
+  // Header wrapper (handle, checkbox, filename)
+  const header = document.createElement('div');
+  header.className = 'file-item-header';
 
   // Drag handle
   const handle = document.createElement('span');
@@ -352,19 +374,118 @@ function createFileListItem(fileName: string, count: number, index: number): HTM
   nameSpan.textContent = fileName;
   nameSpan.title = fileName;
 
-  // Line count
+  header.append(handle, checkbox, nameSpan);
+
+  // Actions wrapper (Line range, line count, jump button)
+  const actions = document.createElement('div');
+  actions.className = 'file-item-actions';
+
+  const metaWrap = document.createElement('div');
+  metaWrap.className = 'file-meta';
+
+  const rangeSpan = document.createElement('span');
+  rangeSpan.className = 'file-range';
+  if (stats.count > 0) {
+    rangeSpan.textContent = stats.firstLine === stats.lastLine
+      ? `Line ${stats.firstLine}`
+      : `Line ${stats.firstLine} - ${stats.lastLine}`;
+  } else {
+    rangeSpan.textContent = '-';
+  }
+
   const countSpan = document.createElement('span');
   countSpan.className = 'file-count';
-  countSpan.textContent = `${count} baris`;
+  countSpan.textContent = `(${stats.count} baris)`;
+
+  metaWrap.append(rangeSpan, countSpan);
+
+  // Jump button
+  const jumpBtn = document.createElement('button');
+  jumpBtn.type = 'button';
+  jumpBtn.className = 'btn btn-xs btn-outline btn-file-jump';
+  jumpBtn.title = `Lompat ke file ${fileName}`;
+  jumpBtn.setAttribute('draggable', 'false');
+  jumpBtn.innerHTML = `<svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg><span>Jump</span>`;
+  jumpBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    jumpToFile(fileName);
+  });
+
+  actions.append(metaWrap, jumpBtn);
 
   // Drag events
-  item.addEventListener('dragstart', (e) => onFileDragStart(e, index, item));
+  item.addEventListener('dragstart', (e) => {
+    if ((e.target as HTMLElement)?.closest('button, input')) {
+      e.preventDefault();
+      return;
+    }
+    onFileDragStart(e, index, item);
+  });
   item.addEventListener('dragenter', (e) => e.preventDefault());
   item.addEventListener('dragover', (e) => onFileDragOver(e, index, item));
   item.addEventListener('dragend', (e) => onFileDragEnd(e));
 
-  item.append(handle, checkbox, nameSpan, countSpan);
+  item.append(header, actions);
   return item;
+}
+
+/** Jump to the specified file in the main workspace scroller. */
+export function jumpToFile(fileName: string): void {
+  closeFileListModal();
+
+  if (state.activeWorkspaceTab !== 'translate') {
+    switchWorkspaceTab('translate');
+  }
+
+  const scroller = getMainScroller();
+  if (!scroller || !state.displayRows || state.displayRows.length === 0) return;
+
+  // Find separator row or the first line row belonging to this file
+  let targetIndex = state.displayRows.findIndex(
+    row => row.type === 'separator' && row.file === fileName
+  );
+
+  if (targetIndex === -1) {
+    targetIndex = state.displayRows.findIndex(
+      row => row.type === 'line' && row.line?.file === fileName
+    );
+  }
+
+  if (targetIndex !== -1) {
+    scroller.scrollToIndex(targetIndex);
+    setTimeout(() => {
+      // Find the separator or line element in the DOM to highlight it
+      const rows = document.querySelectorAll<HTMLElement>('.preview-row');
+      let targetRow: HTMLElement | null = null;
+      for (const r of Array.from(rows)) {
+        if (r.classList.contains('separator')) {
+          const cb = r.querySelector<HTMLInputElement>('input[data-file]');
+          if (cb && cb.dataset.file === fileName) {
+            targetRow = r;
+            break;
+          }
+          if (r.textContent?.includes(`File: ${fileName}`)) {
+            targetRow = r;
+            break;
+          }
+        }
+      }
+      if (!targetRow) {
+        const linesForFile = state.lines.filter(l => l.file === fileName);
+        if (linesForFile.length > 0) {
+          const firstNum = linesForFile[0].line_num;
+          targetRow = document.querySelector(`.preview-row[data-line-num="${firstNum}"]`);
+        }
+      }
+      if (targetRow) {
+        targetRow.classList.add('flash-highlight');
+        setTimeout(() => targetRow?.classList.remove('flash-highlight'), 1500);
+      }
+    }, 60);
+    flashHint(`Melompat ke file ${fileName}`);
+  } else {
+    alert('Gagal melompat: File tidak memiliki baris atau disembunyikan oleh filter regex di menu utama.');
+  }
 }
 
 // ─── Helper: Update delete button state ────────────────────────────────────────
