@@ -9,6 +9,7 @@ import { queueAutoSave } from './project';
 import { applyPromptVariables } from './ai-format';
 import { getGlossaryPrompt, sanitizeTagsForChatgpt } from './glossary';
 import { DEFAULT_AI_CHECK_PROMPT } from './constants';
+import { getDisplayOrderedLines } from './selection';
 import type { Line, AiCheckCorrection } from './types';
 
 
@@ -34,18 +35,19 @@ function normalizeCategory(raw: string): string {
 }
 
 export function getSelectedTranslatedLines(): Line[] {
-  return state.lines.filter(l => state.selectedLines.has(l.line_num) && isTranslated(l) && !isIlustrasiLine(l));
+  return getDisplayOrderedLines().filter(l => state.selectedLines.has(l.line_num) && isTranslated(l) && !isIlustrasiLine(l));
 }
 
 // ─── Context building (once, at the start — same logic as Copy for AI) ────────
 
 function buildAiCheckContextBlock(sel: Line[]): string {
   if (state.contextLines <= 0 || !sel.length) return '';
+  const orderedLines = getDisplayOrderedLines();
   const firstSelLineNum = sel[0].line_num;
-  const firstSelIdx = state.lines.findIndex(l => l.line_num === firstSelLineNum);
+  const firstSelIdx = orderedLines.findIndex(l => l.line_num === firstSelLineNum);
   if (firstSelIdx <= 0) return '';
   const startIdx = Math.max(0, firstSelIdx - state.contextLines);
-  const ctxLines = state.lines.slice(startIdx, firstSelIdx).filter(l => !l._hidden);
+  const ctxLines = orderedLines.slice(startIdx, firstSelIdx).filter(l => !l._hidden);
   if (!ctxLines.length) return '';
   const ctxOut: string[] = [];
   for (const l of ctxLines) {

@@ -9,6 +9,7 @@ import { DEFAULT_AGENT_PROMPT } from './constants';
 import { openModal, closeModal } from './project';
 import { flashHint } from './render';
 import { delay } from './auto-translate';
+import { getDisplayOrderedLines } from './selection';
 import type { Line } from './types';
 
 // ─── Agent state ──────────────────────────────────────────────────────────────
@@ -43,7 +44,11 @@ function toolSearchText(query: string): string {
 
 function toolGetContext(line_num: number, radius: number): string {
   const r = Math.min(Math.max(radius || 3, 1), 20);
-  const results = state.lines.filter(l => l.line_num >= line_num - r && l.line_num <= line_num + r);
+  const ordered = getDisplayOrderedLines();
+  const idx = ordered.findIndex(l => l.line_num === line_num);
+  const results = idx >= 0
+    ? ordered.slice(Math.max(0, idx - r), Math.min(ordered.length, idx + r + 1))
+    : state.lines.filter(l => l.line_num >= line_num - r && l.line_num <= line_num + r);
   return JSON.stringify(results.map(l => ({
     id: l.line_num, name: l.name, message: l.message, trans_message: l.trans_message
   })));
@@ -167,14 +172,17 @@ export async function onAgentTranslate(): Promise<void> {
   fileNotes.clear();
   glossarySuggestions = [];
 
+  const orderedLines = getDisplayOrderedLines();
   let targetLines = Array.from(state.selectedLines)
     .map(num => state.lines.find(l => l.line_num === num))
     .filter(l => l && !isTranslated(l) && !l._hidden) as typeof state.lines;
 
   if (targetLines.length === 0) {
-    targetLines = state.lines.filter(l => !isTranslated(l) && !l._hidden);
+    targetLines = orderedLines.filter(l => !isTranslated(l) && !l._hidden);
   } else {
-    targetLines.sort((a, b) => a.line_num - b.line_num);
+    const rankMap = new Map<number, number>();
+    orderedLines.forEach((l, idx) => rankMap.set(l.line_num, idx));
+    targetLines.sort((a, b) => (rankMap.get(a.line_num) ?? 0) - (rankMap.get(b.line_num) ?? 0));
   }
 
   const maxTurns = state.agentMaxTurns || 10;
@@ -211,10 +219,10 @@ export async function onAgentTranslate(): Promise<void> {
       let contextBlock = '';
       if (state.contextLines > 0) {
         const firstSelLineNum = batch[0].line_num;
-        const firstSelIdx = state.lines.findIndex(l => l.line_num === firstSelLineNum);
+        const firstSelIdx = orderedLines.findIndex(l => l.line_num === firstSelLineNum);
         if (firstSelIdx > 0) {
           const startIdx = Math.max(0, firstSelIdx - state.contextLines);
-          const ctxLines = state.lines.slice(startIdx, firstSelIdx);
+          const ctxLines = orderedLines.slice(startIdx, firstSelIdx);
           const ctxOut: string[] = [];
           for (const l of ctxLines) {
             const origNameStr = l.name ? `${l.name}: ` : '';

@@ -28,6 +28,7 @@ import {
   onApplyAiCheckCorrections,
 } from './ai-check';
 import { queueAutoSave } from './project';
+import { getDisplayOrderedLines } from './selection';
 import JSZip from 'jszip';
 
 (window as any).JSZip = JSZip;
@@ -191,13 +192,16 @@ function applyReceivedResult(text: string): void {
  */
 function selectNextFullAutoBatch(scope: Set<number>): number {
   const batchSize = Math.max(1, state.selectionBatchSize || 100);
-  const batch = state.lines
+  const batch = getDisplayOrderedLines()
     .filter((line) => scope.has(line.line_num) && !isTranslated(line) && !line._hidden)
     .slice(0, batchSize);
 
   state.selectedLines.clear();
   for (const line of batch) state.selectedLines.add(line.line_num);
   syncCheckboxUI();
+  if (batch.length > 0) {
+    import('./selection').then(m => m.scrollPreviewToLine(batch[0].line_num));
+  }
   return batch.length;
 }
 
@@ -426,12 +430,13 @@ function isTabClosedOrFatalError(errorStr?: string): boolean {
 async function runFullAutoBatches(): Promise<void> {
   if (!ensureWorkflowAvailable('translate')) return;
   const originalSelection = new Set(state.selectedLines);
-  const manuallySelected = state.lines
+  const orderedLines = getDisplayOrderedLines();
+  const manuallySelected = orderedLines
     .filter((line) => state.selectedLines.has(line.line_num) && !isTranslated(line) && !line._hidden)
     .map((line) => line.line_num);
   const scope = new Set(manuallySelected.length
     ? manuallySelected
-    : state.lines.filter((line) => !isTranslated(line) && !line._hidden).map((line) => line.line_num));
+    : orderedLines.filter((line) => !isTranslated(line) && !line._hidden).map((line) => line.line_num));
   if (!scope.size) {
     flashHint('Tidak ada baris belum diterjemahkan.');
     return;
@@ -554,7 +559,7 @@ async function runFullAutoBatches(): Promise<void> {
 // ─── Glossary helpers ─────────────────────────────────────────────────────────
 
 function buildGlossaryPrompt(): string {
-  const sel = state.lines.filter(l => state.selectedLines.has(l.line_num));
+  const sel = getDisplayOrderedLines().filter(l => state.selectedLines.has(l.line_num));
   if (!sel.length) return '';
   const out = getSelectedTranslationPlainText().split('\n').filter(Boolean);
   if (!out.length) return '';
@@ -606,7 +611,7 @@ async function runGlossaryFullAuto(): Promise<void> {
   await applyLocalSettingsToExtension();
 
   const batchSize = Math.max(1, state.glossaryBatchSize || 50);
-  const allLines = state.lines.filter(l =>
+  const allLines = getDisplayOrderedLines().filter(l =>
     state.selectedLines.size > 0
       ? state.selectedLines.has(l.line_num) && isTranslated(l)
       : isTranslated(l) && !l._hidden
@@ -795,7 +800,7 @@ async function runAiCheckFullAuto(): Promise<void> {
   const reviewMode = isAiCheckReviewModeEnabled();
 
   const batchSize = Math.max(1, state.aiCheckBatchSize || 50);
-  const allLines = state.lines.filter(l =>
+  const allLines = getDisplayOrderedLines().filter(l =>
     state.selectedLines.size > 0
       ? state.selectedLines.has(l.line_num) && isTranslated(l)
       : isTranslated(l) && !l._hidden && !l._ai_checked

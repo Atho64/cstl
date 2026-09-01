@@ -12,6 +12,7 @@ import { onSaveGlossary } from './glossary';
 import { onApplyAiCheckCorrections } from './ai-check';
 import { appendProjectLog, updateStreamingLog, finishStreamingLog } from './logging';
 import { applyAnthropicOptions, applyGeminiOptions, applyOpenAIOptions } from './api-request-options';
+import { getDisplayOrderedLines } from './selection';
 
 const API_STORAGE_KEY = 'cstl_api_settings';
 
@@ -510,14 +511,17 @@ export async function onAutoTranslate(): Promise<void> {
   btn.classList.add('btn-danger');
   btn.textContent = 'Hentikan Auto Translate';
 
+  const orderedLines = getDisplayOrderedLines();
   let targetLines = Array.from(state.selectedLines)
     .map(num => state.lines.find(l => l.line_num === num))
     .filter(l => l && !isTranslated(l) && !l._hidden) as typeof state.lines;
 
   if (targetLines.length === 0) {
-    targetLines = state.lines.filter(l => !isTranslated(l) && !l._hidden);
+    targetLines = orderedLines.filter(l => !isTranslated(l) && !l._hidden);
   } else {
-    targetLines.sort((a, b) => a.line_num - b.line_num);
+    const rankMap = new Map<number, number>();
+    orderedLines.forEach((l, idx) => rankMap.set(l.line_num, idx));
+    targetLines.sort((a, b) => (rankMap.get(a.line_num) ?? 0) - (rankMap.get(b.line_num) ?? 0));
   }
 
   try {
@@ -554,10 +558,10 @@ export async function onAutoTranslate(): Promise<void> {
         let contextBlock = '';
         if (state.contextLines > 0) {
           const firstSelLineNum = sel[0].line_num;
-          const firstSelIdx = state.lines.findIndex(l => l.line_num === firstSelLineNum);
+          const firstSelIdx = orderedLines.findIndex(l => l.line_num === firstSelLineNum);
           if (firstSelIdx > 0) {
             const startIdx = Math.max(0, firstSelIdx - state.contextLines);
-            const ctxLines = state.lines.slice(startIdx, firstSelIdx);
+            const ctxLines = orderedLines.slice(startIdx, firstSelIdx);
             const ctxOut: string[] = [];
             for (const l of ctxLines) {
               const origNameStr = l.name ? `${l.name}: ` : '';
@@ -651,10 +655,10 @@ export async function onAutoTranslate(): Promise<void> {
           let contextBlock = '';
           if (state.contextLines > 0) {
             const firstSelLineNum = subBatch[0].line_num;
-            const firstSelIdx = state.lines.findIndex(l => l.line_num === firstSelLineNum);
+            const firstSelIdx = orderedLines.findIndex(l => l.line_num === firstSelLineNum);
             if (firstSelIdx > 0) {
               const startIdx = Math.max(0, firstSelIdx - state.contextLines);
-              const ctxLines = state.lines.slice(startIdx, firstSelIdx);
+              const ctxLines = orderedLines.slice(startIdx, firstSelIdx);
               const ctxOut: string[] = [];
               for (const l of ctxLines) {
                 const origNameStr = l.name ? `${l.name}: ` : '';
@@ -1053,7 +1057,7 @@ export async function onAutoGlossary(): Promise<void> {
     return;
   }
 
-  const targetLines = state.lines.filter(l => !l._glossary_extracted && !l._hidden);
+  const targetLines = getDisplayOrderedLines().filter(l => !l._glossary_extracted && !l._hidden);
   if (targetLines.length === 0) {
     alert('Selesai! Semua baris telah diekstrak glossary-nya.');
     return;
@@ -1065,7 +1069,7 @@ export async function onAutoGlossary(): Promise<void> {
 
   try {
     while (isAutoGlossary) {
-      const untranslatedLines = state.lines.filter(l => !l._glossary_extracted && !l._hidden);
+      const untranslatedLines = getDisplayOrderedLines().filter(l => !l._glossary_extracted && !l._hidden);
       if (untranslatedLines.length === 0) {
         void import('./notify').then(m => m.notifyStop('Auto Glossary selesai.', 'success'));
         alert('Selesai! Semua baris telah diekstrak glossary-nya.');
@@ -1147,7 +1151,7 @@ export async function onAutoAiCheck(): Promise<void> {
   }
 
   // Skip confirmed lines and QC-flagged lines (if QC results exist)
-  const targetLines = state.lines.filter(l => isTranslated(l) && !l._ai_checked && !l._ai_confirmed && !l._hidden);
+  const targetLines = getDisplayOrderedLines().filter(l => isTranslated(l) && !l._ai_checked && !l._ai_confirmed && !l._hidden);
   if (targetLines.length === 0) {
     alert('Selesai! Semua baris terjemahan telah di-cek AI.');
     return;
@@ -1163,7 +1167,7 @@ export async function onAutoAiCheck(): Promise<void> {
 
   try {
     while (isAutoAiCheck) {
-      const uncheckedLines = state.lines.filter(l => isTranslated(l) && !l._ai_checked && !l._ai_confirmed && !l._hidden);
+      const uncheckedLines = getDisplayOrderedLines().filter(l => isTranslated(l) && !l._ai_checked && !l._ai_confirmed && !l._hidden);
       if (uncheckedLines.length === 0) {
         // Show summary
         void import('./notify').then(m => m.notifyStop('Auto AI Check selesai.', 'success'));

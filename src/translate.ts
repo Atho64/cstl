@@ -13,6 +13,7 @@ import { queueAutoSave } from './project';
 import { getGlossaryMatches, getGlossaryPrompt, sanitizeTagsForChatgpt } from './glossary';
 import { DEFAULT_SUMMARY_PROMPT, DEFAULT_SUMMARY_PROMPT_SAFE_TAGS } from './constants';
 import { applyIncrement } from './increment';
+import { getDisplayOrderedLines } from './selection';
 
 function snapshotLine(l: any): any {
   return {
@@ -50,16 +51,17 @@ import {
 
 /** Build the same prompt as Copy for AI. Returns null if nothing selected. */
 export function buildCopyForAiPrompt(): string | null {
-  const sel = state.lines.filter(l => state.selectedLines.has(l.line_num) && !isTranslated(l));
+  const orderedLines = getDisplayOrderedLines();
+  const sel = orderedLines.filter(l => state.selectedLines.has(l.line_num) && !isTranslated(l));
   if (!sel.length) return null;
 
   let contextBlock = '';
   if (state.contextLines > 0) {
     const firstSelLineNum = sel[0].line_num;
-    const firstSelIdx = state.lines.findIndex(l => l.line_num === firstSelLineNum);
+    const firstSelIdx = orderedLines.findIndex(l => l.line_num === firstSelLineNum);
     if (firstSelIdx > 0) {
       const startIdx = Math.max(0, firstSelIdx - state.contextLines);
-      const ctxLines = state.lines.slice(startIdx, firstSelIdx);
+      const ctxLines = orderedLines.slice(startIdx, firstSelIdx);
       const ctxOut: string[] = [];
       for (const l of ctxLines) {
         if (isIlustrasiLine(l)) continue; // image placeholders carry no useful context
