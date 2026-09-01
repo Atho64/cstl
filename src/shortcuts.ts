@@ -181,7 +181,7 @@ export const Shortcuts = {
   refreshPluginActions(): void {
     const cmds = (window as any).CSTL?.plugins?.commands?.() || [];
     Shortcuts._pluginActions = cmds.map((c: any) => ({
-      id: `plugin.${c.id}`,
+      id: c.id,
       label: `${c.pluginName || 'Plugin'}: ${c.label}`,
       scope: 'always' as const,
       def: '',

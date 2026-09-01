@@ -162,13 +162,16 @@
         <button id="btnDictHistory" class="btn" title="Riwayat Kamus"><svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg><span class="btn-text"> Kamus</span></button>
         <button id="btnTextReplacer" class="btn" title="Text Replacer (Pra/Pasca)"><svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg><span class="btn-text"> Replacer</span></button>
         <button id="btnFileList" class="btn" disabled title="Daftar File"><svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 13h4"/><path d="M10 17h4"/></svg><span class="btn-text"> Files</span></button>
+        <div class="dropdown" id="pluginMenuGroup">
+          <button id="btnOpenPlugins" class="btn dropdown-toggle" aria-expanded="false" aria-haspopup="menu" title="Plugin & Commands"><svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 5h4.5a2.5 2.5 0 1 1 5 0H19v4.5a2.5 2.5 0 1 1 0 5V19h-4.5a2.5 2.5 0 1 0-5 0H5v-4.5a2.5 2.5 0 1 0 0-5z"/></svg><span class="btn-text"> Plugin</span> ▾</button>
+          <div id="pluginMenu" class="dropdown-content dropdown-right"></div>
+        </div>
         <div class="dropdown">
           <button id="btnDropdownSettings" class="btn dropdown-toggle" aria-expanded="false" aria-haspopup="menu" title="Pengaturan Proyek"><svg class="lucide-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915" /><circle cx="12" cy="12" r="3" /></svg><span class="btn-text"> Setting</span> ▾</button>
           <div id="dropdownSettingsMenu" class="dropdown-content">
             <button id="btnSettingsGeneral" class="dropdown-item">General Settings</button>
             <button id="btnSettingsPrompts" class="dropdown-item">Prompt Settings</button>
             <button id="btnSettingsGlossary" class="dropdown-item">Smart Glossary</button>
-            <button id="btnWorkspacePluginsOpen" class="dropdown-item">Plugin & Parser Manager</button>
             <button id="btnWorkspaceShortcutsOpen" class="dropdown-item">Shortcut Keyboard</button>
           </div>
         </div>

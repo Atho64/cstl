@@ -955,6 +955,15 @@ input.dashboard-search-input,
 .dropdown-item:active { background: color-mix(in srgb, var(--primary) 18%, var(--panel-2)); }
 .dropdown-item:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
 
+.dropdown-header {
+  padding: 6px 12px 4px;
+  font-size: var(--text-2xs, 11px);
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
 /* Nested import submenu — real flyout under "Format File Lainnya" */
 #dropdownImportMenu {
   overflow: visible;
