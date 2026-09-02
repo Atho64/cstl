@@ -1207,7 +1207,13 @@
             </div>
           </div>
         </div>
-        <p id="proofreadStatus" class="hint mt-2"></p>
+        <div class="proofread-status-bar flex-between flex-center wrap gap-8 mt-2">
+          <p id="proofreadStatus" class="hint m-0"></p>
+          <div id="proofreadExclusionActions" class="flex gap-8" style="display: none;">
+            <button id="btnProofreadIncludeAll" class="btn btn-sm btn-outline" type="button">Sertakan Semua</button>
+            <button id="btnProofreadExcludeAll" class="btn btn-sm btn-outline" type="button">Kecualikan Semua</button>
+          </div>
+        </div>
         <div class="proofread-results-wrap mt-2">
           <div id="proofreadContainer" class="preview-container"></div>
         </div>

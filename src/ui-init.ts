@@ -20,7 +20,7 @@ import { onSaveGlossary, onImportGlossaryFile, onExportGlossaryFile, onDeleteTra
 import { onCopyForAi, onApplyTranslation, onUndoLastApply, onRedoLastUndo } from './translate';
 import { onCopyNamesForAi, onApplyNameTranslations, onResetNameTranslations } from './name-translation';
 import { onCopyForAiCheck, onParseAiCheck, onApplyAiCheckCorrections, onClearAiCheck } from './ai-check';
-import { onOpenProofread, onResetProofread, onProofreadReplaceAll, renderProofreadResults } from './proofread';
+import { onOpenProofread, onResetProofread, onProofreadReplaceAll, renderProofreadResults, onProofreadIncludeAll, onProofreadExcludeAll } from './proofread';
 import { onOpenQa, onResetQa, runQaCheck, onRetranslateFlagged } from './qa';
 import { onOpenSettings, onSavePromptSettings, onOpenPromptsSettings, onOpenGlossarySettings, onSavePromptsSettings, onSaveGlossarySettings } from './settings';
 import { onExport } from './export';
@@ -101,7 +101,7 @@ export function cacheElements(): void {
     'jsonRefLang2Wrap', 'lineRefLang2Label', 'lineRefLang2View',
     'btnLineCancel', 'btnLineSave', 'proofreadModal', 'proofreadSearchInput', 'proofreadScope',
     'proofreadRegexCheck', 'proofreadCaseCheck', 'proofreadExactCheck', 'proofreadTranslatedOnlyCheck',
-    'btnProofreadReset', 'proofreadStatus', 'proofreadContainer', 'btnProofreadClose',
+    'btnProofreadReset', 'proofreadStatus', 'proofreadExclusionActions', 'btnProofreadIncludeAll', 'btnProofreadExcludeAll', 'proofreadContainer', 'btnProofreadClose',
     'proofreadReplaceInput', 'btnProofreadReplaceAll', 'proofreadPreserveCaseCheck', 'proofreadJumpCheck', 'rangeFromInput', 'rangeToInput', 'btnSelectRange',
     'settingsCheckKanaResidue', 'settingsCheckSimilarity', 'settingsSimilarityThreshold', 'settingsSimilarityThresholdWrap',
     'settingsContextTypeSelect',
@@ -657,10 +657,24 @@ if (ui.settingsCheckSimilarity) {
   ui.btnLineSave?.addEventListener('click', onSaveLineEditor);
   ui.btnProofreadClose?.addEventListener('click', () => closeModal(ui.proofreadModal as HTMLElement));
   ui.btnProofreadReset?.addEventListener('click', onResetProofread);
+  ui.btnProofreadIncludeAll?.addEventListener('click', onProofreadIncludeAll);
+  ui.btnProofreadExcludeAll?.addEventListener('click', onProofreadExcludeAll);
   ui.btnProofreadReplaceAll?.addEventListener('click', onProofreadReplaceAll);
 
   const debouncedSearch = debounce(renderProofreadResults, 250);
   ui.proofreadSearchInput?.addEventListener('input', debouncedSearch);
+  ui.proofreadSearchInput?.addEventListener('keydown', (e: KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      renderProofreadResults();
+    }
+  });
+  ui.proofreadReplaceInput?.addEventListener('keydown', (e: KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      onProofreadReplaceAll();
+    }
+  });
   const onChangeProofreadSetting = () => {
     renderProofreadResults();
     queueAutoSave();

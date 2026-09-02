@@ -303,6 +303,7 @@ export interface ProofreadMatch {
   transName: string | null;
   transMsg: string | null;
   isTrans: boolean;
+  excluded?: boolean;
 }
 
 // ─── QA ───────────────────────────────────────────────────────────────────────
