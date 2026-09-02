@@ -83,19 +83,40 @@ export class VirtualScroller<T = any> {
     this.rowMap.clear();
   }
 
-  setItems(items: T[]): void {
+  setItems(items: T[], preserveScroll = false): void {
     if (this.disposed) return;
+    const prevScroll = preserveScroll ? this.viewport.scrollTop : 0;
     this.items = items;
-    this.heights = new Array(items.length).fill(this.estimatedHeight);
+    if (preserveScroll && this.heights.length === items.length) {
+      // Retain existing heights
+    } else {
+      const newHeights = new Array(items.length).fill(this.estimatedHeight);
+      if (preserveScroll) {
+        const copyLen = Math.min(this.heights.length, items.length);
+        for (let i = 0; i < copyLen; i++) newHeights[i] = this.heights[i];
+      }
+      this.heights = newHeights;
+    }
     this.updatePositions();
-    this.scrollTop = this.viewport.scrollTop = 0;
-    this.lastStart = -1;
-    this.lastEnd = -1;
-    this.container.innerHTML = '';
-    this.rowMap.clear();
-    this.topSpacer = null;
-    this.bottomSpacer = null;
-    this.render(true);
+    if (preserveScroll) {
+      const maxScroll = Math.max(0, this.totalHeight - (this.viewport.clientHeight || 800));
+      const targetScroll = Math.min(prevScroll, maxScroll);
+      this.scrollTop = targetScroll;
+      this.viewport.scrollTop = targetScroll;
+      this.lastStart = -1;
+      this.lastEnd = -1;
+      this.render(true);
+      this.viewport.scrollTop = targetScroll;
+    } else {
+      this.scrollTop = this.viewport.scrollTop = 0;
+      this.lastStart = -1;
+      this.lastEnd = -1;
+      this.container.innerHTML = '';
+      this.rowMap.clear();
+      this.topSpacer = null;
+      this.bottomSpacer = null;
+      this.render(true);
+    }
   }
 
   updatePositions(): void {
@@ -266,14 +287,25 @@ export class VirtualScroller<T = any> {
     this.lastStart = targetStart;
     this.lastEnd = end;
 
+    if (!this.topSpacer || !this.topSpacer.parentNode) {
+      this.topSpacer = document.createElement('div');
+      this.container.insertBefore(this.topSpacer, this.container.firstChild);
+    }
+    if (!this.bottomSpacer || !this.bottomSpacer.parentNode) {
+      this.bottomSpacer = document.createElement('div');
+      this.container.appendChild(this.bottomSpacer);
+    }
+
+    const topPad = this.positions[targetStart] || 0;
+    const bottomPad = end < total ? this.totalHeight - this.positions[end] : 0;
+    this.topSpacer.style.height = `${topPad}px`;
+    this.bottomSpacer.style.height = `${bottomPad}px`;
+
     if (force) {
       for (const [, el] of this.rowMap) {
         el.remove();
       }
       this.rowMap.clear();
-      // Keep cached heights for off-screen rows instead of resetting to estimated.
-      // Visible rows will be re-measured after render. This prevents large
-      // totalHeight miscalculations that cause blank space at the bottom.
       this.updatePositions();
     }
 
@@ -289,15 +321,6 @@ export class VirtualScroller<T = any> {
       this.rowMap.delete(idx);
     }
 
-    if (!this.topSpacer || !this.topSpacer.parentNode) {
-      this.topSpacer = document.createElement('div');
-      this.container.insertBefore(this.topSpacer, this.container.firstChild);
-    }
-    if (!this.bottomSpacer || !this.bottomSpacer.parentNode) {
-      this.bottomSpacer = document.createElement('div');
-      this.container.appendChild(this.bottomSpacer);
-    }
-
     const frag = document.createDocumentFragment();
     const newElements: HTMLElement[] = [];
     for (let i = targetStart; i < end; i++) {
@@ -311,11 +334,6 @@ export class VirtualScroller<T = any> {
       frag.appendChild(el);
     }
     this.container.insertBefore(frag, this.bottomSpacer);
-
-    const topPad = this.positions[targetStart];
-    const bottomPad = end < total ? this.totalHeight - this.positions[end] : 0;
-    this.topSpacer.style.height = `${topPad}px`;
-    this.bottomSpacer.style.height = `${bottomPad}px`;
 
     this.onVisibleRangeChange?.(targetStart, end);
 

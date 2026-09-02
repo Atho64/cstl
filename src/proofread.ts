@@ -171,7 +171,7 @@ export function onProofreadExcludeAll(): void {
   flashHint('Semua baris dikecualikan.');
 }
 
-export function renderProofreadResults(): void {
+export function renderProofreadResults(preserveScroll = false): void {
   if (!ui.proofreadModal.classList.contains('open')) return;
   const query = ui.proofreadSearchInput.value;
   const isRegex = ui.proofreadRegexCheck.checked;
@@ -193,7 +193,7 @@ export function renderProofreadResults(): void {
       state.proofreadMatches = [];
       if (ui.proofreadStatus) ui.proofreadStatus.textContent = 'Pola Regex tidak valid.';
       if (ui.proofreadExclusionActions) ui.proofreadExclusionActions.style.display = 'none';
-      getProofreadScroller().setItems([]);
+      getProofreadScroller().setItems([], preserveScroll);
       return;
     }
   }
@@ -236,7 +236,7 @@ export function renderProofreadResults(): void {
   }
 
   updateProofreadStatusUI();
-  getProofreadScroller().setItems(state.proofreadMatches);
+  getProofreadScroller().setItems(state.proofreadMatches, preserveScroll);
 }
 
 export function renderProofreadRow(r: ProofreadMatch): HTMLElement {
@@ -438,7 +438,7 @@ export function onProofreadReplaceAll(): void {
 
   if (count > 0) {
     refreshAll();
-    renderProofreadResults();
+    renderProofreadResults(true);
     queueAutoSave();
     const excludedCount = excludedLineNums.size;
     if (excludedCount > 0) {

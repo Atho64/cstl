@@ -670,7 +670,7 @@ export function onSaveLineEditor(): void {
   closeModal(ui.lineEditorModal as HTMLElement);
   refreshAll();
   import('./proofread').then(m => {
-    if ((ui.proofreadModal as HTMLElement).classList.contains('open')) m.renderProofreadResults();
+    if ((ui.proofreadModal as HTMLElement).classList.contains('open')) m.renderProofreadResults(true);
   });
   queueAutoSave();
 }
