@@ -25,6 +25,19 @@ function renderGlossaryPreview() { import('./glossary').then(m => m.renderGlossa
 let separatorIndices: number[] = [];
 let fileLineRanges = new Map<string, { first: number; last: number }>();
 
+export function compileRegexFilter(raw: string, isCase: boolean): RegExp | null {
+  const trimmed = (raw || '').trim();
+  if (!trimmed) return null;
+  const match = trimmed.match(/^\/(.+)\/([a-z]*)$/i);
+  if (match) {
+    const body = match[1];
+    let flags = match[2];
+    if (!flags.includes('u')) flags += 'u';
+    return new RegExp(body, flags);
+  }
+  return new RegExp(trimmed, isCase ? 'u' : 'ui');
+}
+
 export function rebuildDisplayState(): void {
   state.lineByNum.clear();
   const orderedImportedFiles = getFileDisplayOrder();
@@ -32,7 +45,7 @@ export function rebuildDisplayState(): void {
   let cachedRegex: RegExp | null = null;
   if (state.regexFilter) {
     try {
-      cachedRegex = new RegExp(state.regexFilter, 'ui');
+      cachedRegex = compileRegexFilter(state.regexFilter, !!state.regexFilterCase);
     } catch (_) {}
   }
 
@@ -332,6 +345,7 @@ export function syncCheckboxUI(): void {
 export function collectCharacterNameRows() {
   const rows = new Map<string, { name: string; lines: Line[]; translatedNames: Set<string> }>();
   for (const line of state.lines) {
+    if (line._hidden) continue;
     const name = String(line.name || '').trim();
     if (!name) continue;
     if (!rows.has(name)) rows.set(name, { name, lines: [], translatedNames: new Set() });
@@ -393,8 +407,10 @@ export function renderNameTable(): void {
 // ─── Status Bar & Refresh ──────────────────────────────────────────────────────
 
 export function updateStatusBar(): void {
-  const total = state.lines.length;
-  const trans = state.lines.filter(isTranslated).length;
+  const rawTotal = state.lines.length;
+  const visibleLines = state.lines.filter(l => !l._hidden);
+  const total = visibleLines.length;
+  const trans = visibleLines.filter(isTranslated).length;
   const perc = total ? Math.floor((trans / total) * 100) : 0;
 
   let modeText = '-';
@@ -410,7 +426,11 @@ export function updateStatusBar(): void {
     } else modeText = 'JSON VNTP';
   }
 
-  (ui.statusBar as HTMLElement).textContent = `${APP_VERSION} | Mode: ${modeText} | File: ${state.importedFiles.length > 1 ? state.importedFiles.length + ' file' : (state.importedFiles[0] || '-')} | Baris: ${total} | TL: ${trans}/${total} (${perc}%)`;
+  const lineCountLabel = rawTotal > total
+    ? `Baris: ${total} (${rawTotal - total} terfilter)`
+    : `Baris: ${total}`;
+
+  (ui.statusBar as HTMLElement).textContent = `${APP_VERSION} | Mode: ${modeText} | File: ${state.importedFiles.length > 1 ? state.importedFiles.length + ' file' : (state.importedFiles[0] || '-')} | ${lineCountLabel} | TL: ${trans}/${total} (${perc}%)`;
   (ui.progressFill as HTMLElement).style.width = `${perc}%`;
   (ui.progressText as HTMLElement).textContent = `${trans}/${total}`;
 }

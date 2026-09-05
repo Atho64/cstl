@@ -200,6 +200,7 @@ export function renderProofreadResults(preserveScroll = false): void {
 
   state.proofreadMatches = [];
   for (const line of state.lines) {
+    if (line._hidden) continue;
     if (isIlustrasiLine(line)) continue; // image placeholders carry no translatable text
     if (onlyTrans && !isTranslated(line)) continue;
     const dName = line.name || '';

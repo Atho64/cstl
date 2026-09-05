@@ -12,7 +12,7 @@ import {
 } from './constants';
 import { getDefaultPromptHeaderForFormat, normalizeAiTranslationFormat } from './ai-format';
 import { normalizeSelectionBatchSize } from './selection';
-import { refreshAll } from './render';
+import { refreshAll, compileRegexFilter } from './render';
 import { renderGlossaryPreview } from './glossary';
 import { queueAutoSave, openModal, closeModal, DS_STORAGE_KEY } from './project';
 import { applyHtlMode } from './htl-mode';
@@ -25,6 +25,9 @@ export function onOpenSettings(): void {
     (ui.settingsTranslationModeSelect as HTMLSelectElement).value = state.translationMode || 'ai';
   }
   (ui.settingsRegexFilterInput as HTMLInputElement).value = state.regexFilter || '';
+  if (ui.settingsRegexFilterCaseCheck) {
+    (ui.settingsRegexFilterCaseCheck as HTMLInputElement).checked = !!state.regexFilterCase;
+  }
   const isJson = state.projectType === 'json';
   if (ui.settingsRefLangWrap) {
     (ui.settingsRefLangWrap as HTMLElement).style.display = isJson ? 'block' : 'none';
@@ -132,6 +135,7 @@ export function onSavePromptSettings(): void {
   const targetLang = (ui.settingsTargetLangSelect as HTMLSelectElement).value || 'Indonesian';
   const translationMode = (ui.settingsTranslationModeSelect as HTMLSelectElement)?.value === 'htl' ? 'htl' : 'ai';
   const regexFilter = (ui.settingsRegexFilterInput as HTMLInputElement).value;
+  const regexFilterCase = !!((ui.settingsRegexFilterCaseCheck as HTMLInputElement)?.checked);
   const disableEmptyLineValidation = (ui.settingsDisableEmptyLineValidation as HTMLInputElement).checked;
   const showFurigana = !!((ui.settingsShowFurigana as HTMLInputElement)?.checked);
   const fontSize = parseInt((ui.settingsFontSize as HTMLInputElement)?.value) || 14;
@@ -146,7 +150,7 @@ export function onSavePromptSettings(): void {
 
   if (regexFilter) {
     try {
-      new RegExp(regexFilter, 'u');
+      compileRegexFilter(regexFilter, regexFilterCase);
     } catch (err: any) {
       return alert('Regex Filter tidak valid: ' + err.message);
     }
@@ -170,6 +174,7 @@ export function onSavePromptSettings(): void {
   state.targetLang = targetLang;
   state.translationMode = translationMode as any;
   state.regexFilter = regexFilter;
+  state.regexFilterCase = regexFilterCase;
   state.disableEmptyLineValidation = disableEmptyLineValidation;
   const oldShowFurigana = state.showFurigana;
   state.showFurigana = showFurigana;

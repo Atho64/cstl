@@ -132,6 +132,7 @@ export interface AppState {
   sourceLang: string;
   targetLang: string;
   regexFilter: string;
+  regexFilterCase: boolean;
   preReplaceRules: string;
   postReplaceRules: string;
   enableBackgroundChaining: boolean;

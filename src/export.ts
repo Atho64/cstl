@@ -107,7 +107,7 @@ export function onCopyForAi(ctxLines: Line[]): void {
 }
 
 export function confirmExportWithUntranslatedReport(): boolean {
-  const untranslated = state.lines.filter(l => !isTranslated(l));
+  const untranslated = state.lines.filter(l => !l._hidden && !isTranslated(l));
   if (!untranslated.length) return true;
 
   const preview = untranslated.slice(0, 12).map(l => {

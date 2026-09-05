@@ -20,7 +20,7 @@ export function lastTranslatedNum(): number {
 export function nextUntranslatedAfter(num: number): number | null {
   let next: number | null = null;
   for (const l of state.lines) {
-    if (!isLineTranslated(l) && l.line_num > num && (next === null || l.line_num < next)) {
+    if (!l._hidden && !isLineTranslated(l) && l.line_num > num && (next === null || l.line_num < next)) {
       next = l.line_num;
     }
   }
@@ -48,7 +48,7 @@ export function prefillIncrement(): void {
   state.selectedLines.clear();
   for (let n = from; n <= to; n++) {
     const l = state.lineByNum.get(n) || state.lines.find(x => x.line_num === n);
-    if (l && !isLineTranslated(l)) state.selectedLines.add(n);
+    if (l && !l._hidden && !isLineTranslated(l)) state.selectedLines.add(n);
   }
   refreshAll();
 }

@@ -18,6 +18,7 @@ export const state: AppState = {
   sourceLang: 'Japanese',
   targetLang: 'Indonesian',
   regexFilter: '',
+  regexFilterCase: false,
   preReplaceRules: '',
   postReplaceRules: '',
   enableBackgroundChaining: false,

@@ -546,14 +546,16 @@ async function chatCompletionGemini(
 // ------------------------------------------------------------------
 
 function getProjectStats() {
-  const total = state.lines.length;
-  const translated = state.lines.filter(l => l.is_translated).length;
+  const visible = state.lines.filter(l => !l._hidden);
+  const total = visible.length;
+  const rawTotal = state.lines.length;
+  const translated = visible.filter(l => l.is_translated).length;
   const untranslated = total - translated;
   const percent = total ? Math.round((translated / total) * 100) : 0;
-  const files = [...new Set(state.lines.map(l => l.file).filter(Boolean))];
+  const files = [...new Set(visible.map(l => l.file).filter(Boolean))];
   return [
     `=== RINGKASAN PROYEK ===`,
-    `Total Baris: ${total}`,
+    `Total Baris: ${total}${rawTotal > total ? ` (${rawTotal - total} terfilter, dari total ${rawTotal} baris)` : ''}`,
     `Sudah Diterjemahkan: ${translated} (${percent}%)`,
     `Belum Diterjemahkan: ${untranslated}`,
     `Bahasa Sumber: ${state.sourceLang}`,
@@ -647,6 +649,7 @@ function analyzeQuality(limit: number) {
 function getProgressReport() {
   const fileMap = new Map<string, { total: number; translated: number }>();
   for (const l of state.lines) {
+    if (l._hidden) continue;
     const f = l.file || '(tidak diketahui)';
     if (!fileMap.has(f)) fileMap.set(f, { total: 0, translated: 0 });
     const entry = fileMap.get(f)!;
@@ -655,7 +658,7 @@ function getProgressReport() {
   }
   const lines = ['=== LAPORAN PROGRESS PER FILE ==='];
   for (const [file, { total, translated }] of fileMap.entries()) {
-    const pct = Math.round((translated / total) * 100);
+    const pct = total ? Math.round((translated / total) * 100) : 0;
     const bar = '#'.repeat(Math.round(pct / 10)) + '-'.repeat(10 - Math.round(pct / 10));
     lines.push(`${file}\n  [${bar}] ${translated}/${total} (${pct}%)`);
   }
@@ -743,6 +746,7 @@ const SETTING_REGISTRY: Record<string, SettingMeta> = {
   sourceLang: { field: 'sourceLang', type: 'string', desc: 'Bahasa sumber' },
   targetLang: { field: 'targetLang', type: 'string', desc: 'Bahasa target' },
   regexFilter: { field: 'regexFilter', type: 'string', desc: 'Regex filter baris' },
+  regexFilterCase: { field: 'regexFilterCase', type: 'boolean', desc: 'Regex filter case sensitive (ON=case-sensitive, OFF=case-insensitive)' },
   epubTags: { field: 'epubTags', type: 'string', desc: 'Tag HTML untuk parsing EPUB' },
   aiThinkingMode: { field: 'aiThinkingMode', type: 'string', desc: 'Mode thinking AI (default|off|on)' },
   tavilyApiKey: { field: 'tavilyApiKey', type: 'string', desc: 'Tavily API Key untuk web search (kosong = tidak aktif)' },
@@ -1627,6 +1631,11 @@ async function compactContextIfNeeded(onUpdate: (msg: string, role: 'assistant' 
 // ------------------------------------------------------------------
 
 function buildSystemPrompt(): string {
+  const visible = state.lines.filter(l => !l._hidden);
+  const total = visible.length;
+  const rawTotal = state.lines.length;
+  const translated = visible.filter(l => l.is_translated).length;
+
   return `Kamu adalah CSTL AI Agent, asisten terjemahan visual novel yang terintegrasi langsung di dalam aplikasi CSTL Visual Novel Translation Editor.
 
 Tugasmu adalah membantu pengguna menerjemahkan skrip visual novel, menjawab pertanyaan tentang skrip, menganalisis kualitas terjemahan, dan memodifikasi data terjemahan sesuai permintaan.
@@ -1634,8 +1643,8 @@ Tugasmu adalah membantu pengguna menerjemahkan skrip visual novel, menjawab pert
 INFO PROYEK SAAT INI:
 - Bahasa Sumber: ${state.sourceLang}
 - Bahasa Target: ${state.targetLang}
-- Total Baris: ${state.lines.length}
-- Sudah Diterjemahkan: ${state.lines.filter(l => l.is_translated).length}
+- Total Baris: ${total}${rawTotal > total ? ` (${rawTotal - total} terfilter)` : ''}
+- Sudah Diterjemahkan: ${translated}
 ${buildMemoryPromptSection()}
 DAFTAR TOOL YANG TERSEDIA:
 1. getProjectStats() — Ringkasan progress, jumlah baris, daftar file.

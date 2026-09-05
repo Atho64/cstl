@@ -438,8 +438,14 @@
               </select>
             </div>
             <div class="flex-col grow">
-              <label class="form-label" for="dsRegexFilter">Regex Filter (Opsional)</label>
-              <input id="dsRegexFilter" type="text" class="text-input w-full" placeholder="Contoh: ^[A-Za-z0-9_]+$" />
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <label class="form-label" for="dsRegexFilter">Regex Filter (Opsional)</label>
+                <label style="cursor: pointer; display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: var(--muted);">
+                  <input id="dsRegexFilterCase" type="checkbox" style="cursor: pointer;" />
+                  <span>Case-sensitive</span>
+                </label>
+              </div>
+              <input id="dsRegexFilter" type="text" class="text-input w-full" placeholder="Contoh: ^[A-Za-z0-9_]+$ atau /pola/flags" />
             </div>
           </div>
         </div>
@@ -758,8 +764,14 @@
               </select>
             </div>
             <div class="flex-col grow">
-              <label class="form-label" for="settingsRegexFilterInput">Regex Filter (Opsional)</label>
-              <input id="settingsRegexFilterInput" class="text-input w-full" type="text" placeholder="Contoh: ^[A-Za-z0-9_]+$" />
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <label class="form-label" for="settingsRegexFilterInput">Regex Filter (Opsional)</label>
+                <label style="cursor: pointer; display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: var(--muted);">
+                  <input id="settingsRegexFilterCaseCheck" type="checkbox" style="cursor: pointer;" />
+                  <span>Case-sensitive</span>
+                </label>
+              </div>
+              <input id="settingsRegexFilterInput" class="text-input w-full" type="text" placeholder="Contoh: ^[A-Za-z0-9_]+$ atau /pola/flags" />
             </div>
           </div>
 

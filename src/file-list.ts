@@ -26,6 +26,7 @@ let _draggingIndex = -1;
 
 export interface FileLineStats {
   count: number;
+  rawCount?: number;
   firstLine: number;
   lastLine: number;
 }
@@ -59,18 +60,16 @@ export function renderFileList(): void {
   const fileStatsMap = new Map<string, FileLineStats>();
   for (const line of state.lines) {
     const f = line.file;
-    const stats = fileStatsMap.get(f);
+    let stats = fileStatsMap.get(f);
     if (!stats) {
-      fileStatsMap.set(f, {
-        count: 1,
-        firstLine: line.line_num,
-        lastLine: line.line_num,
-      });
-    } else {
-      stats.count++;
-      if (line.line_num < stats.firstLine) stats.firstLine = line.line_num;
-      if (line.line_num > stats.lastLine) stats.lastLine = line.line_num;
+      stats = { count: 0, rawCount: 0, firstLine: 0, lastLine: 0 };
+      fileStatsMap.set(f, stats);
     }
+    stats.rawCount = (stats.rawCount || 0) + 1;
+    if (line._hidden) continue;
+    stats.count++;
+    if (stats.firstLine === 0 || line.line_num < stats.firstLine) stats.firstLine = line.line_num;
+    if (line.line_num > stats.lastLine) stats.lastLine = line.line_num;
   }
 
   container.innerHTML = '';
@@ -395,7 +394,11 @@ function createFileListItem(fileName: string, stats: FileLineStats, index: numbe
 
   const countSpan = document.createElement('span');
   countSpan.className = 'file-count';
-  countSpan.textContent = `(${stats.count} baris)`;
+  if (stats.rawCount && stats.rawCount > stats.count) {
+    countSpan.textContent = `(${stats.count} baris / ${stats.rawCount - stats.count} terfilter)`;
+  } else {
+    countSpan.textContent = `(${stats.count} baris)`;
+  }
 
   metaWrap.append(rangeSpan, countSpan);
 

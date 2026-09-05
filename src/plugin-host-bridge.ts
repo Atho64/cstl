@@ -121,8 +121,9 @@ export function createPluginHostBridge(): PluginHostBridge {
               name: state.projectName,
               type: state.projectType,
               fileCount: state.importedFiles.length,
-              lineCount: state.lines.length,
-              translatedCount: state.lines.filter((l) => l.is_translated).length,
+              lineCount: state.lines.filter((l) => !l._hidden).length,
+              rawLineCount: state.lines.length,
+              translatedCount: state.lines.filter((l) => !l._hidden && l.is_translated).length,
             }
           : null,
       lines: () => state.lines,

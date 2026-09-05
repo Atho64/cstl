@@ -187,6 +187,7 @@ export function getDefaultSettings(): Record<string, any> {
     parallelBatchSize: 1,
     subagentWorkers: 3,
     regexFilter: '',
+    regexFilterCase: false,
     palette: 'indigo',
     enableLogging: false,
     disableEmptyLineValidation: false,
@@ -235,6 +236,7 @@ export function openDashboardSettings(): void {
   if (ui.dsDictionaryEngine) (ui.dsDictionaryEngine as HTMLSelectElement).value = d.dictionaryEngine || 'llm';
   if (ui.dsDictionaryPrompt) (ui.dsDictionaryPrompt as HTMLTextAreaElement).value = d.dictionaryPrompt || 'Jelaskan arti kata "{word}" dalam konteks kalimat "{context}". Berikan bentuk dasar, cara baca (hiragana/romaji), kelas kata, dan terjemahan/penjelasan singkat dalam bahasa Indonesia.';
   if (ui.dsRegexFilter) (ui.dsRegexFilter as HTMLInputElement).value = d.regexFilter || '';
+  if (ui.dsRegexFilterCase) (ui.dsRegexFilterCase as HTMLInputElement).checked = !!d.regexFilterCase;
   if (ui.dsDisableEmptyLineValidation) (ui.dsDisableEmptyLineValidation as HTMLInputElement).checked = !!d.disableEmptyLineValidation;
   if (ui.dsCheckKanaResidue) (ui.dsCheckKanaResidue as HTMLInputElement).checked = !!d.checkKanaResidue;
   if (ui.dsCheckSimilarity) (ui.dsCheckSimilarity as HTMLInputElement).checked = !!d.checkSimilarity;
@@ -289,6 +291,7 @@ export function saveDashboardSettings(): void {
   if (ui.dsDictionaryEngine) d.dictionaryEngine = (ui.dsDictionaryEngine as HTMLSelectElement).value || 'llm';
   if (ui.dsDictionaryPrompt) d.dictionaryPrompt = (ui.dsDictionaryPrompt as HTMLTextAreaElement).value || '';
   if (ui.dsRegexFilter) d.regexFilter = (ui.dsRegexFilter as HTMLInputElement).value || '';
+  if (ui.dsRegexFilterCase) d.regexFilterCase = (ui.dsRegexFilterCase as HTMLInputElement).checked;
   if (ui.dsDisableEmptyLineValidation) d.disableEmptyLineValidation = !!(ui.dsDisableEmptyLineValidation as HTMLInputElement).checked;
   if (ui.dsCheckKanaResidue) d.checkKanaResidue = !!(ui.dsCheckKanaResidue as HTMLInputElement).checked;
   if (ui.dsCheckSimilarity) d.checkSimilarity = !!(ui.dsCheckSimilarity as HTMLInputElement).checked;
@@ -733,6 +736,7 @@ export async function createNewProject(): Promise<void> {
     source_lang: d.sourceLang || 'Japanese',
     target_lang: d.targetLang || 'Indonesian',
     regex_filter: d.regexFilter || '',
+    regex_filter_case: !!d.regexFilterCase,
     disable_empty_line_validation: !!d.disableEmptyLineValidation,
     show_furigana: !!d.showFurigana,
     furigana_type: d.furiganaType || 'hiragana',
@@ -1006,7 +1010,7 @@ function buildProjectPersistenceData(): Record<string, any> {
     luca_profile: state.lucaProfile || DEFAULT_LUCA_PROFILE,
     luca_mc_display_name: state.lucaMcDisplayName || DEFAULT_LUCA_MC_DISPLAY_NAME,
     custom_parser_id: state.customParserId,
-    regex_filter: state.regexFilter, pre_replace_rules: state.preReplaceRules,
+    regex_filter: state.regexFilter, regex_filter_case: state.regexFilterCase, pre_replace_rules: state.preReplaceRules,
     post_replace_rules: state.postReplaceRules,
     disable_empty_line_validation: state.disableEmptyLineValidation,
     check_kana_residue: state.checkKanaResidue, check_similarity: state.checkSimilarity,
@@ -1581,6 +1585,7 @@ export async function openProject(id: string, data: any): Promise<void> {
   activeLucaDataProjectId = id;
   activeLucaDataLoad = lucaDataLoad;
   state.regexFilter = data.regex_filter || '';
+  state.regexFilterCase = !!data.regex_filter_case;
   state.preReplaceRules = data.pre_replace_rules || '';
   state.postReplaceRules = data.post_replace_rules || '';
   state.enableBackgroundChaining = !!(data.enableBackgroundChaining || data.enable_summary_chaining);
