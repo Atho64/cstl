@@ -1,7 +1,7 @@
 // @module selection.ts — Line selection management, batch select, and history
 
 import { state, ui, getMainScroller } from './state';
-import { isTranslated } from './state';
+import { isTranslated, isIlustrasiLine } from './state';
 import { DEFAULT_GLOSSARY_BATCH_SIZE, DEFAULT_AI_CHECK_BATCH_SIZE, DEFAULT_SELECTION_BATCH_SIZE } from './constants';
 import { getFileDisplayOrder } from './file-list';
 import type { Line, WorkspaceTab } from './types';
@@ -23,7 +23,7 @@ function syncCheckboxUI() {
 // ─── Selection Filtering ──────────────────────────────────────────────────────
 
 export function isSelectableForActiveTab(line: Line): boolean {
-  if (!line || line._hidden) return false;
+  if (!line || line._hidden || isIlustrasiLine(line)) return false;
   if (state.activeWorkspaceTab === 'aiCheck' || state.activeWorkspaceTab === 'delete') return isTranslated(line);
   if (state.activeWorkspaceTab === 'translate') return !isTranslated(line);
   return true;
@@ -145,7 +145,7 @@ export function getActiveBatchConfig() {
   const orderedLines = getDisplayOrderedLines();
   if (state.activeWorkspaceTab === 'glossary') {
     return {
-      lines: orderedLines.filter(l => !l._hidden),
+      lines: orderedLines.filter(l => !l._hidden && !isIlustrasiLine(l)),
       batchSize: normalizeSelectionBatchSize(state.glossaryBatchSize, DEFAULT_GLOSSARY_BATCH_SIZE),
       emptyMessage: 'Tidak ada baris untuk Glossary Extractor.',
       tabLabel: 'Glossary Extractor',
@@ -153,14 +153,14 @@ export function getActiveBatchConfig() {
   }
   if (state.activeWorkspaceTab === 'aiCheck') {
     return {
-      lines: orderedLines.filter(l => isTranslated(l) && !l._hidden),
+      lines: orderedLines.filter(l => isTranslated(l) && !l._hidden && !isIlustrasiLine(l)),
       batchSize: normalizeSelectionBatchSize(state.aiCheckBatchSize, DEFAULT_AI_CHECK_BATCH_SIZE),
       emptyMessage: 'Tidak ada baris terjemahan untuk AI Check.',
       tabLabel: 'AI Check',
     };
   }
   return {
-    lines: orderedLines.filter(l => !isTranslated(l) && !l._hidden),
+    lines: orderedLines.filter(l => !isTranslated(l) && !l._hidden && !isIlustrasiLine(l)),
     batchSize: normalizeSelectionBatchSize(state.selectionBatchSize),
     emptyMessage: 'Tidak ada baris belum diterjemahkan.',
     tabLabel: 'Translate',

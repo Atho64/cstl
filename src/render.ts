@@ -522,8 +522,9 @@ export function updateButtonStates(): void {
   const hasSelection = state.selectedLines.size > 0;
   const nameCount = collectCharacterNameRows().length;
   const translatedNameCount = state.lines.filter(l => (l.name || '').trim() && (l.trans_name || '').trim()).length;
-  const untranslatedSelectionCount = state.lines.filter(l => state.selectedLines.has(l.line_num) && !isTranslated(l)).length;
-  const translatedSelectionCount = state.lines.filter(l => state.selectedLines.has(l.line_num) && isTranslated(l)).length;
+  const untranslatedSelectionCount = state.lines.filter(l => !l._hidden && !isIlustrasiLine(l) && state.selectedLines.has(l.line_num) && !isTranslated(l)).length;
+  const translatedSelectionCount = state.lines.filter(l => !l._hidden && !isIlustrasiLine(l) && state.selectedLines.has(l.line_num) && isTranslated(l)).length;
+  const glossarySelectionCount = state.lines.filter(l => !l._hidden && !isIlustrasiLine(l) && state.selectedLines.has(l.line_num)).length;
   const setDisabled = (key: string, val: boolean) => { if (ui[key]) (ui[key] as HTMLButtonElement | HTMLInputElement | HTMLTextAreaElement).disabled = val; };
   setDisabled('btnExport', !hasData);
   setDisabled('btnProofread', !hasData);
@@ -548,7 +549,7 @@ export function updateButtonStates(): void {
     bridgeOk = (window as any).__cstlExtAvailable === true;
   } catch { /* */ }
   const canCopas = untranslatedSelectionCount > 0 && (bridgeOk || document.documentElement.dataset.cstlExt === '1');
-  const untranslatedCount = state.lines.filter(l => !isTranslated(l) && !l._hidden).length;
+  const untranslatedCount = state.lines.filter(l => !isTranslated(l) && !l._hidden && !isIlustrasiLine(l)).length;
   // Full Auto can select the next batch itself, so it must remain available
   // even when the user has not manually selected rows.
   setDisabled('btnAutoCopas', untranslatedCount === 0);
@@ -556,11 +557,11 @@ export function updateButtonStates(): void {
   setDisabled('btnAutoTranslate', untranslatedCount === 0);
   setDisabled('btnCopyNamesForAi', nameCount === 0);
   setDisabled('btnResetNameTranslations', translatedNameCount === 0);
-  setDisabled('btnCopyForGlossaryAi', !hasSelection);
-  const unextractedCount = state.lines.filter(l => !l._glossary_extracted && !l._hidden).length;
+  setDisabled('btnCopyForGlossaryAi', glossarySelectionCount === 0);
+  const unextractedCount = state.lines.filter(l => !l._glossary_extracted && !l._hidden && !isIlustrasiLine(l)).length;
   setDisabled('btnAutoGlossaryAi', unextractedCount === 0);
   setDisabled('btnCopyForAiCheck', translatedSelectionCount === 0);
-  const uncheckedCount = state.lines.filter(l => isTranslated(l) && !l._ai_checked && !l._ai_confirmed && !l._hidden).length;
+  const uncheckedCount = state.lines.filter(l => isTranslated(l) && !l._ai_checked && !l._ai_confirmed && !l._hidden && !isIlustrasiLine(l)).length;
   setDisabled('btnAutoAiCheck', uncheckedCount === 0);
   setDisabled('btnExtractEpubRubyNames', !(state.projectType === 'epub' && state.epubSourceId));
   setDisabled('pasteArea', !hasData);
@@ -581,7 +582,7 @@ export function updateButtonStates(): void {
   setDisabled('btnSelectRange', !hasData);
   if (ui.copyCount) (ui.copyCount as HTMLElement).textContent = String(untranslatedSelectionCount);
   if (ui.copyNameCount) (ui.copyNameCount as HTMLElement).textContent = String(nameCount);
-  if (ui.copyGlossaryCount) (ui.copyGlossaryCount as HTMLElement).textContent = String(state.selectedLines.size);
+  if (ui.copyGlossaryCount) (ui.copyGlossaryCount as HTMLElement).textContent = String(glossarySelectionCount);
   if (ui.deleteTranslationCount) (ui.deleteTranslationCount as HTMLElement).textContent = String(translatedSelectionCount);
   if (ui.copyAiCheckCount) (ui.copyAiCheckCount as HTMLElement).textContent = String(translatedSelectionCount);
   renderGlossaryPreview();

@@ -1,7 +1,7 @@
 // @module glossary.ts — Glossary parsing, management, and file I/O
 
 import { state, ui } from './state';
-import { isTranslated } from './state';
+import { isTranslated, isIlustrasiLine } from './state';
 import { escapeStoredNewlines, unescapeStoredNewlines, containsJapanese, normalizeKana } from './string-utils';
 import { rebuildDisplayState, renderPreviewRows, syncCheckboxUI, flashHint, updateButtonStates } from './render';
 import { queueAutoSave } from './project';
@@ -218,7 +218,7 @@ export function renderGlossaryPreview(): void {
 }
 
 export async function onCopyForGlossaryAi(): Promise<void> {
-  const sel = state.lines.filter(l => state.selectedLines.has(l.line_num));
+  const sel = state.lines.filter(l => !l._hidden && !isIlustrasiLine(l) && state.selectedLines.has(l.line_num));
   if (!sel.length) return;
   const out = getSelectedTranslationPlainText().split('\n').filter(Boolean);
   const basePrompt = applyPromptVariables((state.glossaryPrompt || DEFAULT_GLOSSARY_PROMPT).trim());

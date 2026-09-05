@@ -11,7 +11,7 @@ import {
 } from './constants';
 import { unescapeStoredNewlines, escapeStoredNewlines, escapeXml, stripPlaintextFences, stripScrapedAiPreamble, applyReplaceRules } from './string-utils';
 import { getLineDisplayName } from './luca-engine';
-import { isTranslated } from './state';
+import { isTranslated, isIlustrasiLine } from './state';
 import { getDisplayOrderedLines } from './selection';
 import type { Line, ParsedTranslationItem } from './types';
 
@@ -105,7 +105,7 @@ export function formatLineForAiExportJsonl(line: Line): string {
 
 export function getSelectedTranslationText(includeTranslated = true, lineNums?: ReadonlySet<number>): string {
   const ordered = getDisplayOrderedLines();
-  const sel = ordered.filter(l => (lineNums ? lineNums.has(l.line_num) : state.selectedLines.has(l.line_num)) && (includeTranslated || !isTranslated(l)));
+  const sel = ordered.filter(l => !l._hidden && !isIlustrasiLine(l) && (lineNums ? lineNums.has(l.line_num) : state.selectedLines.has(l.line_num)) && (includeTranslated || !isTranslated(l)));
   const fmt = normalizeAiTranslationFormat(state.aiTranslationFormat);
   if (fmt === AI_TRANSLATION_FORMAT_BLOCK)  return sel.map(formatLineForAiExport).join('\n\n');
   if (fmt === AI_TRANSLATION_FORMAT_XML)    return sel.map(formatLineForAiExportXml).join('\n');
@@ -116,7 +116,7 @@ export function getSelectedTranslationText(includeTranslated = true, lineNums?: 
 
 export function getSelectedTranslationPlainText(includeTranslated = true, lineNums?: ReadonlySet<number>): string {
   const ordered = getDisplayOrderedLines();
-  const sel = ordered.filter(l => (lineNums ? lineNums.has(l.line_num) : state.selectedLines.has(l.line_num)) && (includeTranslated || !isTranslated(l)));
+  const sel = ordered.filter(l => !l._hidden && !isIlustrasiLine(l) && (lineNums ? lineNums.has(l.line_num) : state.selectedLines.has(l.line_num)) && (includeTranslated || !isTranslated(l)));
   return sel.map(l => {
     const dN = applyReplaceRules(l.name || '', state.preReplaceRules, 'name') || l.name || '';
     let msg = unescapeStoredNewlines(l.message);

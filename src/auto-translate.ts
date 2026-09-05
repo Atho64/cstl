@@ -1057,7 +1057,7 @@ export async function onAutoGlossary(): Promise<void> {
     return;
   }
 
-  const targetLines = getDisplayOrderedLines().filter(l => !l._glossary_extracted && !l._hidden);
+  const targetLines = getDisplayOrderedLines().filter(l => !l._glossary_extracted && !l._hidden && !isIlustrasiLine(l));
   if (targetLines.length === 0) {
     alert('Selesai! Semua baris telah diekstrak glossary-nya.');
     return;
@@ -1069,7 +1069,7 @@ export async function onAutoGlossary(): Promise<void> {
 
   try {
     while (isAutoGlossary) {
-      const untranslatedLines = getDisplayOrderedLines().filter(l => !l._glossary_extracted && !l._hidden);
+      const untranslatedLines = getDisplayOrderedLines().filter(l => !l._glossary_extracted && !l._hidden && !isIlustrasiLine(l));
       if (untranslatedLines.length === 0) {
         void import('./notify').then(m => m.notifyStop('Auto Glossary selesai.', 'success'));
         alert('Selesai! Semua baris telah diekstrak glossary-nya.');
@@ -1095,8 +1095,10 @@ export async function onAutoGlossary(): Promise<void> {
       }).filter(Boolean);
 
       const { applyPromptVariables } = await import('./ai-format');
+      const { buildExistingGlossaryHint } = await import('./glossary');
       const basePrompt = applyPromptVariables((state.glossaryPrompt || DEFAULT_GLOSSARY_PROMPT).trim());
-      const prompt = `${basePrompt}\n\n${out.join('\n')}\n`;
+      const existingHint = buildExistingGlossaryHint(out.join('\n'));
+      const prompt = `${basePrompt}${existingHint}\n\n${out.join('\n')}\n`;
 
       let rawResult = await fetchWithRetry(() => fetchApiResult(prompt), (retry) => {
         btn.textContent = `${formatRetryLabel(retry)}... (Klik Stop)`;

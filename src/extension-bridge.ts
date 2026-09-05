@@ -1,6 +1,6 @@
 // @module extension-bridge.ts — Bridge CSTL page ↔ browser extension (Auto Copas)
 
-import { state, ui, isTranslated } from './state';
+import { state, ui, isTranslated, isIlustrasiLine } from './state';
 import { flashHint, syncCheckboxUI, updateButtonStates } from './render';
 import {
   buildCopyForAiPrompt,
@@ -559,7 +559,7 @@ async function runFullAutoBatches(): Promise<void> {
 // ─── Glossary helpers ─────────────────────────────────────────────────────────
 
 function buildGlossaryPrompt(): string {
-  const sel = getDisplayOrderedLines().filter(l => state.selectedLines.has(l.line_num));
+  const sel = getDisplayOrderedLines().filter(l => !l._hidden && !isIlustrasiLine(l) && state.selectedLines.has(l.line_num));
   if (!sel.length) return '';
   const out = getSelectedTranslationPlainText().split('\n').filter(Boolean);
   if (!out.length) return '';
@@ -612,9 +612,11 @@ async function runGlossaryFullAuto(): Promise<void> {
 
   const batchSize = Math.max(1, state.glossaryBatchSize || 50);
   const allLines = getDisplayOrderedLines().filter(l =>
-    state.selectedLines.size > 0
-      ? state.selectedLines.has(l.line_num) && isTranslated(l)
-      : isTranslated(l) && !l._hidden
+    !l._hidden && !isIlustrasiLine(l) && (
+      state.selectedLines.size > 0
+        ? state.selectedLines.has(l.line_num)
+        : true
+    )
   );
   if (!allLines.length) { flashHint('Tidak ada baris untuk ekstrak glossary.'); return; }
 
