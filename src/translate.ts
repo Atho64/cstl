@@ -60,11 +60,10 @@ export function buildCopyForAiPrompt(): string | null {
     const firstSelLineNum = sel[0].line_num;
     const firstSelIdx = orderedLines.findIndex(l => l.line_num === firstSelLineNum);
     if (firstSelIdx > 0) {
-      const startIdx = Math.max(0, firstSelIdx - state.contextLines);
-      const ctxLines = orderedLines.slice(startIdx, firstSelIdx);
+      const visiblePreceding = orderedLines.slice(0, firstSelIdx).filter(l => !l._hidden && !isIlustrasiLine(l));
+      const ctxLines = visiblePreceding.slice(-state.contextLines);
       const ctxOut: string[] = [];
       for (const l of ctxLines) {
-        if (isIlustrasiLine(l)) continue; // image placeholders carry no useful context
         const origNameStr = l.name ? `${l.name}: ` : '';
         const transNameStr = (l.trans_name || l.name) ? `${(l.trans_name || l.name)!.trim()}: ` : '';
         if (state.contextType === 'raw') {

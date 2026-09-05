@@ -1,6 +1,6 @@
 // @module auto-translate.ts — API Integration for Automated AI Translation
 
-import { state, ui, isTranslated } from './state';
+import { state, ui, isTranslated, isIlustrasiLine } from './state';
 import { buildSelectedTranslationExport, applyPromptVariables } from './ai-format';
 import { getGlossaryPrompt, sanitizeTagsForChatgpt } from './glossary';
 import { DEFAULT_PROMPT_HEADER, DEFAULT_GLOSSARY_PROMPT } from './constants';
@@ -560,8 +560,8 @@ export async function onAutoTranslate(): Promise<void> {
           const firstSelLineNum = sel[0].line_num;
           const firstSelIdx = orderedLines.findIndex(l => l.line_num === firstSelLineNum);
           if (firstSelIdx > 0) {
-            const startIdx = Math.max(0, firstSelIdx - state.contextLines);
-            const ctxLines = orderedLines.slice(startIdx, firstSelIdx);
+            const visiblePreceding = orderedLines.slice(0, firstSelIdx).filter(l => !l._hidden && !isIlustrasiLine(l));
+            const ctxLines = visiblePreceding.slice(-state.contextLines);
             const ctxOut: string[] = [];
             for (const l of ctxLines) {
               const origNameStr = l.name ? `${l.name}: ` : '';
@@ -657,8 +657,8 @@ export async function onAutoTranslate(): Promise<void> {
             const firstSelLineNum = subBatch[0].line_num;
             const firstSelIdx = orderedLines.findIndex(l => l.line_num === firstSelLineNum);
             if (firstSelIdx > 0) {
-              const startIdx = Math.max(0, firstSelIdx - state.contextLines);
-              const ctxLines = orderedLines.slice(startIdx, firstSelIdx);
+              const visiblePreceding = orderedLines.slice(0, firstSelIdx).filter(l => !l._hidden && !isIlustrasiLine(l));
+              const ctxLines = visiblePreceding.slice(-state.contextLines);
               const ctxOut: string[] = [];
               for (const l of ctxLines) {
                 const origNameStr = l.name ? `${l.name}: ` : '';

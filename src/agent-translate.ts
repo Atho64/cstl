@@ -1,6 +1,6 @@
 // @module agent-translate.ts — Autonomous multi-turn agent translation mode
 
-import { state, ui, isTranslated } from './state';
+import { state, ui, isTranslated, isIlustrasiLine } from './state';
 import { chatCompletion, ChatMessage } from './ai-agent';
 import { applyAgentTranslations } from './translate';
 import { getGlossaryPrompt, formatGlossaryEntry } from './glossary';
@@ -221,8 +221,8 @@ export async function onAgentTranslate(): Promise<void> {
         const firstSelLineNum = batch[0].line_num;
         const firstSelIdx = orderedLines.findIndex(l => l.line_num === firstSelLineNum);
         if (firstSelIdx > 0) {
-          const startIdx = Math.max(0, firstSelIdx - state.contextLines);
-          const ctxLines = orderedLines.slice(startIdx, firstSelIdx);
+          const visiblePreceding = orderedLines.slice(0, firstSelIdx).filter(l => !l._hidden && !isIlustrasiLine(l));
+          const ctxLines = visiblePreceding.slice(-state.contextLines);
           const ctxOut: string[] = [];
           for (const l of ctxLines) {
             const origNameStr = l.name ? `${l.name}: ` : '';

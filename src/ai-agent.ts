@@ -568,10 +568,12 @@ function getProjectStats() {
 function searchLines(query: string) {
   const lower = query.toLowerCase();
   const results = state.lines.filter(l =>
-    (l.message || '').toLowerCase().includes(lower) ||
-    (l.trans_message || '').toLowerCase().includes(lower) ||
-    (l.name || '').toLowerCase().includes(lower) ||
-    (l.trans_name || '').toLowerCase().includes(lower)
+    !l._hidden && (
+      (l.message || '').toLowerCase().includes(lower) ||
+      (l.trans_message || '').toLowerCase().includes(lower) ||
+      (l.name || '').toLowerCase().includes(lower) ||
+      (l.trans_name || '').toLowerCase().includes(lower)
+    )
   ).slice(0, 50);
   if (!results.length) return `Tidak ditemukan baris yang mengandung: "${query}"`;
   return results.map(l =>
@@ -580,7 +582,7 @@ function searchLines(query: string) {
 }
 
 function getLines(start: number, end: number) {
-  const results = state.lines.filter(l => l.line_num >= start && l.line_num <= end);
+  const results = state.lines.filter(l => !l._hidden && l.line_num >= start && l.line_num <= end).slice(0, 50);
   if (!results.length) return `Tidak ada baris antara ${start}-${end}`;
   return results.map(l =>
     `[Baris ${l.line_num}] ${l.name ? `Karakter: ${l.name}` : '(Narasi)'}\nAsli: ${l.message}\nTerjemahan: ${l.trans_message || '(belum diterjemahkan)'}${l.trans_name ? `\nNama Terjemahan: ${l.trans_name}` : ''}`
@@ -589,8 +591,14 @@ function getLines(start: number, end: number) {
 
 function getContext(line_num: number, radius: number) {
   const r = Math.min(Math.max(radius || 3, 1), 20);
-  const results = state.lines.filter(l => l.line_num >= line_num - r && l.line_num <= line_num + r);
-  if (!results.length) return `Baris ${line_num} tidak ditemukan.`;
+  const target = state.lines.find(l => l.line_num === line_num);
+  if (!target) return `Baris ${line_num} tidak ditemukan.`;
+  const visible = state.lines.filter(l => !l._hidden);
+  const idx = visible.findIndex(l => l.line_num === line_num);
+  const results = idx >= 0
+    ? visible.slice(Math.max(0, idx - r), Math.min(visible.length, idx + r + 1))
+    : visible.filter(l => l.line_num >= line_num - r && l.line_num <= line_num + r);
+  if (!results.length) return `Baris ${line_num} tidak ditemukan atau terfilter.`;
   return results.map(l => {
     const marker = l.line_num === line_num ? ' <<< TARGET' : '';
     return `[Baris ${l.line_num}${marker}] ${l.name ? `(${l.name})` : '(Narasi)'}\nAsli: ${l.message}\nTerjemahan: ${l.trans_message || '(belum)'}`;
@@ -600,7 +608,7 @@ function getContext(line_num: number, radius: number) {
 function getCharacterNames() {
   const map = new Map<string, Set<string>>();
   for (const l of state.lines) {
-    if (!l.name) continue;
+    if (l._hidden || !l.name) continue;
     if (!map.has(l.name)) map.set(l.name, new Set());
     if (l.trans_name) map.get(l.name)!.add(l.trans_name);
   }

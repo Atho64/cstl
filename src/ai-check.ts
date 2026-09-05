@@ -46,8 +46,8 @@ function buildAiCheckContextBlock(sel: Line[]): string {
   const firstSelLineNum = sel[0].line_num;
   const firstSelIdx = orderedLines.findIndex(l => l.line_num === firstSelLineNum);
   if (firstSelIdx <= 0) return '';
-  const startIdx = Math.max(0, firstSelIdx - state.contextLines);
-  const ctxLines = orderedLines.slice(startIdx, firstSelIdx).filter(l => !l._hidden);
+  const visiblePreceding = orderedLines.slice(0, firstSelIdx).filter(l => !l._hidden && !isIlustrasiLine(l));
+  const ctxLines = visiblePreceding.slice(-state.contextLines);
   if (!ctxLines.length) return '';
   const ctxOut: string[] = [];
   for (const l of ctxLines) {
