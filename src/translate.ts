@@ -35,11 +35,13 @@ function snapshotLine(l: any): any {
     luca_text_prefix: l.luca_text_prefix,
     epub_selector: l.epub_selector,
     epub_id: l.epub_id,
+    custom_raw: l.custom_raw,
+    custom_index: l.custom_index,
   };
 }
 
 function restoreLineSnapshot(l: any, saved: any): void {
-  for (const key of ['file', 'name', 'message', 'trans_name', 'trans_message', 'is_translated', 'bookmarked', '_hidden', '_glossary_extracted', '_ai_checked', '_ai_confirmed', 'luca_command', 'luca_pre', 'luca_post', 'luca_text_prefix', 'epub_selector', 'epub_id']) {
+  for (const key of ['file', 'name', 'message', 'trans_name', 'trans_message', 'is_translated', 'bookmarked', '_hidden', '_glossary_extracted', '_ai_checked', '_ai_confirmed', 'luca_command', 'luca_pre', 'luca_post', 'luca_text_prefix', 'epub_selector', 'epub_id', 'custom_raw', 'custom_index']) {
     if (Object.prototype.hasOwnProperty.call(saved, key)) l[key] = saved[key];
   }
 }

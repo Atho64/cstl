@@ -426,7 +426,15 @@ export async function onExport(): Promise<void> {
 
         const g = new Map<string, Line[]>();
         for (const l of state.lines) {
-          const groupKey = isPlugin && l.file && l.file.includes('/') ? l.file.split('/')[0] : l.file;
+          let groupKey = l.file;
+          if (isPlugin && l.file && l.file.includes('/')) {
+            const prefix = l.file.split('/')[0];
+            const hasExact = customLazySourceHas(l.file) || !!state.customRawBuffers[l.file] || (state.customRawFiles[l.file] ?? '') !== '';
+            const hasPrefix = customLazySourceHas(prefix) || !!state.customRawBuffers[prefix] || (state.customRawFiles[prefix] ?? '') !== '';
+            if (!hasExact && hasPrefix) {
+              groupKey = prefix;
+            }
+          }
           if (!g.has(groupKey)) g.set(groupKey, []);
           g.get(groupKey)!.push(l);
         }
@@ -461,10 +469,19 @@ export async function onExport(): Promise<void> {
           const rawText = src.text ?? '';
           const isPlugin = (parser as any).isPlugin || !(parser as any).serializeScript;
           if (isPlugin) {
+            let pluginBuffer: ArrayBuffer;
+            if (src.bytes && src.bytes.byteLength > 0) {
+              pluginBuffer = src.bytes.buffer.slice(src.bytes.byteOffset, src.bytes.byteOffset + src.bytes.byteLength) as ArrayBuffer;
+            } else if (rawText) {
+              pluginBuffer = new TextEncoder().encode(rawText).buffer as ArrayBuffer;
+            } else {
+              pluginBuffer = new ArrayBuffer(0);
+            }
+
             const packRes = await (window as any).CSTL.plugins.callPack(parser, {
               fileName,
               projectName: state.projectName || undefined,
-              buffer: src.bytes ? src.bytes.buffer : new ArrayBuffer(0),
+              buffer: pluginBuffer,
               lines: lns.map(l => ({
                 line_num: l.line_num,
                 file: l.file,
@@ -473,8 +490,9 @@ export async function onExport(): Promise<void> {
                 trans_name: l.trans_name,
                 trans_message: l.trans_message,
                 character_name: l.trans_name || l.name,
-                text: l.trans_message || l.message,
-                is_translated: isTranslated(l),
+                text: (l.trans_message != null && l.trans_message !== '') ? l.trans_message : l.message,
+                translation: (l.trans_message != null && l.trans_message !== '') ? l.trans_message : (l.is_translated ? (l.trans_message ?? '') : undefined),
+                is_translated: isTranslated(l) || (l.trans_message != null && l.trans_message !== ''),
                 raw: l.custom_raw ?? null,
                 index: (l as any).custom_index ?? null,
               })),
@@ -495,7 +513,7 @@ export async function onExport(): Promise<void> {
             const result = await runCustomSerialize(parser, {
               fileName,
               text: rawText,
-              bytes: src.bytes ?? new Uint8Array(0),
+              bytes: src.bytes ?? (rawText ? new TextEncoder().encode(rawText) : new Uint8Array(0)),
               startLineNum: lns.length > 0 ? lns[0].line_num : 1,
               options: buildParserOptions(parser),
               lines: lns.map(l => ({
@@ -504,7 +522,7 @@ export async function onExport(): Promise<void> {
                 message: l.message,
                 trans_name: l.trans_name,
                 trans_message: l.trans_message,
-                is_translated: isTranslated(l),
+                is_translated: isTranslated(l) || (l.trans_message != null && l.trans_message !== ''),
                 raw: l.custom_raw ?? null,
                 index: (l as any).custom_index ?? null,
               })),

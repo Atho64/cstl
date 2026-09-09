@@ -473,6 +473,8 @@ export function pushUndoSnapshot(clearRedo = true): void {
       luca_text_prefix: l.luca_text_prefix,
       epub_selector: l.epub_selector,
       epub_id: l.epub_id,
+      custom_raw: l.custom_raw,
+      custom_index: l.custom_index,
     }))
   });
   if (state.undoStack.length > MAX_UNDO_STEPS) state.undoStack.shift();

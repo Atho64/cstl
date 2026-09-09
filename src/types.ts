@@ -55,7 +55,7 @@ export interface Line {
   /** Optional numeric index set by the parser at import time (mis. posisi
    *  entri di file asli / offset), diteruskan balik ke serialize() sebagai
    *  line.index agar patch tidak bergantung pada pencocokan teks raw. */
-  custom_index?: number | null;
+  custom_index?: any;
 }
 
 // ─── Custom Parser (user-defined import/export formats) ───────────────────────

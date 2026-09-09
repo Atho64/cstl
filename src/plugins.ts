@@ -2657,11 +2657,13 @@ export const Runtime = {
       buffer: input.buffer,
       lines: (input.lines || []).map((l: any) => ({
         ...Runtime.toPluginLine(l),
-        original: l.message,
-        translation: l.is_translated ? (l.trans_message ?? '') : (l.translation ?? undefined),
-        character_name: l.trans_name || l.name,
-        raw: l.raw ?? null,
-        index: l.index ?? null
+        original: l.original ?? l.message,
+        translation: (l.trans_message != null && l.trans_message !== '')
+          ? l.trans_message
+          : (l.translation ?? (l.is_translated ? (l.trans_message ?? '') : undefined)),
+        character_name: l.character_name ?? (l.trans_name || l.name),
+        raw: l.raw ?? (l as any).custom_raw ?? null,
+        index: l.index ?? (l as any).custom_index ?? null
       })),
       settings: input.settings || Runtime.valuesFor(meta),
       globalSettings: Runtime.globalValuesFor(meta),

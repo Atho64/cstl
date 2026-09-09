@@ -206,6 +206,7 @@ export function normalizeLineDict(line: any): Line {
   if (line.epub_id != null) normalized.epub_id = String(line.epub_id);
   if (line.epub_img_src != null) normalized.epub_img_src = String(line.epub_img_src);
   if (line.custom_raw != null) normalized.custom_raw = String(line.custom_raw);
+  if (line.custom_index !== undefined) normalized.custom_index = line.custom_index;
   if (line._hidden != null) normalized._hidden = Boolean(line._hidden);
   if (line._glossary_extracted != null) normalized._glossary_extracted = Boolean(line._glossary_extracted);
   if (line._ai_checked != null) normalized._ai_checked = Boolean(line._ai_checked);
