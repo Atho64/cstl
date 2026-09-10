@@ -9,7 +9,7 @@ import {
   DEFAULT_PROMPT_HEADER_NUMBERED_KAGIKAKKO, DEFAULT_PROMPT_HEADER_BLOCK_KAGIKAKKO,
   DEFAULT_PROMPT_HEADER_XML_KAGIKAKKO, DEFAULT_PROMPT_HEADER_JSONL_KAGIKAKKO, DEFAULT_PROMPT_HEADER_JSON_ARRAY_KAGIKAKKO,
 } from './constants';
-import { unescapeStoredNewlines, escapeStoredNewlines, escapeXml, stripPlaintextFences, stripScrapedAiPreamble, applyReplaceRules } from './string-utils';
+import { unescapeStoredNewlines, escapeStoredNewlines, escapeXml, stripPlaintextFences, stripScrapedAiPreamble, applyReplaceRules, stripLeakedAiSections } from './string-utils';
 import { getLineDisplayName } from './luca-engine';
 import { isTranslated, isIlustrasiLine } from './state';
 import { getDisplayOrderedLines } from './selection';
@@ -188,7 +188,8 @@ export function parseTranslationXml(text: string): ParsedTranslationItem[] {
     const textEl = el.querySelector('text');
     if (!textEl) throw new Error(`[#${num}] Tidak ada elemen <text>.`);
     const rawMsg = textEl.textContent!;
-    result.push({ num, name: speaker, msg: escapeStoredNewlines(rawMsg), rawMsg });
+    const cleanMsg = stripLeakedAiSections(rawMsg);
+    result.push({ num, name: speaker, msg: escapeStoredNewlines(cleanMsg), rawMsg: cleanMsg });
   }
   return result;
 }
@@ -205,10 +206,12 @@ export function parseTranslationJsonArray(text: string): { parsed: ParsedTransla
       const arr = JSON.parse(rawLine);
       if (Array.isArray(arr) && arr.length === 3) {
         // [id, "name", "text"]
-        parsed.push({ num: parseInt(arr[0]), name: String(arr[1]), msg: escapeStoredNewlines(String(arr[2])), rawMsg: String(arr[2]) });
+        const cleanMsg = stripLeakedAiSections(String(arr[2]));
+        parsed.push({ num: parseInt(arr[0]), name: String(arr[1]), msg: escapeStoredNewlines(cleanMsg), rawMsg: cleanMsg });
       } else if (Array.isArray(arr) && arr.length === 2) {
         // [id, "text"] — no speaker name
-        parsed.push({ num: parseInt(arr[0]), name: '', msg: escapeStoredNewlines(String(arr[1])), rawMsg: String(arr[1]) });
+        const cleanMsg = stripLeakedAiSections(String(arr[1]));
+        parsed.push({ num: parseInt(arr[0]), name: '', msg: escapeStoredNewlines(cleanMsg), rawMsg: cleanMsg });
       } else {
         errors.push(`Baris ${i + 1}: Format array tidak valid.`);
       }
@@ -243,8 +246,8 @@ export function parseTranslationJsonl(text: string): { parsed: ParsedTranslation
       continue;
     }
     const speaker = (obj.speaker || '').trim() || null;
-    const rawMsg = obj.text;
-    parsed.push({ num: obj.num, name: speaker, msg: escapeStoredNewlines(rawMsg), rawMsg });
+    const cleanMsg = stripLeakedAiSections(obj.text);
+    parsed.push({ num: obj.num, name: speaker, msg: escapeStoredNewlines(cleanMsg), rawMsg: cleanMsg });
   }
   return { parsed, errors };
 }
@@ -257,6 +260,11 @@ export function parseTranslationBlocks(text: string): ParsedTranslationItem[] {
   for (const rawLine of lines) {
     const trimmed = rawLine.trim();
     if (!trimmed || trimmed === '```' || trimmed === '```plaintext' || trimmed === '```text') continue;
+    // Stop parsing dialogue if summary/background header is encountered
+    if (/^(?:===+\s*(?:SUMMARY|BACKGROUND|RINGKASAN|STORY(?:_CONTEXT)?)\b|<\/?(?:summary|background|story_context)\b|#+\s*(?:Summary|Background|Ringkasan|Story Context)\b)/i.test(trimmed)) {
+      inText = false;
+      break;
+    }
     const header = trimmed.match(/^\[line\s+(\d+)\]$/i);
     if (header) {
       if (current) blocks.push(current);
@@ -289,12 +297,15 @@ export function parseTranslationBlocks(text: string): ParsedTranslationItem[] {
   }
   if (current) blocks.push(current);
   if (!blocks.length) throw new Error('Tidak ada blok [line N] yang valid.');
-  return blocks.map(item => ({
-    num: item.num,
-    name: item.name,
-    msg: escapeStoredNewlines(item.msg),
-    rawMsg: item.msg,
-  }));
+  return blocks.map(item => {
+    const clean = stripLeakedAiSections(item.msg);
+    return {
+      num: item.num,
+      name: item.name,
+      msg: escapeStoredNewlines(clean),
+      rawMsg: clean,
+    };
+  });
 }
 
 export function parseTranslationNumberedPaste(text: string): { parsed: ParsedTranslationItem[]; errors: string[] } {
@@ -328,7 +339,8 @@ export function parseTranslationNumberedPaste(text: string): { parsed: ParsedTra
         msg = msg.substring(splitIdx + 1).trim();
       }
     }
-    parsed.push({ num, name, msg: escapeStoredNewlines(msg), rawMsg });
+    const cleanMsg = stripLeakedAiSections(msg);
+    parsed.push({ num, name, msg: escapeStoredNewlines(cleanMsg), rawMsg: cleanMsg });
   }
   return { parsed, errors };
 }

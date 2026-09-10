@@ -8,6 +8,18 @@ export function escapeStoredNewlines(text: string): string {
   return String(text || '').replace(/\r?\n/g, '\\n').trim();
 }
 
+/**
+ * Strips leaked AI metadata sections (such as === SUMMARY ===, <summary>, === REVISIONS ===)
+ * that may have accidentally been appended to a translated dialogue line.
+ * Supports both actual newlines (\n) and literal escaped newlines (\\n).
+ */
+export function stripLeakedAiSections(text: string): string {
+  if (!text) return text;
+  // Match strictly on a newline followed by known AI metadata section markers
+  const markerRegex = /(?:(?:\r?\n|\\n)+\s*)(?:===+\s*(?:SUMMARY|BACKGROUND|REVISIONS?)\s*===*[\s\S]*|<\s*(?:summary|background|revisions?)\s*>[\s\S]*)/i;
+  return text.replace(markerRegex, '').trim();
+}
+
 // Dice coefficient pada character bigrams — cepat dan efektif untuk deteksi terjemahan yang tidak berubah.
 export function stringSimilarity(a: string, b: string): number {
   const s1 = String(a || '');

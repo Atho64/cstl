@@ -7,7 +7,7 @@ import {
   parseTranslationBlocks, parseTranslationXml, parseTranslationJsonl, parseTranslationJsonArray,
   parseTranslationNumberedPaste, applyPromptVariables,
 } from './ai-format';
-import { unescapeStoredNewlines, escapeStoredNewlines, stringSimilarity, applyReplaceRules } from './string-utils';
+import { unescapeStoredNewlines, escapeStoredNewlines, stringSimilarity, applyReplaceRules, stripLeakedAiSections } from './string-utils';
 import { rebuildDisplayState, renderPreviewRows, syncCheckboxUI, flashHint, updateButtonStates, pushUndoSnapshot, refreshAll } from './render';
 import { queueAutoSave } from './project';
 import { getGlossaryMatches, getGlossaryPrompt, sanitizeTagsForChatgpt } from './glossary';
@@ -149,34 +149,28 @@ export function extractSummaryAndPayload(rawText: string): { cleanText: string; 
   let text = rawText.trim();
   let summary = '';
 
-  // 1. Explicit tags: <summary>...</summary>, <background>...</background>, === SUMMARY ===, === BACKGROUND ===
-  const sumSafeIdx = text.search(/^=== SUMMARY ===\s*$/im);
-  const bgSafeIdx = text.search(/^=== BACKGROUND ===\s*$/im);
+  const cleanFence = (s: string) => s.replace(/^```[^\n]*\n?/i, '').replace(/\n?```\s*$/i, '').trim();
 
-  if (sumSafeIdx >= 0) {
-    summary = text.slice(sumSafeIdx + '=== SUMMARY ==='.length).trim();
-    text = text.slice(0, sumSafeIdx).trim();
-  } else if (bgSafeIdx >= 0) {
-    summary = text.slice(bgSafeIdx + '=== BACKGROUND ==='.length).trim();
-    text = text.slice(0, bgSafeIdx).trim();
+  // 1. Explicit tags: <summary>...</summary>, <background>...</background>, === SUMMARY ===, === BACKGROUND ===
+  const sumPair = text.match(/<\s*(?:summary|background)\s*>([\s\S]*?)<\s*\/\s*(?:summary|background)\s*>/i);
+  if (sumPair) {
+    summary = cleanFence(sumPair[1]);
+    text = text.replace(sumPair[0], '').trim();
   } else {
-    const sumMatch = text.match(/<summary>([\s\S]*?)<\/summary>/i);
-    const bgMatch = text.match(/<background>([\s\S]*?)<\/background>/i);
-    if (sumMatch) {
-      summary = sumMatch[1].trim();
-      text = text.replace(/<summary>[\s\S]*?<\/summary>/i, '').trim();
-    } else if (bgMatch) {
-      summary = bgMatch[1].trim();
-      text = text.replace(/<background>[\s\S]*?<\/background>/i, '').trim();
+    const sumRegex = /(?:^|\r?\n)(?:===+\s*(?:SUMMARY|BACKGROUND|RINGKASAN|STORY(?:_CONTEXT)?)\b[^\n]*|#+\s*(?:Summary|Background|Ringkasan|Story Context)\b[^\n]*|<\s*(?:summary|background)\s*>)/i;
+    const sumMatch = text.match(sumRegex);
+    if (sumMatch && sumMatch.index !== undefined) {
+      summary = cleanFence(text.slice(sumMatch.index + sumMatch[0].length));
+      text = text.slice(0, sumMatch.index).trim();
     }
   }
 
+  // Remove any leftover closing tags
+  text = text.replace(/<\s*\/\s*(?:summary|background)\s*>/gi, '').trim();
+
   // If explicit summary was found, clean up fences and return
   if (summary) {
-    summary = summary
-      .replace(/^```[^\n]*\n?/i, '')
-      .replace(/\n?```\s*$/i, '')
-      .trim();
+    summary = cleanFence(summary);
     return { cleanText: text, summary };
   }
 
@@ -398,8 +392,8 @@ function onApplyTranslationInternal(options: ApplyTranslationOptions = {}): void
   }
   pushUndoSnapshot();
   for (const { l, it } of updates) {
-    l.trans_message = it.msg;
-    l.is_translated = !!(it.msg || state.disableEmptyLineValidation);
+    l.trans_message = stripLeakedAiSections(it.msg);
+    l.is_translated = !!(l.trans_message || state.disableEmptyLineValidation);
     if (it.name && !ignoreNames) l.trans_name = it.name;
     if (!selectedLineNums) state.selectedLines.delete(l.line_num);
   }

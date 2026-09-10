@@ -26,6 +26,8 @@ import {
   renderAiCheckCorrections,
   setAiCheckStatus,
   onApplyAiCheckCorrections,
+  extractAiCheckRevisionsAndPayload,
+  renderAiCheckSettingsUI,
 } from './ai-check';
 import { queueAutoSave } from './project';
 import { getDisplayOrderedLines } from './selection';
@@ -770,7 +772,19 @@ function applyAiCheckResult(text: string): void {
 }
 
 function parseFullAutoAiCheckResult(text: string, batch: typeof state.lines): ReturnType<typeof parseAiCheckBlocks> {
-  const clean = text.trim();
+  const { cleanText, aiRevisions, aiSummary } = extractAiCheckRevisionsAndPayload(text);
+  if (aiSummary && state.enableAiCheckStoryContext !== false) {
+    state.aiCheckStoryContext = aiSummary;
+    queueAutoSave();
+  }
+  if (aiRevisions && state.enableAiCheckChaining !== false) {
+    const existing = (state.aiCheckRevisionsSummary || '').trim();
+    state.aiCheckRevisionsSummary = existing ? `${existing}\n${aiRevisions}` : aiRevisions;
+    queueAutoSave();
+  }
+  renderAiCheckSettingsUI();
+
+  const clean = cleanText.trim();
   const emptyPlaintextBlock = /```(?:plaintext|text)?\s*```/i.test(clean);
   let parsed: ReturnType<typeof parseAiCheckBlocks>;
   try {

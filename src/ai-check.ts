@@ -2,7 +2,7 @@
 
 import { state, ui } from './state';
 import { isTranslated, isIlustrasiLine } from './state';
-import { unescapeStoredNewlines, escapeStoredNewlines, applyReplaceRules } from './string-utils';
+import { unescapeStoredNewlines, escapeStoredNewlines, applyReplaceRules, stripLeakedAiSections } from './string-utils';
 import { getLineDisplayName, formatLineLabel } from './luca-engine';
 import { rebuildDisplayState, renderPreviewRows, syncCheckboxUI, updateButtonStates, pushUndoSnapshot, refreshAll, flashHint } from './render';
 import { queueAutoSave } from './project';
@@ -197,31 +197,66 @@ export function extractAiCheckRevisionsAndPayload(rawText: string): { cleanText:
   let aiRevisions = '';
   let aiSummary = '';
 
-  // Extract Summary (Story Context)
-  const sumSafeIdx = text.search(/^=== SUMMARY ===\s*$/im);
-  if (sumSafeIdx >= 0) {
-    aiSummary = text.slice(sumSafeIdx + '=== SUMMARY ==='.length).trim();
-    text = text.slice(0, sumSafeIdx).trim();
-  } else {
-    const sumMatch = text.match(/<summary>([\s\S]*?)<\/summary>/i);
-    if (sumMatch) {
-      aiSummary = sumMatch[1].trim();
-      text = text.replace(/<summary>[\s\S]*?<\/summary>/i, '').trim();
-    }
+  const cleanFence = (s: string) => s.replace(/^```[^\n]*\n?/i, '').replace(/\n?```\s*$/i, '').trim();
+
+  // Patterns for Summary start and Revisions start
+  const sumRegex = /(?:^|\r?\n)(?:===+\s*(?:SUMMARY|RINGKASAN|STORY(?:_CONTEXT)?)\b[^\n]*|#+\s*(?:Summary|Ringkasan|Story Context)\b[^\n]*|<\s*summary\s*>)/i;
+  const revRegex = /(?:^|\r?\n)(?:===+\s*(?:REVISIONS?|CATATAN(?:_REVISI)?)\b[^\n]*|#+\s*(?:Revisions?|Catatan Revisi)\b[^\n]*|<\s*revisions?\s*>)/i;
+
+  // 1. Check complete tag pairs first (<summary>...</summary>, <revisions>...</revisions>)
+  const sumPair = text.match(/<\s*summary\s*>([\s\S]*?)<\s*\/\s*summary\s*>/i);
+  if (sumPair) {
+    aiSummary = cleanFence(sumPair[1]);
+    text = text.replace(sumPair[0], '').trim();
   }
 
-  // Extract Revisions
-  const revSafeIdx = text.search(/^=== REVISIONS ===\s*$/im);
-  if (revSafeIdx >= 0) {
-    aiRevisions = text.slice(revSafeIdx + '=== REVISIONS ==='.length).trim();
-    text = text.slice(0, revSafeIdx).trim();
-  } else {
-    const revMatch = text.match(/<revisions>([\s\S]*?)<\/revisions>/i);
-    if (revMatch) {
-      aiRevisions = revMatch[1].trim();
-      text = text.replace(/<revisions>[\s\S]*?<\/revisions>/i, '').trim();
-    }
+  const revPair = text.match(/<\s*revisions?\s*>([\s\S]*?)<\s*\/\s*revisions?\s*>/i);
+  if (revPair) {
+    aiRevisions = cleanFence(revPair[1]);
+    text = text.replace(revPair[0], '').trim();
   }
+
+  // 2. Safe tags, markdown headers, or unclosed tags
+  const sumMatch = text.match(sumRegex);
+  const revMatch = text.match(revRegex);
+
+  if (sumMatch && revMatch && sumMatch.index !== undefined && revMatch.index !== undefined) {
+    const sumIdx = sumMatch.index;
+    const revIdx = revMatch.index;
+    if (sumIdx < revIdx) {
+      if (!aiSummary) {
+        aiSummary = cleanFence(text.slice(sumIdx + sumMatch[0].length, revIdx));
+      }
+      if (!aiRevisions) {
+        aiRevisions = cleanFence(text.slice(revIdx + revMatch[0].length));
+      }
+      text = text.slice(0, sumIdx).trim();
+    } else {
+      if (!aiRevisions) {
+        aiRevisions = cleanFence(text.slice(revIdx + revMatch[0].length, sumIdx));
+      }
+      if (!aiSummary) {
+        aiSummary = cleanFence(text.slice(sumIdx + sumMatch[0].length));
+      }
+      text = text.slice(0, revIdx).trim();
+    }
+  } else if (sumMatch && sumMatch.index !== undefined) {
+    const sumIdx = sumMatch.index;
+    if (!aiSummary) {
+      aiSummary = cleanFence(text.slice(sumIdx + sumMatch[0].length));
+    }
+    text = text.slice(0, sumIdx).trim();
+  } else if (revMatch && revMatch.index !== undefined) {
+    const revIdx = revMatch.index;
+    if (!aiRevisions) {
+      aiRevisions = cleanFence(text.slice(revIdx + revMatch[0].length));
+    }
+    text = text.slice(0, revIdx).trim();
+  }
+
+  // Remove any leftover closing tags in cleanText
+  text = text.replace(/<\s*\/\s*(?:summary|revisions?)\s*>/gi, '').trim();
+
   return { cleanText: text, aiRevisions, aiSummary };
 }
 
@@ -313,10 +348,18 @@ export function parseAiCheckBlocks(text: string): { num: number; category: strin
   for (const rawLine of lines) {
     const line = rawLine.trim();
     if (!line || line === '```' || line === '```plaintext' || line === '```text') continue;
+    // Stop parsing dialogue corrections if a summary, revisions, or metadata header is reached
+    if (/^(?:===+\s*(?:SUMMARY|RINGKASAN|STORY(?:_CONTEXT)?|REVISIONS?|CATATAN(?:_REVISI)?)\b|<\/?(?:summary|revisions?|story_context)\b|#+\s*(?:Summary|Ringkasan|Revisions?|Story Context)\b)/i.test(line)) {
+      lastField = null;
+      break;
+    }
     // Accept both [line N] and [N] headers
     const header = line.match(/^\[line\s+(\d+)\]$/i) || line.match(/^\[(\d+)\]$/);
     if (header) {
-      if (current) blocks.push(current);
+      if (current) {
+        current.text = stripLeakedAiSections(current.text);
+        blocks.push(current);
+      }
       current = { num: Number(header[1]), category: '', reason: '', name: '', text: '' };
       lastField = null;
       continue;
@@ -357,7 +400,10 @@ export function parseAiCheckBlocks(text: string): { num: number; category: strin
     }
     // else: lenient — skip unrecognized lines instead of throwing
   }
-  if (current) blocks.push(current);
+  if (current) {
+    current.text = stripLeakedAiSections(current.text);
+    blocks.push(current);
+  }
   if (!blocks.length) {
     const normalized = text.replace(/```(?:plaintext|text)?/gi, '').replace(/```/g, '').trim().toLowerCase();
     if (!normalized || /^(no corrections?(?: needed| are needed| are necessary)?|no errors?(?: found)?|tidak ada koreksi(?: yang diperlukan)?|tidak ada error(?: yang ditemukan)?)\.?$/.test(normalized)) {
@@ -624,6 +670,7 @@ export function onApplyAiCheckCorrections(pushUndo = true): { applied: number; c
     if (line.name && correction.name) line.trans_name = correction.name;
     let correctedMsg = correction.text.replace(/<br>/gi, '\\n');
     correctedMsg = applyReplaceRules(correctedMsg, state.postReplaceRules, 'msg');
+    correctedMsg = stripLeakedAiSections(correctedMsg);
     if (line.name) correctedMsg = stripDuplicateSpeakerPrefix(correctedMsg, effectiveName);
     line.trans_message = escapeStoredNewlines(correctedMsg);
     line.is_translated = true;
