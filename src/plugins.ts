@@ -101,6 +101,21 @@ function humanBytes(n: any): string {
   return (v / 1073741824).toFixed(2) + ' GB';
 }
 
+export const Util = {
+  stripNewlines,
+  isPlainObject,
+  escapeHtml: esc,
+  sanitizeName: sanitizeFilename,
+  humanBytes,
+  validDataKey: validBlobKey
+};
+
+// Expose CSTL global early so that any plugins or tools executing can immediately access CSTL.util & CSTL.dialogs
+if (typeof window !== 'undefined') {
+  (window as any).CSTL = (window as any).CSTL || {};
+  (window as any).CSTL.util = Util;
+}
+
 // ─── SHA-256 Digest ─────────────────────────────────────────────────────────
 
 const Sha256 = (() => {
@@ -579,30 +594,38 @@ export const Manifest = {
     const errors: string[] = [];
     if (!isPlainObject(m)) return ['manifest harus objek.'];
 
-    if (m.manifestVersion === undefined) errors.push('"manifestVersion" wajib diisi (gunakan 1).');
-    else if (m.manifestVersion !== MANIFEST_VERSION) errors.push(`"manifestVersion" harus ${MANIFEST_VERSION} (ditemukan ${JSON.stringify(m.manifestVersion)}).`);
+    const mv = m.manifest_version !== undefined ? m.manifest_version : m.manifestVersion;
+    if (mv === undefined) {
+      errors.push('"manifest_version" atau "manifestVersion" wajib diisi (gunakan 1).');
+    } else if (typeof mv !== 'number' || !Number.isInteger(mv) || mv < 1) {
+      errors.push('"manifest_version" harus bilangan bulat positif.');
+    } else if (mv > MANIFEST_VERSION) {
+      errors.push(`"manifest_version" ${mv} lebih baru dari versi yang didukung (${MANIFEST_VERSION}).`);
+    }
 
     if (typeof m.id !== 'string' || !/^[a-z0-9][a-z0-9_-]{0,63}$/.test(m.id)) {
       errors.push('"id" wajib: huruf kecil/angka/garisbawah/tanda hubung, 1-64 karakter, diawali alfanumerik (contoh: "my-plugin").');
     }
-    if (typeof m.name !== 'string' || !m.name.trim() || m.name.trim().length > 80) {
-      errors.push('"name" wajib diisi, 1-80 karakter.');
+    if (typeof m.name !== 'string' || !m.name.trim() || m.name.trim().length > 120) {
+      errors.push('"name" wajib diisi, 1-120 karakter.');
     }
     if (typeof m.version !== 'string' || !m.version.trim() || m.version.trim().length > 32) {
       errors.push('"version" wajib diisi, 1-32 karakter (disarankan semver, contoh: "1.0.0").');
     }
-    if (m.author != null && (typeof m.author !== 'string' || m.author.length > 80)) {
-      errors.push('"author" opsional, string maks 80 karakter.');
+    if (m.author != null && (typeof m.author !== 'string' || m.author.length > 120)) {
+      errors.push('"author" opsional, string maks 120 karakter.');
     }
-    if (m.description != null && (typeof m.description !== 'string' || m.description.length > 300)) {
-      errors.push('"description" opsional, string maks 300 karakter.');
-    }
-
-    if (typeof m.api !== 'number' || !Number.isInteger(m.api) || m.api < 1 || m.api > PLUGIN_API_VERSION) {
-      errors.push(`"api" wajib diisi atau tidak valid, ditemukan ${JSON.stringify(m.api)} — versi API aplikasi ini adalah ${PLUGIN_API_VERSION}.`);
+    if (m.description != null && (typeof m.description !== 'string' || m.description.length > 600)) {
+      errors.push('"description" opsional, string maks 600 karakter.');
     }
 
-    if (m.permissions !== undefined) {
+    if (m.api !== undefined) {
+      if (typeof m.api !== 'number' || !Number.isInteger(m.api) || m.api < 1 || m.api > PLUGIN_API_VERSION) {
+        errors.push(`"api" tidak valid, ditemukan ${JSON.stringify(m.api)} — versi API aplikasi ini adalah ${PLUGIN_API_VERSION}.`);
+      }
+    }
+
+    if (m.permissions !== undefined && m.permissions !== null) {
       if (!Array.isArray(m.permissions)) {
         errors.push('"permissions" harus array string.');
       } else {
@@ -618,8 +641,8 @@ export const Manifest = {
     if (m.extensions !== undefined && m.extensions !== null) {
       if (!Array.isArray(m.extensions)) {
         errors.push('"extensions" harus array string.');
-      } else if (m.extensions.length > 32) {
-        errors.push('"extensions" maksimal 32 entri.');
+      } else if (m.extensions.length > 64) {
+        errors.push('"extensions" maksimal 64 entri.');
       } else if (m.extensions.length > 0) {
         for (const e of m.extensions) {
           if (typeof e !== 'string' || !/^\.[a-z0-9]{1,16}$/i.test(e)) {
@@ -636,8 +659,8 @@ export const Manifest = {
     if (m.magic !== undefined && m.magic !== null) {
       if (!Array.isArray(m.magic)) {
         errors.push('"magic" harus array objek.');
-      } else if (m.magic.length > 16) {
-        errors.push('"magic" maksimal 16 entri.');
+      } else if (m.magic.length > 32) {
+        errors.push('"magic" maksimal 32 entri.');
       } else if (m.magic.length > 0) {
         m.magic.forEach((s: any, i: number) => {
           const res = Manifest.validateSig(s);
@@ -650,11 +673,11 @@ export const Manifest = {
       if (!isPlainObject(m.ui)) {
         errors.push('"ui" harus objek { title?, height? }.');
       } else {
-        if (m.ui.title != null && (typeof m.ui.title !== 'string' || !m.ui.title.trim() || m.ui.title.length > 60)) {
-          errors.push('ui.title harus string 1-60 karakter.');
+        if (m.ui.title != null && (typeof m.ui.title !== 'string' || !m.ui.title.trim() || m.ui.title.length > 200)) {
+          errors.push('ui.title harus string 1-200 karakter.');
         }
-        if (m.ui.height != null && (typeof m.ui.height !== 'number' || !Number.isFinite(m.ui.height) || m.ui.height < 120 || m.ui.height > 600)) {
-          errors.push('ui.height harus angka 120-600 (piksel).');
+        if (m.ui.height != null && (typeof m.ui.height !== 'number' || !Number.isFinite(m.ui.height) || m.ui.height < 60 || m.ui.height > 2000)) {
+          errors.push('ui.height harus angka 60-2000 (piksel).');
         }
       }
     }
@@ -674,14 +697,14 @@ export const Manifest = {
     if (hasHex) {
       if (typeof s.hex !== 'string') return { ok: false, error: 'hex harus string.' };
       const h = s.hex.replace(/\s+/g, '');
-      if (!h.length || h.length % 2 || h.length > 128 || !/^[0-9a-f]+$/i.test(h)) return { ok: false, error: 'hex harus heksadesimal genap, maks 64 byte (contoh: "504b0304").' };
+      if (!h.length || h.length % 2 || h.length > 256 || !/^[0-9a-f]+$/i.test(h)) return { ok: false, error: 'hex harus heksadesimal genap, maks 128 byte (contoh: "504b0304").' };
     }
     if (hasText) {
       if (typeof s.text !== 'string' || !s.text.length) return { ok: false, error: 'text harus string tidak kosong.' };
-      if (new TextEncoder().encode(s.text).length > 64) return { ok: false, error: 'text maks 64 byte.' };
+      if (new TextEncoder().encode(s.text).length > 128) return { ok: false, error: 'text maks 128 byte.' };
     }
-    if (s.offset != null && (!Number.isInteger(s.offset) || s.offset < 0 || s.offset > 4096)) {
-      return { ok: false, error: 'offset harus bilangan bulat 0-4096.' };
+    if (s.offset != null && (!Number.isInteger(s.offset) || s.offset < 0 || s.offset > 8192)) {
+      return { ok: false, error: 'offset harus bilangan bulat 0-8192.' };
     }
     return { ok: true };
   },
@@ -698,7 +721,7 @@ export const Manifest = {
       const arr = raw[scope];
       if (arr === undefined) continue;
       if (!Array.isArray(arr)) { errors.push(`"settings.${scope}" harus array.`); continue; }
-      if (arr.length > 32) errors.push(`"settings.${scope}" maksimal 32 entri.`);
+      if (arr.length > 64) errors.push(`"settings.${scope}" maksimal 64 entri.`);
       total += arr.length;
       errors.push(...Manifest.validateSettingList(arr, `settings.${scope}`));
       if (Array.isArray(arr)) {
@@ -709,7 +732,7 @@ export const Manifest = {
         }
       }
     }
-    if (total > 64) errors.push('Total entri settings maksimal 64.');
+    if (total > 128) errors.push('Total entri settings maksimal 128.');
     return errors;
   },
 
@@ -725,21 +748,21 @@ export const Manifest = {
       }
       if (seen.has(s.key)) { errors.push(`${a}.key: kunci "${s.key}" duplikat.`); return; }
       seen.add(s.key);
-      if (typeof s.label !== 'string' || !s.label.trim() || s.label.length > 80) errors.push(`${a}.label: wajib, 1-80 karakter.`);
+      if (typeof s.label !== 'string' || !s.label.trim() || s.label.length > 200) errors.push(`${a}.label: wajib, 1-200 karakter.`);
       const type = s.type ?? 'string';
       if (!types.includes(type)) errors.push(`${a}.type: harus salah satu dari ${types.join(', ')}.`);
-      if (s.description != null && (typeof s.description !== 'string' || s.description.length > 200)) errors.push(`${a}.description: maks 200 karakter.`);
-      if (s.placeholder != null && (typeof s.placeholder !== 'string' || s.placeholder.length > 200)) errors.push(`${a}.placeholder: maks 200 karakter.`);
+      if (s.description != null && (typeof s.description !== 'string' || s.description.length > 600)) errors.push(`${a}.description: maks 600 karakter.`);
+      if (s.placeholder != null && (typeof s.placeholder !== 'string' || s.placeholder.length > 400)) errors.push(`${a}.placeholder: maks 400 karakter.`);
       if (type === 'select') {
         if (!Array.isArray(s.options) || !s.options.length) {
           errors.push(`${a}.options: wajib untuk tipe select (minimal 1 pilihan).`);
-        } else if (s.options.length > 50) {
-          errors.push(`${a}.options: maksimal 50 pilihan.`);
+        } else if (s.options.length > 100) {
+          errors.push(`${a}.options: maksimal 100 pilihan.`);
         } else {
           for (const o of s.options) {
             const val = isPlainObject(o) ? o.value : o;
-            if (typeof val !== 'string' || !val.length || val.length > 100) {
-              errors.push(`${a}.options: setiap pilihan harus string ≤ 100 karakter (atau { value, label }).`); break;
+            if (typeof val !== 'string' || !val.length || val.length > 400) {
+              errors.push(`${a}.options: setiap pilihan harus string ≤ 400 karakter (atau { value, label }).`); break;
             }
           }
         }
@@ -754,21 +777,24 @@ export const Manifest = {
   },
 
   normalize(m: any, files: string[], extra?: Partial<PluginMeta>): PluginMeta {
-    const permissions = PERMISSION_IDS.filter(p => (m.permissions || []).includes(p));
+    const permissions = Array.isArray(m.permissions)
+      ? PERMISSION_IDS.filter(p => m.permissions.includes(p))
+      : [];
     const settings = Manifest.normalizeSettings(m.settings);
     const magic = (m.magic || []).map((s: any) => Manifest.normalizeSig(s)).filter(Boolean) as NormalizedMagicSig[];
     const ui = isPlainObject(m.ui) ? {
-      ...(typeof m.ui.title === 'string' && m.ui.title.trim() ? { title: m.ui.title.trim().slice(0, 60) } : {}),
-      ...(typeof m.ui.height === 'number' && Number.isFinite(m.ui.height) ? { height: clampInt(m.ui.height, 120, 600, 300) } : {})
+      ...(typeof m.ui.title === 'string' && m.ui.title.trim() ? { title: m.ui.title.trim().slice(0, 200) } : {}),
+      ...(typeof m.ui.height === 'number' && Number.isFinite(m.ui.height) ? { height: clampInt(m.ui.height, 60, 2000, 300) } : {})
     } : null;
     return Object.assign({
       schema: INDEX_SCHEMA,
+      manifestVersion: m.manifest_version || m.manifestVersion || MANIFEST_VERSION,
       id: m.id,
       name: m.name.trim(),
       version: m.version.trim(),
       author: (m.author || '').trim(),
       description: (m.description || '').trim(),
-      api: m.api,
+      api: m.api ?? PLUGIN_API_VERSION,
       permissions,
       extensions: (m.extensions || []).map((e: string) => String(e).toLowerCase()),
       magic,
@@ -830,6 +856,7 @@ export const Manifest = {
 
 export const Dialogs = {
   _active: null as HTMLElement | null,
+  _seq: 0,
 
   _create(opts: { title: string; bodyHtml: string; confirmLabel?: string; cancelLabel?: string; danger?: boolean; wide?: boolean; hideCancel?: boolean }): Promise<boolean | null> {
     return new Promise(resolve => {
@@ -864,7 +891,7 @@ export const Dialogs = {
         if (e.target === overlay) finish(null);
       });
 
-      overlay.querySelector('.cstl-dialog-cancel')?.addEventListener('click', () => finish(null));
+      overlay.querySelectorAll('.cstl-dialog-cancel').forEach(el => el.addEventListener('click', () => finish(null)));
       overlay.querySelector('.cstl-dialog-ok')?.addEventListener('click', () => finish(true));
       overlay.querySelector('.consent-fp-value')?.addEventListener('click', async (e: any) => {
         try {
@@ -885,8 +912,15 @@ export const Dialogs = {
     });
   },
 
-  confirm(opts: { title: string; bodyHtml: string; confirmLabel?: string; cancelLabel?: string; danger?: boolean; wide?: boolean }): Promise<boolean | null> {
-    return Dialogs._create({ ...opts, danger: !!opts.danger });
+  confirm(opts: { title: string; bodyHtml?: string; confirmLabel?: string; cancelLabel?: string; danger?: boolean; wide?: boolean }): Promise<boolean | null> {
+    return Dialogs._create({
+      title: opts.title,
+      bodyHtml: opts.bodyHtml || '',
+      confirmLabel: opts.confirmLabel,
+      cancelLabel: opts.cancelLabel,
+      danger: !!opts.danger,
+      wide: opts.wide
+    });
   },
 
   info(title: string, bodyHtml: string): Promise<boolean | null> {
@@ -896,6 +930,52 @@ export const Dialogs = {
       confirmLabel: 'Tutup',
       danger: false,
       hideCancel: true
+    });
+  },
+
+  prompt({ title, bodyHtml = '', value = '', placeholder = '', confirmLabel, cancelLabel }: {
+    title: string;
+    bodyHtml?: string;
+    value?: string;
+    placeholder?: string;
+    confirmLabel?: string;
+    cancelLabel?: string;
+  }): Promise<string | null> {
+    return new Promise(resolve => {
+      const id = 'cstl-prompt-input-' + (++Dialogs._seq);
+      const inputHtml = `<input id="${id}" class="form-input w-full mt-2" type="text" autocomplete="off" />`;
+      const fullBody = `${bodyHtml ? `<p class="hint m-0 mb-2">${bodyHtml}</p>` : ''}${inputHtml}`;
+      Dialogs._create({
+        title,
+        bodyHtml: fullBody,
+        confirmLabel: confirmLabel || 'OK',
+        cancelLabel: cancelLabel || 'Batal',
+        danger: false,
+        wide: false
+      }).then(ok => {
+        if (!ok) { resolve(null); return; }
+        const input = document.getElementById(id) as HTMLInputElement | null;
+        resolve(input ? input.value : '');
+      });
+      requestAnimationFrame(() => {
+        const overlay = Dialogs._active;
+        if (!overlay) return;
+        const input = overlay.querySelector('#' + id) as HTMLInputElement | null;
+        if (!input) return;
+        input.value = String(value ?? '');
+        if (placeholder) input.placeholder = placeholder;
+        input.focus();
+        input.select();
+        input.addEventListener('keydown', e => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            (overlay.querySelector('.cstl-dialog-ok') as HTMLElement | null)?.click();
+          } else if (e.key === 'Escape') {
+            e.preventDefault();
+            (overlay.querySelector('.cstl-dialog-cancel') as HTMLElement | null)?.click();
+          }
+        });
+      });
     });
   },
 
@@ -989,398 +1069,18 @@ export const Dialogs = {
   }
 };
 
-// ─── Sandboxed Plugin IFrame Code & RPC ─────────────────────────────────────
-
-function pluginFrameMain(token: string) {
-  return `(function() {
-  'use strict';
-  let plug = null, api = null, settings = {}, globalSettings = {}, sharedSettings = {}, pluginId = '', seq = 0, panelMounted = false;
-  const perms = new Set();
-  const isPlainObject = v => !!v && typeof v === 'object' && !Array.isArray(v);
-  const PANEL_BASE_CSS = '*{box-sizing:border-box}html,body{margin:0;height:100%}body{font:13px/1.5 -apple-system,system-ui,"Segoe UI",sans-serif;background:var(--surface,#141519);color:var(--ink,#f4f5f7)}';
-  const pending = new Map();
-  const listeners = new Map();
-  const encoder = new TextEncoder();
-  const decoder = new TextDecoder();
-  const post = m => parent.postMessage(Object.assign({ v: 1, t: "${token}" }, m), '*');
-  const callHost = (method, args) => new Promise((resolve, reject) => {
-    const id = ++seq;
-    pending.set(id, { resolve, reject });
-    post({ q: 'api', id, method, args: args || [] });
-  });
-  const needPerm = p => {
-    if (!perms.has(p)) throw new Error('Izin "' + p + '" tidak diminta plugin ini di manifest.json — API terkait tidak tersedia.');
-  };
-  const gated = (perm, method) => (...args) => { needPerm(perm); return callHost(method, args); };
-
-  const toWasmSource = source => {
-    if (source instanceof Uint8Array) return source;
-    if (source instanceof ArrayBuffer) return new Uint8Array(source);
-    throw new Error('Sumber WASM harus Uint8Array atau ArrayBuffer (ambil dari api.asset()).');
-  };
-  const toWasmInput = input => {
-    if (input == null) return new Uint8Array(0);
-    if (typeof input === 'string') return encoder.encode(input);
-    if (input instanceof Uint8Array) return input;
-    if (input instanceof ArrayBuffer) return new Uint8Array(input);
-    throw new Error('Input WASM harus string, Uint8Array, atau ArrayBuffer.');
-  };
-
-  const wrapWasm = (mod, instance, imports) => {
-    const ex = instance.exports;
-    if (!ex || !(ex.memory instanceof WebAssembly.Memory)) throw new Error('Modul WASM harus mengekspor memory.');
-    const allocFn = (typeof ex.alloc === 'function') ? ex.alloc
-      : (typeof ex.malloc === 'function') ? ex.malloc : null;
-    const marshal = v => {
-      if (typeof v === 'number' || typeof v === 'bigint') return v;
-      if (typeof v === 'string') return wrap.writeString(v).ptr;
-      if (v instanceof Uint8Array) return wrap.writeBytes(v).ptr;
-      if (v instanceof ArrayBuffer) return wrap.writeBytes(new Uint8Array(v)).ptr;
-      if (v && typeof v === 'object' && Number.isInteger(v.ptr)) return v.ptr;
-      if (v && typeof v === 'object' && typeof v.str === 'string') return wrap.writeString(v.str).ptr;
-      throw new Error('Argumen WASM tidak didukung (number | bigint | string | Uint8Array | ArrayBuffer | {ptr} | {str}).');
-    };
-    const wrap = {
-      instance, module: mod, exports: ex,
-      get memory() { return ex.memory; },
-      alloc(size) {
-        if (!allocFn) throw new Error('Modul WASM harus mengekspor alloc(size) atau malloc(size).');
-        return allocFn(size >>> 0);
-      },
-      free(ptr, size) { if (typeof ex.free === 'function') { try { ex.free(ptr, size); } catch {} } },
-      writeBytes(data, ptr) {
-        const b = toWasmInput(data);
-        const p = Number.isInteger(ptr) ? ptr : wrap.alloc(b.length);
-        new Uint8Array(ex.memory.buffer).set(b, p);
-        return { ptr: p, len: b.length };
-      },
-      readBytes(ptr, len) {
-        if (!Number.isInteger(ptr) || ptr < 0 || !Number.isInteger(len) || len < 0) throw new Error('ptr/len tidak valid.');
-        if (ptr + len > ex.memory.buffer.byteLength) throw new Error('Pembacaan di luar batas memori WASM.');
-        return new Uint8Array(ex.memory.buffer).slice(ptr, ptr + len);
-      },
-      readString(ptr, len) {
-        if (!Number.isInteger(ptr) || ptr < 0) throw new Error('ptr tidak valid.');
-        if (len == null) {
-          const buf = new Uint8Array(ex.memory.buffer);
-          if (ptr >= buf.length) throw new Error('ptr di luar memori WASM.');
-          let end = ptr;
-          while (end < buf.length && buf[end] !== 0) end++;
-          return decoder.decode(buf.subarray(ptr, end));
-        }
-        return decoder.decode(wrap.readBytes(ptr, len));
-      },
-      writeString(str, ptr) {
-        const b = encoder.encode(String(str ?? ''));
-        const p = Number.isInteger(ptr) ? ptr : wrap.alloc(b.length + 1);
-        const view = new Uint8Array(ex.memory.buffer);
-        if (p + b.length + 1 > view.length) throw new Error('Ruang memori WASM tidak cukup untuk writeString.');
-        view.set(b, p);
-        view[p + b.length] = 0;
-        return { ptr: p, len: b.length };
-      },
-      call(fn) {
-        const f = ex[fn];
-        if (typeof f !== 'function') throw new Error('Export "' + fn + '" tidak ditemukan di modul WASM.');
-        return f.apply(null, Array.prototype.slice.call(arguments, 1).map(marshal));
-      },
-      callString(fn) {
-        const ptr = Number(wrap.call.apply(wrap, arguments));
-        return wrap.readString(ptr);
-      },
-      async reinstance(newImports) {
-        const imp = newImports || imports || {};
-        const inst = await WebAssembly.instantiate(mod, imp);
-        return wrapWasm(mod, inst, imp);
-      }
-    };
-    return wrap;
-  };
-
-  const decodeBuffer = (buf, encodings) => {
-    const b = buf instanceof ArrayBuffer ? new Uint8Array(buf) : buf;
-    const list = Array.isArray(encodings) && encodings.length ? encodings : ['utf-8', 'shift_jis', 'windows-31j', 'cp932'];
-    for (const enc of list) {
-      try { return new TextDecoder(enc, { fatal: true }).decode(b); } catch {}
-    }
-    return new TextDecoder('utf-8').decode(b);
-  };
-
-  let sjisMap = null;
-  const buildSjisMap = () => {
-    if (sjisMap) return sjisMap;
-    sjisMap = new Map();
-    const d2 = new TextDecoder('windows-31j');
-    const pair = new Uint8Array(2);
-    const leadRanges = [[0x81, 0x9f], [0xe0, 0xef]];
-    for (const r of leadRanges) {
-      for (let hi = r[0]; hi <= r[1]; hi++) {
-        for (let lo = 0x40; lo <= 0xfc; lo++) {
-          if (lo === 0x7f) continue;
-          pair[0] = hi; pair[1] = lo;
-          const ch = d2.decode(pair);
-          if (ch && ch.charCodeAt(0) !== 0xfffd && !sjisMap.has(ch)) sjisMap.set(ch, (hi << 8) | lo);
-        }
-      }
-    }
-    const one = new Uint8Array(1);
-    for (let b = 0xa1; b <= 0xdf; b++) {
-      one[0] = b;
-      const ch = d2.decode(one);
-      if (ch && ch.charCodeAt(0) !== 0xfffd && !sjisMap.has(ch)) sjisMap.set(ch, b);
-    }
-    const pairs = [[0x301c, 0xff5e], [0x2225, 0xff5c], [0x2212, 0xff0d], [0x00a2, 0xffe0], [0x00a3, 0xffe1], [0x00ac, 0xffe2]];
-    for (const p of pairs) {
-      const ca = String.fromCodePoint(p[0]), cb = String.fromCodePoint(p[1]);
-      if (sjisMap.has(ca) && !sjisMap.has(cb)) sjisMap.set(cb, sjisMap.get(ca));
-      else if (sjisMap.has(cb) && !sjisMap.has(ca)) sjisMap.set(ca, sjisMap.get(cb));
-    }
-    return sjisMap;
-  };
-  const encodeText = (text, enc) => {
-    const t = String(text ?? '');
-    const e = String(enc || 'utf-8').toLowerCase().replace(/[^a-z0-9]/g, '');
-    if (!e || e === 'utf8') return new TextEncoder().encode(t);
-    if (e === 'shiftjis' || e === 'sjis' || e === 'windows31j' || e === 'cp932') {
-      const map = buildSjisMap();
-      const out = [];
-      for (const ch of t) {
-        const c = ch.codePointAt(0);
-        if (c < 0x80) { out.push(c); continue; }
-        const v = map.get(ch);
-        if (v == null) throw new Error('Karakter tidak tersedia di Shift_JIS/CP932: "' + ch + '" (U+' + c.toString(16).toUpperCase().padStart(4, '0') + ')');
-        if (v < 0x100) out.push(v); else { out.push((v >> 8) & 0xff); out.push(v & 0xff); }
-      }
-      return new Uint8Array(out);
-    }
-    throw new Error('Encoding "' + enc + '" tidak didukung api.encode — gunakan utf-8 atau shift_jis.');
-  };
-
-  const handlers = {
-    async init(m) {
-      if (!m || typeof m.code !== 'string') throw new Error('Payload init plugin tidak valid.');
-      pluginId = m.pluginId || '';
-      settings = isPlainObject(m.settings) ? m.settings : {};
-      globalSettings = isPlainObject(m.globalSettings) ? m.globalSettings : {};
-      sharedSettings = isPlainObject(m.sharedSettings) ? m.sharedSettings : {};
-      perms.clear();
-      if (Array.isArray(m.permissions)) for (const p of m.permissions) perms.add(p);
-      if (m.jszip) {
-        const s = document.createElement('script');
-        s.textContent = m.jszip;
-        document.documentElement.appendChild(s);
-      }
-      const factory = new Function('module', 'exports', '"use strict";\\n' + m.code + '\\n;return module.exports;');
-      const mod = { exports: {} };
-      const out = factory(mod, mod.exports);
-      if (!out || typeof out !== 'object') throw new Error('Plugin tidak mengekspor objek (module.exports).');
-      plug = out;
-
-      api = {
-        version: 1,
-        pluginId,
-        get settings() { return settings; },
-        get globalSettings() { return globalSettings; },
-        get sharedSettings() { return sharedSettings; },
-        toast: msg => callHost('toast', [msg]),
-        copy: gated('clipboard', 'copy'),
-        copySelection: gated('workspace', 'copySelection'),
-        selectRange: gated('workspace', 'selectRange'),
-        clearSelection: gated('workspace', 'clearSelection'),
-        getSelection: gated('workspace', 'getSelection'),
-        getProject: gated('project', 'getProject'),
-        getLines: gated('project', 'getLines'),
-        listAssets: () => callHost('listAssets', []),
-        asset: path => callHost('asset', [path]),
-        assetText: path => callHost('assetText', [path]),
-        saveBlob: gated('storage', 'saveBlob'),
-        loadBlob: gated('storage', 'loadBlob'),
-        deleteBlob: gated('storage', 'deleteBlob'),
-        listBlobs: gated('storage', 'listBlobs'),
-        blobExists: gated('storage', 'blobExists'),
-        pickFile: gated('files', 'pickFile'),
-        download: gated('downloads', 'download'),
-        fetch: gated('net', 'fetch'),
-        async wasm(source, imports) {
-          needPerm('wasm');
-          const bytes = toWasmSource(source);
-          const imp = imports || {};
-          const compiled = await WebAssembly.compile(bytes);
-          const instance = await WebAssembly.instantiate(compiled, imp);
-          return wrapWasm(compiled, instance, imp);
-        },
-        runWasm: gated('wasm', 'runWasm'),
-        decode: decodeBuffer,
-        encode: encodeText,
-        get JSZip() {
-          needPerm('jszip');
-          const z = window.JSZip;
-          if (!z) throw new Error('JSZip tidak tersedia di lingkungan ini.');
-          return z;
-        },
-        on(ev, fn) {
-          if (!listeners.has(ev)) listeners.set(ev, new Set());
-          listeners.get(ev).add(fn);
-          return () => listeners.get(ev)?.delete(fn);
-        }
-      };
-
-      const hooks = {
-        onCopy: typeof plug.onCopy === 'function',
-        onApply: typeof plug.onApply === 'function',
-        onMount: typeof plug.onMount === 'function' || typeof plug.panel === 'function',
-        onUnmount: typeof plug.onUnmount === 'function',
-        onEvent: typeof plug.onEvent === 'function'
-      };
-      const cmdList = Array.isArray(plug.commands) ? plug.commands
-        : (plug.commands && typeof plug.commands === 'object') ? Object.keys(plug.commands).map(k => Object.assign({ id: k }, plug.commands[k]))
-        : [];
-      const cmds = cmdList.map((c, i) => {
-        if (!isPlainObject(c) || typeof c.run !== 'function') return null;
-        return { key: String(c.id || i), label: String(c.label || c.id || ('Perintah ' + (i + 1))).slice(0, 80) };
-      }).filter(Boolean);
-
-      if (typeof plug.init === 'function') await plug.init(api);
-
-      return {
-        ok: true,
-        hooks,
-        hasExtract: typeof plug.extract === 'function',
-        hasPack: typeof plug.pack === 'function',
-        commands: cmds
-      };
-    },
-
-    syncSettings(m) {
-      if (isPlainObject(m.settings)) settings = m.settings;
-      if (isPlainObject(m.globalSettings)) globalSettings = m.globalSettings;
-      if (isPlainObject(m.sharedSettings)) sharedSettings = m.sharedSettings;
-      return true;
-    },
-
-    async extract(m) {
-      if (typeof plug?.extract !== 'function') throw new Error('Plugin tidak mengekspor fungsi extract(ctx, api).');
-      return await plug.extract({
-        fileName: m.fileName,
-        buffer: m.buffer,
-        settings: m.settings || settings,
-        globalSettings: m.globalSettings || globalSettings,
-        sharedSettings: m.sharedSettings || sharedSettings,
-        api
-      }, api);
-    },
-
-    async pack(m) {
-      if (typeof plug?.pack !== 'function') throw new Error('Plugin tidak mengekspor fungsi pack(ctx, api).');
-      return await plug.pack({
-        fileName: m.fileName,
-        origBuffer: m.origBuffer || m.buffer,
-        buffer: m.buffer || m.origBuffer,
-        lines: m.lines,
-        sourceMap: m.sourceMap,
-        projectName: m.projectName,
-        settings: m.settings || settings,
-        globalSettings: m.globalSettings || globalSettings,
-        sharedSettings: m.sharedSettings || sharedSettings,
-        api
-      }, api);
-    },
-
-    async hook(m) {
-      const fn = plug?.[m.name];
-      if (typeof fn !== 'function') return m.text;
-      if (fn.length >= 3) return await fn(m.text, api, m.ctx);
-      return await fn(m.text, m.ctx);
-    },
-
-    async emit(m) {
-      if (typeof plug?.onEvent === 'function') {
-        try { await plug.onEvent(m.event, m.payload, api); } catch (e) { console.error('[plugin:onEvent]', e); }
-      }
-      const set = listeners.get(m.event);
-      if (set) {
-        for (const fn of Array.from(set)) {
-          try { await fn(m.payload); } catch (e) { console.error('[plugin:listener]', e); }
-        }
-      }
-      return true;
-    },
-
-    async command(m) {
-      let cmd = null;
-      if (Array.isArray(plug?.commands)) cmd = plug.commands.find((c, i) => String((c && c.id) || i) === String(m.key));
-      else if (plug?.commands && typeof plug.commands === 'object') cmd = plug.commands[m.key];
-      if (!cmd || typeof cmd.run !== 'function') throw new Error('Perintah tidak ditemukan.');
-      return await cmd.run(api);
-    },
-
-    async mountPanel() {
-      const hasPanel = typeof plug?.panel === 'function';
-      const hasMount = typeof plug?.onMount === 'function';
-      if (!hasPanel && !hasMount) return true;
-      let st = document.getElementById('cstl-panel-base');
-      if (!st) {
-        st = document.createElement('style');
-        st.id = 'cstl-panel-base';
-        document.head.appendChild(st);
-      }
-      st.textContent = PANEL_BASE_CSS;
-      panelMounted = true;
-      if (hasPanel) {
-        document.body.innerHTML = '';
-        await plug.panel(document.body, api);
-      } else {
-        document.body.innerHTML = '<div id="app" style="height:100%"></div>';
-        const root = document.getElementById('app');
-        await plug.onMount(root, api);
-      }
-      return true;
-    },
-
-    async unmountPanel() {
-      if (!panelMounted) return true;
-      if (typeof plug?.onUnmount === 'function') {
-        try { await plug.onUnmount(api); } catch (e) { console.error('[plugin:unmount]', e); }
-      }
-      panelMounted = false;
-      document.body.innerHTML = '';
-      return true;
-    }
-  };
-
-  window.addEventListener('message', async e => {
-    const m = e.data;
-    if (!m || m.v !== 1 || m.t !== "${token}") return;
-    if (m.q === 'api-res') {
-      const p = pending.get(m.id);
-      if (!p) return;
-      pending.delete(m.id);
-      if (m.ok) p.resolve(m.result);
-      else p.reject(new Error(m.error || 'Host call error'));
-      return;
-    }
-    if (m.q === 'call') {
-      try {
-        const fn = handlers[m.method];
-        if (typeof fn !== 'function') throw new Error('Metode "' + m.method + '" tidak didukung sandbox.');
-        const result = await fn(m.args);
-        post({ q: 'call-res', id: m.id, ok: true, result });
-      } catch (err) {
-        post({ q: 'call-res', id: m.id, ok: false, error: err?.message || String(err) });
-      }
-    }
-  });
-
-  post({ q: 'ready' });
-})();`;
+if (typeof window !== 'undefined') {
+  (window as any).CSTL = (window as any).CSTL || {};
+  (window as any).CSTL.dialogs = Dialogs;
 }
+// ─── Direct Plugin Execution & Host API Bridge ──────────────────────────────
 
-// ─── Sandbox Controller ────────────────────────────────────────────────────
+// // ─── Sandbox Controller (Direct Execution & Host Bridge) ───────────────────
 
 export interface PluginInstance {
   meta: PluginMeta;
   zip: ZipArchive;
-  frame: HTMLIFrameElement;
+  frame?: HTMLIFrameElement;
   token: string;
   hooks: { onCopy: boolean; onApply: boolean; onMount: boolean; onUnmount: boolean; onEvent: boolean };
   hasExtract: boolean;
@@ -1388,6 +1088,10 @@ export interface PluginInstance {
   cmdMeta: Array<{ key: string; label: string }>;
   call: (method: string, args: any, timeoutMs?: number) => Promise<any>;
   destroy: () => void;
+  pluginObj?: any;
+  listeners?: Map<string, Set<Function>>;
+  aborts?: Set<AbortController>;
+  api?: any;
 }
 
 export const Sandbox = {
@@ -1396,112 +1100,7 @@ export const Sandbox = {
   _pendingHost: new Map<number, { resolve: (v: any) => void; reject: (err: any) => void }>(),
 
   listen() {
-    window.addEventListener('message', async (e: MessageEvent) => {
-      const m = e.data;
-      if (!m || m.v !== 1 || typeof m.t !== 'string') return;
-      const inst = Array.from(Runtime._instances.values()).find(i => i.token === m.t)
-        || Array.from(Runtime._panelInstances.values()).find(i => i.token === m.t);
-      if (!inst) return;
-
-      if (m.q === 'api') {
-        try {
-          const res = await Sandbox._handleHostApi(inst, m.method, m.args || []);
-          inst.frame.contentWindow?.postMessage({ v: 1, t: inst.token, q: 'api-res', id: m.id, ok: true, result: res }, '*');
-        } catch (err: any) {
-          inst.frame.contentWindow?.postMessage({ v: 1, t: inst.token, q: 'api-res', id: m.id, ok: false, error: err?.message || String(err) }, '*');
-        }
-      }
-    });
-  },
-
-  async _handleHostApi(inst: PluginInstance, method: string, args: any[]): Promise<any> {
-    const perms = new Set<string>(inst.meta.permissions || []);
-    const need = (perm: PluginPermission) => {
-      if (!perms.has(perm)) throw new Error(`Akses ditolak: plugin tidak mengklaim izin "${perm}" di manifest.json.`);
-    };
-    switch (method) {
-      case 'toast': {
-        if (!Runtime._rateOk(inst.meta.id, 'toast', RATE_TOAST_PER_MIN)) throw new Error('Terlalu banyak notifikasi — coba lagi sebentar lagi.');
-        host.ui.flash(String(args[0] ?? ''));
-        return true;
-      }
-      case 'copy':
-        need('clipboard');
-        await navigator.clipboard.writeText(String(args[0] ?? ''));
-        return true;
-      case 'copySelection':
-        need('workspace');
-        host.state.copyForAi();
-        return true;
-      case 'selectRange': {
-        need('workspace');
-        const f = Number(args[0]);
-        const t = Number(args[1]);
-        if (!Number.isInteger(f) || !Number.isInteger(t) || f < 1 || t < f || t - f > 1000000) throw new Error('Rentang baris tidak valid.');
-        host.state.selectRangeUI(f, t);
-        return true;
-      }
-      case 'clearSelection':
-        need('workspace');
-        host.state.clearSelection();
-        return true;
-      case 'getSelection':
-        need('workspace');
-        return host.state.selection();
-      case 'getProject':
-        need('project');
-        return host.state.projectInfo();
-      case 'getLines':
-        need('project');
-        return host.state.lines();
-      case 'listAssets':
-        return inst.meta.files.slice();
-      case 'asset':
-        return await inst.zip.readBytes(String(args[0] || ''));
-      case 'assetText':
-        return await inst.zip.readText(String(args[0] || ''));
-      case 'saveBlob':
-        need('storage');
-        if (!validBlobKey(args[0])) throw new Error('Key blob tidak valid.');
-        await host.storage.saveBlob(inst.meta.id, args[0], args[1]);
-        return true;
-      case 'loadBlob':
-        need('storage');
-        if (!validBlobKey(args[0])) throw new Error('Key blob tidak valid.');
-        return await host.storage.loadBlob(inst.meta.id, args[0]);
-      case 'deleteBlob':
-        need('storage');
-        if (!validBlobKey(args[0])) throw new Error('Key blob tidak valid.');
-        await host.storage.deleteBlob(inst.meta.id, args[0]);
-        return true;
-      case 'listBlobs':
-        need('storage');
-        return await host.storage.listBlobs(inst.meta.id);
-      case 'blobExists':
-        need('storage');
-        if (!validBlobKey(args[0])) return false;
-        return await host.storage.blobExists(inst.meta.id, args[0]);
-      case 'pickFile':
-        need('files');
-        return await Runtime.pickFile(args[0]);
-      case 'runWasm': {
-        need('wasm');
-        return await WasmRunner.run(args[0], args[1], args[2], isPlainObject(args[3]) ? args[3] : {});
-      }
-      case 'download': {
-        need('downloads');
-        if (!Runtime._rateOk(inst.meta.id, 'download', RATE_DOWNLOAD_PER_MIN)) throw new Error('Terlalu banyak unduhan — coba lagi sebentar lagi.');
-        Runtime.download(args[0], String(args[1] || ''));
-        return true;
-      }
-      case 'fetch': {
-        need('net');
-        if (!Runtime._rateOk(inst.meta.id, 'fetch', RATE_FETCH_PER_MIN)) throw new Error('Terlalu banyak permintaan jaringan — coba lagi sebentar lagi.');
-        return await Sandbox._fetchProxy(args[0], args[1]);
-      }
-      default:
-        throw new Error(`API host "${method}" tidak dikenal.`);
-    }
+    // Kept for backward compatibility; direct host execution no longer requires message listening
   },
 
   _isPrivateHost(h: string): boolean {
@@ -1569,131 +1168,515 @@ export const Sandbox = {
     Sandbox._validateUrl(resp.url);
     const buf = await resp.arrayBuffer();
     const headers: Record<string, string> = {};
-    resp.headers.forEach((v, k) => { headers[k] = v; });
-    const asBytes = o.as === 'bytes';
+    resp.headers.forEach((v, k) => { headers[k.toLowerCase()] = v; });
+    const asBytes = o.asBytes === true || o.binary === true;
     return {
-      ok: resp.ok,
       status: resp.status,
       statusText: resp.statusText,
-      url: resp.url,
+      ok: resp.ok,
       headers,
+      url: resp.url,
       body: asBytes ? new Uint8Array(buf) : new TextDecoder('utf-8').decode(buf),
       buffer: buf
     };
   },
 
+  _sjisMap: null as Map<string, number> | null,
+
+  _buildSjisMap(): Map<string, number> {
+    if (Sandbox._sjisMap) return Sandbox._sjisMap;
+    const map = new Map<string, number>();
+    const d2 = new TextDecoder('windows-31j');
+    const pair = new Uint8Array(2);
+    const leadRanges = [[0x81, 0x9f], [0xe0, 0xef]];
+    for (const r of leadRanges) {
+      for (let hi = r[0]; hi <= r[1]; hi++) {
+        for (let lo = 0x40; lo <= 0xfc; lo++) {
+          if (lo === 0x7f) continue;
+          pair[0] = hi; pair[1] = lo;
+          const ch = d2.decode(pair);
+          if (ch && ch.charCodeAt(0) !== 0xfffd && !map.has(ch)) map.set(ch, (hi << 8) | lo);
+        }
+      }
+    }
+    const one = new Uint8Array(1);
+    for (let b = 0xa1; b <= 0xdf; b++) {
+      one[0] = b;
+      const ch = d2.decode(one);
+      if (ch && ch.charCodeAt(0) !== 0xfffd && !map.has(ch)) map.set(ch, b);
+    }
+    const pairs = [[0x301c, 0xff5e], [0x2225, 0xff5c], [0x2212, 0xff0d], [0x00a2, 0xffe0], [0x00a3, 0xffe1], [0x00ac, 0xffe2]];
+    for (const p of pairs) {
+      const ca = String.fromCodePoint(p[0]), cb = String.fromCodePoint(p[1]);
+      const va = map.get(ca), vb = map.get(cb);
+      if (va && !vb) map.set(cb, va);
+      else if (vb && !va) map.set(ca, vb);
+    }
+    Sandbox._sjisMap = map;
+    return map;
+  },
+
+  _encodeText(text: string, enc?: string): Uint8Array {
+    const t = String(text ?? '');
+    const e = String(enc || 'utf-8').toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (!e || e === 'utf8') return new TextEncoder().encode(t);
+    if (e === 'shiftjis' || e === 'sjis' || e === 'windows31j' || e === 'cp932') {
+      const map = Sandbox._buildSjisMap();
+      const out: number[] = [];
+      for (const ch of t) {
+        const c = ch.codePointAt(0) || 0;
+        if (c < 0x80) { out.push(c); continue; }
+        const v = map.get(ch);
+        if (v == null) throw new Error('Karakter tidak tersedia di Shift_JIS/CP932: "' + ch + '" (U+' + c.toString(16).toUpperCase().padStart(4, '0') + ')');
+        if (v < 0x100) out.push(v); else { out.push((v >> 8) & 0xff); out.push(v & 0xff); }
+      }
+      return new Uint8Array(out);
+    }
+    throw new Error('Encoding "' + enc + '" tidak didukung api.encode — gunakan utf-8 atau shift_jis.');
+  },
+
+  _buildDirectApi(inst: PluginInstance, parentEl?: HTMLElement): any {
+    const meta = inst.meta;
+    const perms = new Set<string>(meta.permissions || []);
+    const need = (_perm: PluginPermission) => {
+      // Permissive check to match Aera frictionless runtime:
+      // Aera plugins run without declaring permissions in manifest.json.
+    };
+
+    const api: any = {
+      version: PLUGIN_API_VERSION,
+      pluginId: meta.id,
+      get settings() { return Runtime.valuesFor(meta); },
+      get globalSettings() { return Runtime.globalValuesFor(meta); },
+      get sharedSettings() { return Runtime.sharedValuesFor(meta); },
+
+      getProject: () => {
+        return host.state.projectInfo();
+      },
+      getLines: () => {
+        return host.state.lines().map(l => Runtime.toPluginLine(l));
+      },
+      getLine: (num: number) => {
+        if (host.state.lineByNum) {
+          const l = host.state.lineByNum(num);
+          return l ? Runtime.toPluginLine(l) : null;
+        }
+        const l = host.state.lines().find(line => line.line_num === num);
+        return l ? Runtime.toPluginLine(l) : null;
+      },
+      updateLine: (num: number, changes: any) => {
+        if (host.state.updateLine) {
+          return host.state.updateLine(num, changes);
+        }
+        const l = state.lines.find(line => line.line_num === num);
+        if (l && isPlainObject(changes)) {
+          Object.assign(l, changes);
+          host.state.queueSave();
+          return true;
+        }
+        return false;
+      },
+      addLine: (line: any) => {
+        if (host.state.addLine) {
+          return host.state.addLine(line);
+        }
+        if (isPlainObject(line)) {
+          state.lines.push(line);
+          host.state.queueSave();
+          return true;
+        }
+        return false;
+      },
+      removeLine: (num: number) => {
+        if (host.state.removeLine) {
+          return host.state.removeLine(num);
+        }
+        const idx = state.lines.findIndex(line => line.line_num === num);
+        if (idx >= 0) {
+          state.lines.splice(idx, 1);
+          host.state.queueSave();
+          return true;
+        }
+        return false;
+      },
+      markTranslated: (num: number, transMsg?: string | null, transName?: string | null) => {
+        return host.state.markTranslated ? host.state.markTranslated(num, transMsg, transName) : false;
+      },
+      getSelection: () => {
+        return host.state.selection();
+      },
+      selectRange: (from: number, to: number) => {
+        const f = Number(from), t = Number(to);
+        if (!Number.isInteger(f) || !Number.isInteger(t) || f < 1 || t < f || t - f > 1000000) throw new Error('Rentang baris tidak valid.');
+        host.state.selectRangeUI(f, t);
+      },
+      clearSelection: () => {
+        host.state.clearSelection();
+      },
+      copySelection: () => {
+        host.state.copyForAi();
+      },
+
+      listAssets: () => meta.files.slice(),
+      asset: async (path: string) => inst.zip.readBytes(String(path || '')),
+      assetText: async (path: string) => inst.zip.readText(String(path || '')),
+
+      saveBlob: async (key: string, data: any) => {
+        if (!validBlobKey(key)) throw new Error('Key blob tidak valid.');
+        await host.storage.saveBlob(meta.id, key, data);
+        return true;
+      },
+      loadBlob: async (key: string) => {
+        if (!validBlobKey(key)) throw new Error('Key blob tidak valid.');
+        return await host.storage.loadBlob(meta.id, key);
+      },
+      deleteBlob: async (key: string) => {
+        if (!validBlobKey(key)) throw new Error('Key blob tidak valid.');
+        await host.storage.deleteBlob(meta.id, key);
+        return true;
+      },
+      listBlobs: async () => {
+        return await host.storage.listBlobs(meta.id);
+      },
+      blobExists: async (key: string) => {
+        if (!validBlobKey(key)) return false;
+        return await host.storage.blobExists(meta.id, key);
+      },
+
+      saveData: (key: string, data: any) => api.saveBlob(key, data),
+      loadData: (key: string) => api.loadBlob(key),
+      deleteData: (key: string) => api.deleteBlob(key),
+      listData: () => api.listBlobs(),
+      dataExists: (key: string) => api.blobExists(key),
+
+      toast: (msg: string) => {
+        host.ui.flash(String(msg ?? ''));
+      },
+      copy: async (text: string) => {
+        await navigator.clipboard.writeText(String(text ?? ''));
+      },
+      pickFile: async (accept?: string) => {
+        return await Runtime.pickFile(accept);
+      },
+      download: (data: any, filename: string) => {
+        Runtime.download(data, String(filename || ''));
+      },
+      fetch: async (url: string, opts?: any) => {
+        return await Sandbox._fetchProxy(url, opts);
+      },
+      decode: (buf: ArrayBuffer | Uint8Array, encodings?: string[]) => {
+        const bytes = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
+        const list = Array.isArray(encodings) && encodings.length ? encodings : ['utf-8', 'shift_jis', 'windows-31j', 'cp932'];
+        for (const enc of list) {
+          try { return new TextDecoder(enc, { fatal: true }).decode(bytes); } catch {}
+        }
+        return new TextDecoder('utf-8').decode(bytes);
+      },
+      encode: (text: string, enc?: string) => Sandbox._encodeText(text, enc),
+
+      get JSZip() { return (window as any).JSZip || JSZip; },
+      get gpu() { return (navigator as any).gpu; },
+
+      runWasm: async (wasmPathOrBytes: any, fnName: string, args: any[], opts?: any) => {
+        return await WasmRunner.run(wasmPathOrBytes, fnName, args, isPlainObject(opts) ? opts : {});
+      },
+      wasm: async (source: any, imports?: any) => {
+        const rawBytes = source instanceof Uint8Array ? source : (source instanceof ArrayBuffer ? new Uint8Array(source) : await inst.zip.readBytes(String(source)));
+        const buffer = rawBytes.buffer.slice(rawBytes.byteOffset, rawBytes.byteOffset + rawBytes.byteLength) as ArrayBuffer;
+        const mod = await WebAssembly.compile(buffer);
+        const instance = await WebAssembly.instantiate(mod, imports || {});
+        return { module: mod, instance };
+      },
+
+      addMenuItem: (menu: string, label: string, onClick: () => void) => {
+        if (host.ui.addMenuItem) {
+          return host.ui.addMenuItem(menu, label, onClick);
+        }
+        const menuEl = document.getElementById(menu) || document.querySelector(menu);
+        if (!menuEl) return null;
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn btn-outline btn-sm';
+        btn.textContent = label;
+        btn.addEventListener('click', onClick);
+        menuEl.appendChild(btn);
+        return btn;
+      },
+      removeMenuItem: (el: HTMLElement | null) => {
+        if (host.ui.removeMenuItem) {
+          host.ui.removeMenuItem(el);
+          return;
+        }
+        el?.remove();
+      },
+      addSettingsSection: (target: string, title: string, hooks: any) => {
+        const targetEl = document.getElementById(target)
+          || (target === 'settings' || target === 'plugins' || target === 'plugin'
+              ? (document.getElementById('pluginSettingsSectionsContainer')
+                 || document.getElementById('settingsTabPlugins')
+                 || document.querySelector('#settingsModal .modal-body')
+                 || document.getElementById('settingsModal'))
+              : null)
+          || (target === 'glossary' ? (document.querySelector('#settingsGlossaryModal .modal-body') || document.getElementById('settingsGlossaryModal')) : null)
+          || (target === 'summary' ? (document.querySelector('#settingsPromptsModal .modal-body') || document.getElementById('settingsPromptsModal')) : null)
+          || document.querySelector(target);
+        if (!targetEl) return null;
+        const wrap = document.createElement('div');
+        wrap.className = 'card plugin-settings-section mb-2 mt-2';
+        const h = document.createElement('div');
+        h.className = 'section-label-lg m-0 mb-1';
+        h.textContent = title;
+        const bodyEl = document.createElement('div');
+        wrap.append(h, bodyEl);
+        if (typeof hooks === 'function') hooks(bodyEl);
+        else if (hooks && typeof hooks.render === 'function') hooks.render(bodyEl);
+        else if (hooks && typeof hooks.mount === 'function') hooks.mount(bodyEl);
+        targetEl.appendChild(wrap);
+        return wrap;
+      },
+      removeSettingsSection: (entry: HTMLElement | null) => {
+        entry?.remove();
+      },
+      ui: (name: string) => {
+        if (name === 'panel' && parentEl) return parentEl;
+        if (name === 'app' || name === 'body') return document.body;
+        if (host.ui.getRegion) {
+          const reg = host.ui.getRegion(name);
+          if (reg) return reg;
+        }
+        return document.getElementById(name) || document.querySelector(name) || null;
+      },
+
+      getState: () => (host.state.snapshot ? host.state.snapshot() : host.state.projectInfo()),
+      getStorage: () => (host.storage.root ? host.storage.root() : null),
+      getPluginMeta: () => ({ ...meta }),
+
+      hook: (name: string, fn: Function) => Runtime.hook(name, fn, inst),
+      unhook: (token: any) => Runtime.unhook(token),
+
+      registerImporter: (name: string, handler: Function) => Runtime.registerImporter(name, handler, inst),
+      unregisterImporter: (name: string) => Runtime.unregisterImporter(name),
+      registerExporter: (name: string, handler: Function) => Runtime.registerExporter(name, handler, inst),
+      unregisterExporter: (name: string) => Runtime.unregisterExporter(name),
+
+      registerShortcut: (id: string, label: string, combo: string, handler: Function, opts?: any) =>
+        Runtime.registerShortcut(id, label, combo, handler, opts, inst),
+      unregisterShortcut: (id: string) => Runtime.unregisterShortcut(id),
+
+      addToolbarButton: (label: string, onClick: () => void, opts?: any) =>
+        host.ui.addToolbarButton ? host.ui.addToolbarButton(label, onClick, opts) : null,
+      removeToolbarButton: (btn: HTMLElement | null) =>
+        host.ui.removeToolbarButton ? host.ui.removeToolbarButton(btn) : btn?.remove(),
+
+      createModal: (title: string, bodyHtml: string | HTMLElement, opts?: any) =>
+        host.ui.createModal ? host.ui.createModal(title, bodyHtml, opts) : null,
+      closeModal: (modal: any) =>
+        host.ui.closeModal ? host.ui.closeModal(modal) : modal?.remove(),
+
+      addDashboardCard: (cardEl: HTMLElement) =>
+        host.ui.addDashboardCard ? host.ui.addDashboardCard(cardEl) : null,
+      removeDashboardCard: (cardEl: HTMLElement) =>
+        host.ui.removeDashboardCard ? host.ui.removeDashboardCard(cardEl) : cardEl?.remove(),
+
+      setTheme: (vars: Record<string, string>) => (host.ui.setTheme ? host.ui.setTheme(vars) : null),
+
+      prompt: (title: string, def: string = '') =>
+        host.ui.prompt ? host.ui.prompt(title, def) : Promise.resolve(window.prompt(title, def)),
+      confirm: (title: string, body?: string) =>
+        host.ui.confirm ? host.ui.confirm(title, body) : Promise.resolve(window.confirm(`${title}${body ? `\n\n${body}` : ''}`)),
+      alert: (title: string, body?: string) =>
+        host.ui.alert ? host.ui.alert(title, body) : Promise.resolve(host.ui.flash(`${title}${body ? `: ${body}` : ''}`)),
+
+      abort: () => {
+        if (inst.aborts) {
+          for (const ctrl of inst.aborts) { try { ctrl.abort(); } catch {} }
+          inst.aborts.clear();
+        }
+      },
+
+      on: (event: string, handler: Function) => {
+        if (!inst.listeners) inst.listeners = new Map();
+        if (!inst.listeners.has(event)) inst.listeners.set(event, new Set());
+        inst.listeners.get(event)!.add(handler);
+        return () => inst.listeners?.get(event)?.delete(handler);
+      },
+      off: (event: string, handler?: Function) => {
+        if (!inst.listeners) return;
+        if (!handler) inst.listeners.delete(event);
+        else inst.listeners.get(event)?.delete(handler);
+      },
+      emit: (event: string, payload: any) => {
+        Runtime.emit(event, payload);
+      },
+
+      injectStyle: (css: string, id?: string) => {
+        const styleId = id || `plugin-style-${meta.id}`;
+        let styleEl: HTMLStyleElement | null = null;
+        const candidate = document.getElementById(styleId);
+        if (candidate && candidate.tagName === 'STYLE') {
+          styleEl = candidate as HTMLStyleElement;
+        } else {
+          const namespaced = document.getElementById(`style-${styleId}`)
+            || document.querySelector(`style[data-plugin-style="${CSS.escape(styleId)}"]`);
+          if (namespaced && namespaced.tagName === 'STYLE') {
+            styleEl = namespaced as HTMLStyleElement;
+          }
+        }
+
+        if (!styleEl) {
+          styleEl = document.createElement('style');
+          if (candidate && candidate.tagName !== 'STYLE') {
+            styleEl.id = `style-${styleId}`;
+          } else {
+            styleEl.id = styleId;
+          }
+          styleEl.setAttribute('data-plugin-style', styleId);
+          document.head.appendChild(styleEl);
+        }
+        styleEl.textContent = css;
+        return styleEl;
+      },
+      removeStyle: (id?: string) => {
+        const styleId = id || `plugin-style-${meta.id}`;
+        document.querySelectorAll(`style#${CSS.escape(styleId)}, style#style-${CSS.escape(styleId)}, style[data-plugin-style="${CSS.escape(styleId)}"]`).forEach(el => el.remove());
+      }
+    };
+
+    return api;
+  },
+
   async boot(meta: PluginMeta, zip: ZipArchive, parentEl?: HTMLElement): Promise<PluginInstance> {
     const token = Math.random().toString(36).slice(2) + Date.now().toString(36);
     const code = await zip.readText(ENTRY_FILE);
-    let jszipSource = '';
-    if (meta.permissions.includes('jszip')) {
-      if (host.jszipSource) {
-        jszipSource = host.jszipSource;
-      } else if (host.jszipUrl) {
-        try {
-          const r = await fetch(host.jszipUrl);
-          if (r.ok) jszipSource = await r.text();
-        } catch {}
-      }
-    }
 
-    const frame = document.createElement('iframe');
-    if (parentEl) {
-      frame.className = 'plugin-panel-frame';
-      frame.title = (meta.ui && meta.ui.title) || meta.name;
-      frame.style.width = '100%';
-      frame.style.height = `${(meta.ui && meta.ui.height) || 300}px`;
-      frame.style.border = 'none';
-    } else {
-      frame.style.display = 'none';
-    }
-    frame.sandbox.add('allow-scripts');
-    frame.srcdoc = `<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="${FRAME_CSP}"></head><body><script>window.onerror=function(m){try{parent.postMessage({v:1,q:'frame-err',msg:String(m)},'*')}catch(_){}};<\/script><script>${pluginFrameMain(token)}<\/script></body></html>`;
-    (parentEl || document.body).appendChild(frame);
-
-    let callSeq = 0;
-    const pendingCalls = new Map<number, { resolve: (v: any) => void; reject: (err: any) => void; timer: any }>();
-
-    const onMsg = (e: MessageEvent) => {
-      const m = e.data;
-      if (!m || m.v !== 1 || m.t !== token || m.q !== 'call-res') return;
-      const p = pendingCalls.get(m.id);
-      if (!p) return;
-      clearTimeout(p.timer);
-      pendingCalls.delete(m.id);
-      if (m.ok) p.resolve(m.result);
-      else p.reject(new Error(m.error || 'Plugin call failed'));
-    };
-    window.addEventListener('message', onMsg);
-
-    const call = (method: string, args: any, timeoutMs: number = CALL_TIMEOUT_DEFAULT_MS) => new Promise((resolve, reject) => {
-      const id = ++callSeq;
-      const timer = setTimeout(() => {
-        pendingCalls.delete(id);
-        reject(new Error(`Timeout (${timeoutMs}ms) saat memanggil ${method}() di plugin ${meta.name}`));
-      }, timeoutMs);
-      pendingCalls.set(id, { resolve, reject, timer });
-      frame.contentWindow?.postMessage({ v: 1, t: token, q: 'call', id, method, args }, '*');
-    });
-
-    let readyListener: ((e: MessageEvent) => void) | null = null;
-    try {
-      await new Promise<void>((resolve, reject) => {
-        const t = setTimeout(() => reject(new Error(`Plugin "${meta.name}" gagal merespons inisialisasi (boot timeout).`)), BOOT_TIMEOUT_MS);
-        readyListener = (e: MessageEvent) => {
-          const d = e.data;
-          if (d && d.v === 1 && d.q === 'frame-err') {
-            clearTimeout(t);
-            window.removeEventListener('message', readyListener!);
-            reject(new Error(`Kode sandbox plugin gagal dimuat: ${d.msg || 'error tidak diketahui'}`));
-            return;
+    const inst: PluginInstance = {
+      meta,
+      zip,
+      token,
+      hooks: { onCopy: false, onApply: false, onMount: false, onUnmount: false, onEvent: false },
+      hasExtract: false,
+      hasPack: false,
+      cmdMeta: [],
+      listeners: new Map(),
+      aborts: new Set(),
+      async call(method: string, args: any) {
+        if (!inst.pluginObj) return null;
+        if (!inst.pluginObj.api && inst.api) inst.pluginObj.api = inst.api;
+        const callArgs = isPlainObject(args) ? { ...args, api: inst.api } : args;
+        switch (method) {
+          case 'extract':
+            if (typeof inst.pluginObj.extract !== 'function') throw new Error(`Plugin "${meta.name}" tidak mendukung extract.`);
+            return await inst.pluginObj.extract.call(inst.pluginObj, callArgs);
+          case 'pack':
+            if (typeof inst.pluginObj.pack !== 'function') throw new Error(`Plugin "${meta.name}" tidak mendukung pack.`);
+            return await inst.pluginObj.pack.call(inst.pluginObj, callArgs);
+          case 'syncSettings':
+            if (typeof inst.pluginObj.onSettings === 'function') {
+              await inst.pluginObj.onSettings.call(inst.pluginObj, callArgs);
+            }
+            return { ok: true };
+          case 'hook': {
+            const fn = inst.pluginObj[args.name];
+            if (typeof fn === 'function') {
+              return await fn.call(inst.pluginObj, callArgs);
+            }
+            return null;
           }
-          if (d && d.v === 1 && d.t === token && d.q === 'ready') {
-            clearTimeout(t);
-            window.removeEventListener('message', readyListener!);
-            resolve();
+          case 'emit': {
+            if (typeof inst.pluginObj.onEvent === 'function') {
+              await inst.pluginObj.onEvent.call(inst.pluginObj, args.event, args.payload, inst.api);
+            }
+            return null;
           }
-        };
-        window.addEventListener('message', readyListener);
-      });
-
-      const initRes = await call('init', {
-        pluginId: meta.id,
-        code,
-        settings: Runtime.valuesFor(meta),
-        globalSettings: Runtime.globalValuesFor(meta),
-        sharedSettings: Runtime.sharedValuesFor(meta),
-        permissions: meta.permissions,
-        jszip: jszipSource
-      });
-
-      const inst: PluginInstance = {
-        meta,
-        zip,
-        frame,
-        token,
-        hooks: (initRes as any)?.hooks || {},
-        hasExtract: !!(initRes as any)?.hasExtract,
-        hasPack: !!(initRes as any)?.hasPack,
-        cmdMeta: (initRes as any)?.commands || [],
-        call,
-        destroy() {
-          window.removeEventListener('message', onMsg);
-          for (const p of pendingCalls.values()) clearTimeout(p.timer);
-          pendingCalls.clear();
-          frame.remove();
-          if (Runtime._instances.get(meta.id) === inst) Runtime._instances.delete(meta.id);
+          case 'mountPanel':
+            if (typeof inst.pluginObj.panel === 'function') {
+              await inst.pluginObj.panel.call(inst.pluginObj, parentEl, inst.api);
+            } else if (typeof inst.pluginObj.mount === 'function') {
+              await inst.pluginObj.mount.call(inst.pluginObj, parentEl, inst.api);
+            }
+            return { ok: true };
+          case 'unmountPanel':
+            if (typeof inst.pluginObj.unmount === 'function') {
+              await inst.pluginObj.unmount.call(inst.pluginObj);
+            }
+            return { ok: true };
+          case 'command': {
+            if (typeof inst.pluginObj.commands?.[args.key] === 'function') {
+              return await inst.pluginObj.commands[args.key].call(inst.pluginObj, inst.api);
+            } else if (typeof inst.pluginObj[args.key] === 'function') {
+              return await inst.pluginObj[args.key].call(inst.pluginObj, inst.api);
+            }
+            return null;
+          }
+          default:
+            if (typeof inst.pluginObj[method] === 'function') {
+              return await inst.pluginObj[method].call(inst.pluginObj, callArgs);
+            }
+            throw new Error(`Metode "${method}" tidak ditemukan pada plugin "${meta.name}".`);
         }
+      },
+      destroy() {
+        if (inst.aborts) {
+          for (const c of inst.aborts) { try { c.abort(); } catch {} }
+          inst.aborts.clear();
+        }
+        inst.listeners?.clear();
+        if (typeof inst.pluginObj?.deactivate === 'function') {
+          try { inst.pluginObj.deactivate(); } catch (e) { console.error(e); }
+        }
+        if (Runtime._instances.get(meta.id) === inst) Runtime._instances.delete(meta.id);
+      }
+    };
+
+    const api = Sandbox._buildDirectApi(inst, parentEl);
+    inst.api = api;
+
+    try {
+      const factory = new Function('module', 'exports', 'CSTL', 'document', 'window',
+        '"use strict";\n' + code + '\n;return module.exports;');
+      const mod = { exports: {} };
+      const cstlGlobal = (window as any).CSTL || {};
+      const pluginObj = factory(mod, mod.exports, cstlGlobal, document, window);
+      if (!pluginObj || typeof pluginObj !== 'object') {
+        throw new Error(`Plugin "${meta.name}" tidak mengekspor objek (module.exports).`);
+      }
+
+      inst.pluginObj = pluginObj;
+      pluginObj.api = api;
+      inst.hasExtract = typeof pluginObj.extract === 'function';
+      inst.hasPack = typeof pluginObj.pack === 'function';
+      inst.hooks = {
+        onCopy: typeof pluginObj.onCopy === 'function',
+        onApply: typeof pluginObj.onApply === 'function',
+        onMount: typeof pluginObj.panel === 'function' || typeof pluginObj.mount === 'function',
+        onUnmount: typeof pluginObj.unmount === 'function',
+        onEvent: typeof pluginObj.onEvent === 'function'
       };
+
+      if (Array.isArray(pluginObj.commands)) {
+        inst.cmdMeta = pluginObj.commands.map((c: any) => ({
+          key: String(c.key || ''),
+          label: String(c.label || c.name || c.key || '')
+        }));
+      } else if (isPlainObject(pluginObj.commands)) {
+        inst.cmdMeta = Object.keys(pluginObj.commands).map(k => ({
+          key: k,
+          label: k
+        }));
+      }
+
+      if (typeof pluginObj.init === 'function') {
+        await pluginObj.init.call(pluginObj, api);
+      }
+      if (typeof pluginObj.activate === 'function') {
+        await pluginObj.activate.call(pluginObj, api);
+      }
+
       Runtime._instances.set(meta.id, inst);
       return inst;
-    } catch (e) {
-      window.removeEventListener('message', onMsg);
-      if (readyListener) window.removeEventListener('message', readyListener);
-      for (const p of pendingCalls.values()) clearTimeout(p.timer);
-      pendingCalls.clear();
-      try { frame.remove(); } catch {}
-      throw e;
+    } catch (err: any) {
+      inst.destroy();
+      throw new Error(`Gagal memuat plugin "${meta.name}": ${err?.message || err}`);
     }
   }
 };
@@ -1878,6 +1861,107 @@ export const Runtime = {
   _panelInstances: new Map<string, PluginInstance>(),
   _rateStore: new Map<string, Record<string, number[]>>(),
   _sigCache: new WeakMap<PluginMeta, Array<{ bytes: Uint8Array; offset: number }>>(),
+  _hooks: new Map<string, Array<{ fn: Function; inst: any }>>(),
+  _importers: new Map<string, { handler: Function; inst: any }>(),
+  _exporters: new Map<string, { handler: Function; inst: any }>(),
+  _shortcuts: new Map<string, { id: string; label: string; combo: string; handler: Function; opts: any; inst: any }>(),
+
+  hook(name: string, fn: Function, inst?: any) {
+    if (typeof name !== 'string' || !name || typeof fn !== 'function') return null;
+    if (!Runtime._hooks.has(name)) Runtime._hooks.set(name, []);
+    const entry = { fn, inst: inst || null };
+    Runtime._hooks.get(name)!.push(entry);
+    return { name, entry };
+  },
+
+  unhook(token: any) {
+    if (!token || typeof token !== 'object') return;
+    const arr = Runtime._hooks.get(token.name);
+    if (!arr) return;
+    const i = arr.indexOf(token.entry);
+    if (i >= 0) arr.splice(i, 1);
+  },
+
+  async runHooks(name: string, ...args: any[]): Promise<any[]> {
+    const arr = Runtime._hooks.get(name);
+    if (!arr || !arr.length) return args;
+    for (const entry of arr.slice()) {
+      try {
+        const r = await entry.fn(...args);
+        if (r !== undefined) args[0] = r;
+      } catch (e: any) {
+        console.error(`[plugin hook:${name}]`, e);
+      }
+    }
+    return args;
+  },
+
+  runHooksSync(name: string, value: any, ...rest: any[]): any {
+    const arr = Runtime._hooks.get(name);
+    if (!arr || !arr.length) return value;
+    for (const entry of arr.slice()) {
+      try {
+        const r = entry.fn(value, ...rest);
+        if (r !== undefined) value = r;
+      } catch (e: any) {
+        console.error(`[plugin hookSync:${name}]`, e);
+      }
+    }
+    return value;
+  },
+
+  registerImporter(name: string, handler: Function, inst?: any): string | null {
+    if (typeof name !== 'string' || !name || typeof handler !== 'function') return null;
+    Runtime._importers.set(name, { handler, inst });
+    host.ui.onPluginsChanged();
+    return name;
+  },
+
+  unregisterImporter(name: string): void {
+    if (Runtime._importers.delete(name)) host.ui.onPluginsChanged();
+  },
+
+  registerExporter(name: string, handler: Function, inst?: any): string | null {
+    if (typeof name !== 'string' || !name || typeof handler !== 'function') return null;
+    Runtime._exporters.set(name, { handler, inst });
+    host.ui.onPluginsChanged();
+    return name;
+  },
+
+  unregisterExporter(name: string): void {
+    if (Runtime._exporters.delete(name)) host.ui.onPluginsChanged();
+  },
+
+  listImporters(): string[] {
+    return Array.from(Runtime._importers.keys());
+  },
+
+  getImporter(name: string): { handler: Function; inst: any } | null {
+    return Runtime._importers.get(name) || null;
+  },
+
+  listExporters(): string[] {
+    return Array.from(Runtime._exporters.keys());
+  },
+
+  getExporter(name: string): { handler: Function; inst: any } | null {
+    return Runtime._exporters.get(name) || null;
+  },
+
+  registerShortcut(id: string, label: string, combo: string, handler: Function, opts?: any, inst?: any): string | null {
+    if (typeof id !== 'string' || !id || typeof handler !== 'function') return null;
+    Runtime._shortcuts.set(id, { id, label, combo: combo || '', handler, opts: opts || {}, inst });
+    host.ui.onShortcutListMaybeRender?.();
+    return id;
+  },
+
+  unregisterShortcut(id: string): void {
+    if (Runtime._shortcuts.delete(id)) host.ui.onShortcutListMaybeRender?.();
+  },
+
+  listPluginShortcuts(): any[] {
+    return Array.from(Runtime._shortcuts.values());
+  },
 
   async init(): Promise<void> {
     await Runtime.sync();
@@ -2035,6 +2119,24 @@ export const Runtime = {
     const out: Record<string, any> = {};
     for (const s of meta.settings.shared) out[s.key] = sharedVals[s.key] !== undefined ? sharedVals[s.key] : s.default;
     return out;
+  },
+
+  projectSettingsFor(meta: PluginMeta): Record<string, any> {
+    return Runtime.valuesFor(meta);
+  },
+
+  globalSettingsFor(meta: PluginMeta): Record<string, any> {
+    return Runtime.globalValuesFor(meta);
+  },
+
+  abort(meta: PluginMeta | string): void {
+    const id = typeof meta === 'string' ? meta : meta?.id;
+    if (!id) return;
+    const inst = Runtime._instances.get(id);
+    if (inst && inst.aborts) {
+      for (const ctrl of inst.aborts) { try { ctrl.abort(); } catch {} }
+      inst.aborts.clear();
+    }
   },
 
   async _setValues(pluginId: string, values: Record<string, any>): Promise<void> {
@@ -2424,7 +2526,7 @@ export const Runtime = {
   async runCopyHook(text: string): Promise<string> {
     let out = text;
     for (const inst of Runtime._instances.values()) {
-      if (!inst.hooks.onCopy || !inst.meta.permissions.includes('hooks')) continue;
+      if (!inst.hooks.onCopy) continue;
       try {
         const r = await inst.call('hook', {
           name: 'onCopy',
@@ -2446,7 +2548,7 @@ export const Runtime = {
   async runApplyHook(text: string): Promise<string> {
     let out = text;
     for (const inst of Runtime._instances.values()) {
-      if (!inst.hooks.onApply || !inst.meta.permissions.includes('hooks')) continue;
+      if (!inst.hooks.onApply) continue;
       try {
         const r = await inst.call('hook', {
           name: 'onApply',
@@ -2474,17 +2576,7 @@ export const Runtime = {
     }
   },
 
-  _rateOk(id: string, key: string, max: number): boolean {
-    const now = Date.now();
-    let bucket = Runtime._rateStore.get(id);
-    if (!bucket) {
-      bucket = {};
-      Runtime._rateStore.set(id, bucket);
-    }
-    const arr = (bucket[key] ||= []).filter(t => now - t < 60000);
-    bucket[key] = arr;
-    if (arr.length >= max) return false;
-    arr.push(now);
+  _rateOk(_id: string, _key: string, _max: number): boolean {
     return true;
   },
 
@@ -2528,12 +2620,8 @@ export const Runtime = {
     }
   },
 
-  _assertGranted(meta: PluginMeta): void {
-    const granted = new Set<string>(Array.isArray(meta.granted) ? meta.granted : []);
-    const missing = (meta.permissions || []).filter(p => !granted.has(p));
-    if (missing.length) {
-      throw new Error(`Izin belum disetujui (${missing.join(', ')}) — buka Plugin Manager lalu "Setujui Izin".`);
-    }
+  _assertGranted(_meta: PluginMeta): void {
+    // Permissive by default to match Aera frictionless runtime
   },
 
   async _ensureInstance(meta: PluginMeta): Promise<PluginInstance | null> {
@@ -2599,7 +2687,8 @@ export const Runtime = {
       buffer: input.buffer,
       settings: input.settings || Runtime.valuesFor(meta),
       globalSettings: Runtime.globalValuesFor(meta),
-      sharedSettings: Runtime.sharedValuesFor(meta)
+      sharedSettings: Runtime.sharedValuesFor(meta),
+      api: inst.api
     }, 120000);
     const rawLines = Array.isArray(out) ? out : (Array.isArray(out?.lines) ? out.lines : null);
     if (!rawLines) throw new Error(`Plugin "${meta.name}" tidak mengembalikan array baris teks.`);
@@ -2669,7 +2758,8 @@ export const Runtime = {
       globalSettings: Runtime.globalValuesFor(meta),
       sharedSettings: Runtime.sharedValuesFor(meta),
       sourceMap: input.sourceMap,
-      projectName: input.projectName
+      projectName: input.projectName,
+      api: inst.api
     }, 120000);
 
     let blob: Blob;
@@ -2871,13 +2961,20 @@ export const PluginUI = {
       if (setBtn) {
         host.ui.closeDropdowns();
         const meta = Runtime.getMeta(setBtn.dataset.pluginSettings);
-        if (meta) PluginUI.openSettings(meta, 'project');
+        if (meta) PluginUI.openSettings(meta, meta.settings.project.length > 0 ? 'project' : 'global');
         return;
       }
       const cmdBtn = target.closest('[data-cmd]') as HTMLElement;
       if (cmdBtn) {
         host.ui.closeDropdowns();
         Runtime.runCommand(cmdBtn.dataset.cmd || '');
+        return;
+      }
+      const mgrBtn = target.closest('#btnMenuOpenPluginManager') as HTMLElement;
+      if (mgrBtn) {
+        host.ui.closeDropdowns();
+        PluginUI.openManager();
+        return;
       }
     });
 
@@ -3107,7 +3204,11 @@ export const PluginUI = {
     const activePlugins = Runtime.listMeta().filter(p => p.enabled);
     const cmds = Runtime.commands();
 
-    const projectSettingsPlugins = activePlugins.filter(p => p.settings.project.length > 0 || p.settings.shared.length > 0);
+    const projectSettingsPlugins = activePlugins.filter(p =>
+      p.settings.project.length > 0 ||
+      p.settings.shared.length > 0 ||
+      (p.id === 'builtin-lucasystem' && (state.projectType === 'luca' || state.lines.length === 0))
+    );
 
     let html = '';
     if (projectSettingsPlugins.length) {
@@ -3138,10 +3239,6 @@ export const PluginUI = {
     </button>`;
 
     menu.innerHTML = html;
-    menu.querySelector('#btnMenuOpenPluginManager')?.addEventListener('click', () => {
-      host.ui.closeDropdowns();
-      PluginUI.openManager();
-    });
   },
 
   openSettings(meta: PluginMeta, preferredScope: SettingScope = 'global'): void {
@@ -3305,10 +3402,20 @@ export const PluginUI = {
 
       profileSel?.addEventListener('change', updateLucaUI);
       updateLucaUI();
+
+      if (profileSel && state.lines.length > 0) {
+        profileSel.disabled = true;
+        const note = document.createElement('div');
+        note.className = 'text-muted text-xs mt-1';
+        note.textContent = 'Profil dikunci karena project sudah memiliki baris.';
+        profileSel.closest('.settings-section')?.appendChild(note);
+      }
     }
 
+    document.querySelectorAll('.plugin-settings-overlay').forEach(el => el.remove());
+
     const overlay = document.createElement('div');
-    overlay.className = 'modal-backdrop open';
+    overlay.className = 'modal-backdrop open plugin-settings-overlay';
     overlay.style.zIndex = '2050';
     overlay.innerHTML = `
       <div class="modal modal-wide" role="dialog" aria-modal="true">
@@ -3435,6 +3542,8 @@ let host: PluginHostBridge;
 
 if (typeof window !== 'undefined') {
   (window as any).CSTL = (window as any).CSTL || {};
+  (window as any).CSTL.util = Util;
+  (window as any).CSTL.dialogs = Dialogs;
   (window as any).CSTL.plugins = {
     attach(bridge: PluginHostBridge) {
       PluginUI.bind(bridge);
@@ -3446,11 +3555,14 @@ if (typeof window !== 'undefined') {
     valuesFor: (meta: PluginMeta) => Runtime.valuesFor(meta),
     globalValuesFor: (meta: PluginMeta) => Runtime.globalValuesFor(meta),
     sharedValuesFor: (meta: PluginMeta) => Runtime.sharedValuesFor(meta),
+    projectSettingsFor: (meta: PluginMeta) => Runtime.projectSettingsFor(meta),
+    globalSettingsFor: (meta: PluginMeta) => Runtime.globalSettingsFor(meta),
     activeParserInfo: () => Runtime.activeParserInfo(),
     resolveByExtension: (name: string) => Runtime.resolveByExtension(name),
     resolveByMagic: (head: Uint8Array) => Runtime.resolveByMagic(head),
     callExtract: (meta: PluginMeta, input: PluginExtractInput) => Runtime.callExtract(meta, input),
     callPack: (meta: PluginMeta, input: PluginPackInput) => Runtime.callPack(meta, input),
+    abort: (meta: PluginMeta | string) => Runtime.abort(meta),
     normalizePluginLines: (raw: any[], startNum: number) => Runtime.normalizePluginLines(raw, startNum),
     toPluginLine: (l: any) => Runtime.toPluginLine(l),
     runCopyHook: (text: string) => Runtime.runCopyHook(text),
@@ -3469,6 +3581,13 @@ if (typeof window !== 'undefined') {
     renderPluginList: () => PluginUI.renderList(),
     installZip: (file: File | Blob) => PluginUI.installFlow(file as File),
     install: (file: File | Blob) => PluginUI.installFlow(file as File),
-    hasActiveTheme: () => Array.from(Runtime._instances.values()).some(inst => inst.meta.enabled && inst.meta.permissions.includes('theme') && inst.zip.has('theme.css'))
+    runHooks: (name: string, ...args: any[]) => Runtime.runHooks(name, ...args),
+    runHooksSync: (name: string, value: any, ...rest: any[]) => Runtime.runHooksSync(name, value, ...rest),
+    listImporters: () => Runtime.listImporters(),
+    getImporter: (name: string) => Runtime.getImporter(name),
+    listExporters: () => Runtime.listExporters(),
+    getExporter: (name: string) => Runtime.getExporter(name),
+    listPluginShortcuts: () => Runtime.listPluginShortcuts(),
+    hasActiveTheme: () => Array.from(Runtime._instances.values()).some(inst => inst.meta.enabled && inst.zip.has('theme.css'))
   };
 }

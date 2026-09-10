@@ -147,8 +147,8 @@ export function getActiveBatchConfig() {
     return {
       lines: orderedLines.filter(l => !l._hidden && !isIlustrasiLine(l)),
       batchSize: normalizeSelectionBatchSize(state.glossaryBatchSize, DEFAULT_GLOSSARY_BATCH_SIZE),
-      emptyMessage: 'Tidak ada baris untuk Glossary Extractor.',
-      tabLabel: 'Glossary Extractor',
+      emptyMessage: 'Tidak ada baris untuk Glossary.',
+      tabLabel: 'Glossary',
     };
   }
   if (state.activeWorkspaceTab === 'aiCheck') {
@@ -157,6 +157,14 @@ export function getActiveBatchConfig() {
       batchSize: normalizeSelectionBatchSize(state.aiCheckBatchSize, DEFAULT_AI_CHECK_BATCH_SIZE),
       emptyMessage: 'Tidak ada baris terjemahan untuk AI Check.',
       tabLabel: 'AI Check',
+    };
+  }
+  if (state.activeWorkspaceTab === 'delete') {
+    return {
+      lines: orderedLines.filter(l => isTranslated(l) && !l._hidden && !isIlustrasiLine(l)),
+      batchSize: normalizeSelectionBatchSize(state.selectionBatchSize),
+      emptyMessage: 'Tidak ada baris terjemahan untuk Hapus.',
+      tabLabel: 'Hapus',
     };
   }
   return {
@@ -257,5 +265,15 @@ export function switchWorkspaceTab(tabName: WorkspaceTab): void {
     }
     if (viewEl) viewEl.style.display = active ? 'block' : 'none';
   }
-  import('./render').then(m => { m.renderPreviewRows(); m.updateButtonStates(); });
+  import('./render').then(m => {
+    m.renderPreviewRows();
+    m.updateButtonStates();
+    if (state.selectedLines.size > 0) {
+      const config = getActiveBatchConfig();
+      m.flashHint(`Dipilih ${state.selectedLines.size} baris untuk ${config.tabLabel}.`);
+    } else {
+      const el = ui.copyStatus as HTMLElement | undefined;
+      if (el) el.classList.add('empty');
+    }
+  });
 }

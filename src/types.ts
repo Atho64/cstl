@@ -154,6 +154,7 @@ export interface AppState {
   checkLanguage: boolean;
   checkPunctuation: boolean;
   checkUntransName: boolean;
+  ignorePasteNames: boolean;
   enableUncertainMarking: boolean;
   /** Replace angle-bracket section tags (<Glossary>, <Context>, <lines>, …) with
    *  safe `=== LABEL ===` markers before sending to LLM. Prevents ChatGPT from
@@ -234,6 +235,13 @@ export interface AppState {
   aiStreaming: boolean;
   autoRepeatOnFailure: boolean;
   incrementEnabled?: boolean;
+  enableAiCheckChaining: boolean;
+  enableAiCheckStoryContext: boolean;
+  aiCheckStoryContext: string;
+  aiCheckSummaryPrompt: string;
+  enableAiCheckAgentMemory: boolean;
+  aiCheckLocalizationNotes: string;
+  aiCheckRevisionsSummary: string;
 }
 
 export type WorkspaceTab = 'translate' | 'glossary' | 'aiCheck' | 'delete';

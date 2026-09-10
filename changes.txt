@@ -1,0 +1,28 @@
+﻿feat: AI Check story chaining, global selection toast, Escape menu close, and modal layering fix
+
+- AI Check Story Chaining & Context:
+  * Implemented separate Story Context and Revisions Chaining for AI Check, fully decoupled from Translate.
+  * Added prompt variables: {story_context}, {ai_check_story_context}, {localization_notes}, and {revisions}.
+  * Automatic parsing and extraction of <summary> and <revisions> tags from AI Check responses.
+  * Consolidated all AI Check chaining settings into Setting Modal -> Tab Prompt (chaining toggles, story context, localization notes, agent memory link, and custom summary prompt).
+  * Auto-save and state persistence for all AI Check context and revision fields across project saves.
+
+- Workspace Selection Toast Across All Tabs:
+  * Moved #copyStatus notification container outside #viewTranslate to directly below .workspace-ai-tabs.
+  * Selection toast ("Dipilih X baris untuk [Tab].") is now visible across all tabs (Translate, Glossary, AI Check, Hapus).
+  * Dynamic tabLabel resolution for all tabs including Glossary and Hapus.
+  * Synchronized Select Range, Select All, and Clear Selection actions with consistent notifications.
+
+- Global Escape Key Handling:
+  * Enhanced Escape key listener to hierarchically close active dropdown menus, dictionary popup, topmost open modals (sorted by z-index stack), and floating agent/logging panels.
+  * Preserved shortcut recording cancellation behavior without closing underlying modal.
+  * Prevented double-triggering on modals already in .closing transition.
+
+- Modal Layering & AI Agent Memory:
+  * Fixed #agentMemoryModal z-index (2020) so it displays cleanly in front of #settingsModal (2010) when opened from settings.
+  * Adjusted desktop .agent-panel z-index to 1050 so modals properly overlay chat panels.
+  * Standardized agent memory modal to openModal / closeModal with backdrop click-to-close support.
+
+- OPFS File Explorer & Luca Import:
+  * Added built-in OPFS File Explorer (src/opfs-explorer.ts) and modal interface.
+  * Added interactive Luca profile dialog picker during TXT scenario import.

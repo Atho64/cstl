@@ -9,22 +9,24 @@ import {
   DEFAULT_PROMPT_HEADER_NUMBERED_KAGIKAKKO, DEFAULT_PROMPT_HEADER_BLOCK_KAGIKAKKO,
   DEFAULT_PROMPT_HEADER_XML_KAGIKAKKO, DEFAULT_PROMPT_HEADER_JSONL_KAGIKAKKO, DEFAULT_PROMPT_HEADER_JSON_ARRAY_KAGIKAKKO,
   DEFAULT_AGENT_PROMPT, DEFAULT_SUMMARY_PROMPT,
+  DEFAULT_AI_CHECK_SUMMARY_PROMPT,
   DEFAULT_PROMPT_HEADER_AERA_SIMPLE, DEFAULT_SUMMARY_PROMPT_AERA_SIMPLE
 } from './constants';
 import { VirtualScroller } from './virtual-scroller';
 import { renderMainRow, syncCheckboxUI, updateButtonStates, onSaveLineEditor, flashHint, updateCurrentFileBar } from './render';
 import { renderProofreadRow } from './proofread';
 import { renderQaRow } from './qa';
-import { onSelectionHistoryKeydown, isSelectableForActiveTab, recordSelectionHistory, switchWorkspaceTab, selectActiveWorkspaceBatch } from './selection';
+import { onSelectionHistoryKeydown, isSelectableForActiveTab, recordSelectionHistory, switchWorkspaceTab, selectActiveWorkspaceBatch, getActiveBatchConfig } from './selection';
 import { onSaveGlossary, onImportGlossaryFile, onExportGlossaryFile, onDeleteTranslation, onCopyForGlossaryAi } from './glossary';
 import { onCopyForAi, onApplyTranslation, onUndoLastApply, onRedoLastUndo } from './translate';
 import { onCopyNamesForAi, onApplyNameTranslations, onResetNameTranslations } from './name-translation';
 import { onCopyForAiCheck, onParseAiCheck, onApplyAiCheckCorrections, onClearAiCheck } from './ai-check';
 import { onOpenProofread, onResetProofread, onProofreadReplaceAll, renderProofreadResults, onProofreadIncludeAll, onProofreadExcludeAll } from './proofread';
 import { onOpenQa, onResetQa, runQaCheck, onRetranslateFlagged } from './qa';
-import { onOpenSettings, onSavePromptSettings, onOpenPromptsSettings, onOpenGlossarySettings, onSavePromptsSettings, onSaveGlossarySettings } from './settings';
+import { onOpenSettings, onSavePromptSettings, onOpenPromptsSettings, onOpenGlossarySettings, onSavePromptsSettings, onSaveGlossarySettings, initSettingsTabs } from './settings';
 import { onExport } from './export';
 import { Shortcuts } from './shortcuts';
+import { OpfsExplorer } from './opfs-explorer';
 import { onImportVndbNames, onImportAnilistNames } from './vndb-anilist';
 import { onExtractEpubRubyNames } from './epub-ruby';
 import { openFileListModal, closeFileListModal, onAddFile, onDeleteSelectedFiles } from './file-list';
@@ -74,9 +76,9 @@ function debounce(func: Function, wait: number) {
 export function cacheElements(): void {
   const ids = [
     'dashboardView', 'workspaceView', 'projectList', 'projectFilterInput', 'projectSortSelect', 'projectCountBadge', 'btnNewProject', 'btnRestoreProject', 'btnBackupAllProjects', 'btnFolderBackup', 'btnFolderRestore',
-    'btnBackToDashboard', 'btnBackupProject', 'btnBatchPrev', 'btnBatchNext', 'projectNameDisplay', 'restoreProjectInput', 'btnDropdownImport', 'dropdownImportMenu', 'btnDropdownImportOther', 'dropdownImportOtherMenu', 'btnImportFile',
+    'btnBackToDashboard', 'btnBackupProject', 'btnBatchPrev', 'btnBatchNext', 'projectNameDisplay', 'restoreProjectInput', 'btnDropdownImport', 'dropdownImportMenu', 'btnDropdownImportOther', 'dropdownImportOtherMenu', 'btnImportFile', 'btnDropdownTools', 'dropdownToolsMenu',
     'btnDropdownDashboardSettings', 'dropdownDashboardSettingsMenu', 'btnDashboardSettings', 'dashboardSettingsModal', 'btnDashboardSettingsSave', 'btnDashboardSettingsReset', 'paletteSelect', 'btnDashboardSettingsCancel', 'btnDashboardPrompts', 'dashboardPromptsModal', 'dpPromptInput', 'dpPromptTemplateSelect', 'dpGlossaryPromptInput', 'dpAiCheckPromptInput', 'dpAgentPromptInput', 'dpSummaryPromptInput', 'btnDashboardPromptsSave', 'btnDashboardPromptsReset', 'btnDashboardPromptsCancel',
-    'dsSourceLang', 'dsTargetLang', 'dsTranslationMode', 'dsAiFormat', 'dsContextLines', 'dsContextType', 'dsSelectionBatch', 'dsGlossaryBatch', 'dsAiCheckBatch', 'dsParallelBatch', 'dsSubagentWorkers', 'dsShowFurigana', 'dsFuriganaType', 'dsFontSize', 'dsEnableDictionary', 'dsDictionaryEngine', 'dsDictionaryPrompt', 'dsRegexFilter', 'dsRegexFilterCase', 'dsDisableEmptyLineValidation', 'dsCheckKanaResidue', 'dsCheckSimilarity', 'dsSimilarityThreshold', 'dsSimilarityThresholdWrap', 'dsCheckLengthRatio', 'dsLengthRatioThreshold', 'dsLengthRatioWrap', 'dsCheckLinebreak', 'dsCheckLanguage', 'dsCheckPunctuation', 'dsCheckUntransName', 'dsEnableBackgroundChaining', 'dsEnableUncertainMarking', 'dsSafeTagsForChatgpt', 'dsAgentMaxTurns', 'dsEpubTags', 'dsShowEpubImages', 'dsEnableLogging',
+    'dsSourceLang', 'dsTargetLang', 'dsTranslationMode', 'dsAiFormat', 'dsContextLines', 'dsContextType', 'dsSelectionBatch', 'dsGlossaryBatch', 'dsAiCheckBatch', 'dsParallelBatch', 'dsSubagentWorkers', 'dsShowFurigana', 'dsFuriganaType', 'dsFontSize', 'dsEnableDictionary', 'dsDictionaryEngine', 'dsDictionaryPrompt', 'dsRegexFilter', 'dsRegexFilterCase', 'dsDisableEmptyLineValidation', 'dsCheckKanaResidue', 'dsCheckSimilarity', 'dsSimilarityThreshold', 'dsSimilarityThresholdWrap', 'dsCheckLengthRatio', 'dsLengthRatioThreshold', 'dsLengthRatioWrap', 'dsCheckLinebreak', 'dsCheckLanguage', 'dsCheckPunctuation', 'dsCheckUntransName', 'dsIgnorePasteNames', 'dsEnableBackgroundChaining', 'dsEnableUncertainMarking', 'dsSafeTagsForChatgpt', 'dsAgentMaxTurns', 'dsEpubTags', 'dsShowEpubImages', 'dsEnableLogging',
     'btnImportFolder', 'btnImportZip', 'btnImportTranslatedFile', 'btnImportTranslatedFolder', 'btnExport', 'btnProofread',
     'previewViewport', 'previewContainer', 'currentFileBar', 'progressFill', 'progressText', 'btnSelectAll',
     'btnClearSelection', 'copyCount', 'btnCopyForAi', 'copyStatus', 'pasteArea', 'btnApply', 'checkIgnorePasteNames',
@@ -93,6 +95,11 @@ export function cacheElements(): void {
     'btnDropdownSettings', 'dropdownSettingsMenu', 'btnSettingsGeneral', 'btnSettingsPrompts', 'btnSettingsGlossary', 'settingsPromptsModal', 'settingsGlossaryModal', 'btnSettingsPromptsCancel', 'btnSettingsPromptsSave', 'btnSettingsGlossaryCancel', 'btnSettingsGlossarySave', 'settingsEnableBackgroundChaining', 'settingsBackgroundInput', 'settingsSummaryPromptInput', 'btnSettingsSummaryPromptReset', 'settingsPromptTemplateSelect', 'btnSettingsClearBackground',
     'tabTranslate', 'tabGlossary', 'viewTranslate', 'viewGlossary', 'btnCopyForGlossaryAi', 'pasteGlossaryArea', 'btnSaveGlossary', 'btnImportGlossaryFile', 'btnExportGlossaryFile', 'copyGlossaryCount', 'btnDeleteTranslation', 'deleteTranslationCount', 'tabDelete', 'viewDelete',
     'tabAiCheck', 'viewAiCheck', 'btnCopyForAiCheck', 'copyAiCheckCount', 'aiCheckStatus', 'pasteAiCheckArea', 'btnParseAiCheck', 'btnApplyAiCheck', 'btnClearAiCheck', 'aiCheckResults',
+    'aiCheckEnableChainingCheck', 'aiCheckEnableStoryContextCheck', 'aiCheckEnableAgentMemoryCheck', 'aiCheckLocalizationNotesInput', 'aiCheckRevisionsInput', 'btnAiCheckClearRevisions', 'btnAiCheckOpenMemoryModal', 'aiCheckChainingBadge',
+    'aiCheckStoryContextInput', 'btnAiCheckCopyStoryFromTranslate', 'btnAiCheckClearStoryContext',
+    'btnOpenAgentMemoryFromSettings', 'settingsEnableAiCheckChaining', 'settingsEnableAiCheckStoryContext', 'settingsEnableAiCheckAgentMemory', 'settingsAiCheckLocalizationNotes',
+    'settingsAiCheckStoryContextInput', 'btnSettingsAiCheckCopyStoryFromTranslate', 'btnSettingsAiCheckClearStoryContext', 'settingsAiCheckSummaryPromptInput', 'btnSettingsAiCheckSummaryPromptReset',
+    'settingsAiCheckRevisionsInput', 'btnSettingsAiCheckClearRevisions',
     'vndbInput', 'btnImportVndbNames', 'vndbStatus',
     'btnExtractEpubRubyNames', 'epubRubyStatus', 'anilistInput', 'btnImportAnilistNames', 'anilistStatus',
     'lineOriginalView', 'lineNameWrap', 'lineNameInput', 'lineMessageInput', 'lineTranslatedCheck',
@@ -105,7 +112,7 @@ export function cacheElements(): void {
     'proofreadReplaceInput', 'btnProofreadReplaceAll', 'proofreadPreserveCaseCheck', 'proofreadJumpCheck', 'rangeFromInput', 'rangeToInput', 'btnSelectRange',
     'settingsCheckKanaResidue', 'settingsCheckSimilarity', 'settingsSimilarityThreshold', 'settingsSimilarityThresholdWrap',
     'settingsContextTypeSelect',
-    'btnQaCheck', 'qaModal', 'qaCheckGlossary', 'qaCheckKana', 'qaCheckSimilarity', 'qaCheckLinebreak', 'qaCheckLength', 'qaCheckLanguage', 'qaCheckPunctuation', 'btnRunQa', 'btnQaReset', 'qaStats', 'qaResults', 'btnQaClose', 'btnRetranslateFlagged', 'settingsCheckLengthRatio', 'settingsLengthRatioThreshold', 'settingsLengthRatioWrap', 'settingsCheckLinebreak', 'settingsCheckLanguage', 'settingsCheckPunctuation', 'settingsCheckUntransName', 'settingsEnableUncertainMarking', 'settingsSafeTagsForChatgpt', 'qaCheckUncertain', 'qaCheckUntransName', 'aiTranslateModeSelect', 'settingsAgentMaxTurns',
+    'btnQaCheck', 'qaModal', 'qaCheckGlossary', 'qaCheckKana', 'qaCheckSimilarity', 'qaCheckLinebreak', 'qaCheckLength', 'qaCheckLanguage', 'qaCheckPunctuation', 'btnRunQa', 'btnQaReset', 'qaStats', 'qaResults', 'btnQaClose', 'btnRetranslateFlagged', 'settingsCheckLengthRatio', 'settingsLengthRatioThreshold', 'settingsLengthRatioWrap', 'settingsCheckLinebreak', 'settingsCheckLanguage', 'settingsCheckPunctuation', 'settingsCheckUntransName', 'settingsIgnorePasteNames', 'settingsEnableUncertainMarking', 'settingsSafeTagsForChatgpt', 'qaCheckUncertain', 'qaCheckUntransName', 'aiTranslateModeSelect', 'settingsAgentMaxTurns',
     'btnAutoTranslate', 'btnAutoGlossaryAi', 'btnAutoAiCheck', 'btnFloatingApiSettings', 'apiSettingsModal', 'apiTypeSelect', 'apiUrlInput', 'apiKeyInput', 'apiModelInput', 'apiModelSelect', 'btnFetchModels', 'apiModelFetchStatus', 'apiTemperatureInput', 'apiTopPInput', 'apiMaxTokensInput', 'apiFrequencyPenaltyInput', 'apiPresencePenaltyInput', 'apiSeedInput', 'apiReasoningEffortSelect', 'apiRpmInput', 'apiDelayPreview', 'apiThinkingSelect', 'apiFilterThinkingCheck', 'apiMergeSystemCheck', 'apiStreamingCheck', 'apiBackupKeysInput', 'apiKeyStrategySelect', 'btnApiSettingsCancel', 'btnApiSettingsSave', 'tavilyKeyInput', 'apiProfileSelect', 'btnLoadProfile', 'btnDeleteProfile', 'apiProfileNameInput', 'btnSaveProfile',
  'aiCheckReviewActions', 'btnReviewApply', 'btnReviewSkip',
     'btnFloatingAiAgent', 'btnFloatingLogging', 'loggingPanel', 'loggingHistory', 'btnLoggingClear', 'btnLoggingClose', 'aiAgentChatPanel', 'btnAgentClose', 'btnAgentClear', 'btnAgentMemory', 'agentChatHistory', 'agentInput', 'btnAgentSend',
@@ -127,7 +134,9 @@ export function cacheElements(): void {
     'imageLightboxModal', 'imageLightboxImg', 'btnImageLightboxClose',
     'btnPluginManagerOpen', 'btnWorkspacePluginsOpen', 'pluginManagerModal', 'btnPluginRefresh', 'btnInstallPlugin', 'btnCreateCustomParser', 'btnPluginFilterAll', 'btnPluginFilterPlugins', 'btnPluginFilterParsers', 'pluginCountAll', 'pluginCountPlugins', 'pluginCountParsers', 'pluginFileInput', 'pluginList', 'btnPluginManagerClose', 'btnOpenPlugins', 'pluginMenu', 'pluginPanels', 'storageWarningBanner', 'storageWarningText',
     'btnShortcutsOpen', 'btnWorkspaceShortcutsOpen', 'shortcutModal', 'shortcutList', 'shortcutStatus', 'btnShortcutsResetAll', 'btnShortcutsClose',
-    'settingsIncrementCheck', 'dsIncrementCheck'
+    'settingsIncrementCheck', 'dsIncrementCheck',
+    'opfsExplorerModal', 'btnOpfsExplorerOpen', 'btnWorkspaceOpfsExplorerOpen', 'btnOpfsExplorerClose', 'btnOpfsRefresh', 'opfsCrumbs', 'opfsList', 'opfsEmpty', 'opfsEmptyText', 'opfsLoading',
+    'btnTabSettingsGeneral', 'btnTabSettingsPrompts', 'btnTabSettingsGlossary', 'btnTabSettingsShortcuts'
   ];
   for (const id of ids) {
     ui[id] = document.getElementById(id);
@@ -239,39 +248,39 @@ export function bindEvents(): void {
       }
     }
 
-    const isSettingsBtn = target.closest('#btnDropdownSettings');
-    if (isSettingsBtn) {
+
+    const isToolsBtn = target.closest('#btnDropdownTools');
+    if (isToolsBtn) {
       e.preventDefault();
-      const btn = isSettingsBtn as HTMLElement;
-      const menu = ui.dropdownSettingsMenu as HTMLElement;
-      const willShow = !menu.classList.contains('show');
+      const btn = isToolsBtn as HTMLElement;
+      const menu = ui.dropdownToolsMenu as HTMLElement;
+      const willShow = !menu?.classList.contains('show');
       document.querySelectorAll('.dropdown-content.show').forEach(el => { if (el !== menu) el.classList.remove('show'); });
       document.querySelectorAll('.dropdown-toggle[aria-expanded="true"]').forEach(el => el.setAttribute('aria-expanded', 'false'));
-      if (willShow) {
+      if (willShow && menu) {
         menu.classList.add('show');
         void menu.offsetWidth;
         const rect = btn.getBoundingClientRect();
-        const mw = menu.offsetWidth || 220;
-        const mh = menu.offsetHeight || 140;
+        const mw = menu.offsetWidth || 200;
+        const mh = menu.offsetHeight || 160;
         let top = rect.bottom + 6;
         if (top + mh > window.innerHeight - 8) top = Math.max(8, rect.top - mh - 6);
         menu.style.top = top + 'px';
-        let left = rect.right - mw;
-        const minLeft = 8;
+        let left = rect.left;
         const maxLeft = window.innerWidth - mw - 8;
-        left = Math.max(minLeft, Math.min(left, maxLeft));
+        if (maxLeft < left) left = Math.max(8, maxLeft);
         menu.style.left = left + 'px';
         menu.style.right = 'auto';
         btn.setAttribute('aria-expanded', 'true');
-      } else {
+      } else if (menu) {
         menu.classList.remove('show');
         btn.setAttribute('aria-expanded', 'false');
       }
-    } else if (!target.closest('#dropdownSettingsMenu')) {
-      if (ui.dropdownSettingsMenu) {
-        (ui.dropdownSettingsMenu as HTMLElement).classList.remove('show');
-        const b2 = document.getElementById('btnDropdownSettings');
-        if (b2) b2.setAttribute('aria-expanded', 'false');
+    } else if (!target.closest('#dropdownToolsMenu') || target.closest('#dropdownToolsMenu .dropdown-item')) {
+      if (ui.dropdownToolsMenu) {
+        (ui.dropdownToolsMenu as HTMLElement).classList.remove('show');
+        const bTools = document.getElementById('btnDropdownTools');
+        if (bTools) bTools.setAttribute('aria-expanded', 'false');
       }
     }
 
@@ -315,11 +324,74 @@ export function bindEvents(): void {
   });
 
   document.addEventListener('keydown', (e: KeyboardEvent) => {
-    if (e.key === 'Escape') {
-      let closed = false;
-      document.querySelectorAll('.dropdown-content.show').forEach(el => { el.classList.remove('show'); closed = true; });
+    if (e.key !== 'Escape') return;
+    if (Shortcuts._recording) return;
+
+    // 1. Close open dropdown menus first
+    const openDropdowns = document.querySelectorAll('.dropdown-content.show');
+    if (openDropdowns.length > 0) {
+      openDropdowns.forEach(el => el.classList.remove('show'));
       document.querySelectorAll('.dropdown-toggle[aria-expanded="true"]').forEach(el => el.setAttribute('aria-expanded', 'false'));
-      if (closed) e.preventDefault();
+      e.preventDefault();
+      return;
+    }
+
+    // 2. Close dictionary popup if visible
+    const dictPopup = document.getElementById('dictionaryPopup');
+    if (dictPopup && dictPopup.style.display !== 'none') {
+      const dictClose = document.getElementById('dictPopupClose');
+      if (dictClose) dictClose.click();
+      else dictPopup.style.display = 'none';
+      e.preventDefault();
+      return;
+    }
+
+    // 3. Close topmost open modal if any
+    const openModals = Array.from(document.querySelectorAll<HTMLElement>('.modal-backdrop')).filter(m => {
+      if (m.classList.contains('closing')) return false;
+      if (m.classList.contains('open')) return true;
+      const comp = window.getComputedStyle(m);
+      return comp.display !== 'none' && comp.visibility !== 'hidden';
+    });
+
+    if (openModals.length > 0) {
+      openModals.sort((a, b) => {
+        const za = parseFloat(window.getComputedStyle(a).zIndex) || 0;
+        const zb = parseFloat(window.getComputedStyle(b).zIndex) || 0;
+        if (za !== zb) return zb - za;
+        return a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? 1 : -1;
+      });
+
+      const topModal = openModals[0];
+      const closeBtn = topModal.querySelector<HTMLElement>(
+        '#btnSettingsCancel, #btnDashboardSettingsCancel, #btnDashboardPromptsCancel, #btnSettingsPromptsCancel, #btnSettingsGlossaryCancel, #btnAgentMemoryCancel, #btnLineCancel, #btnProofreadClose, #btnQaClose, #btnApiSettingsCancel, #btnDictHistoryClose, #btnTextReplacerClose, #btnCpClose, #btnFileListClose, #btnBookmarkClose, #btnImageLightboxClose, #btnOpfsExplorerClose, #btnPluginManagerClose, .btn-modal-close, .btn-modal-dismiss, .cstl-plugin-modal-close, [data-modal-close], .btn-close, .modal-close'
+      );
+      if (closeBtn && !(closeBtn as HTMLButtonElement).disabled) {
+        closeBtn.click();
+      } else {
+        closeModal(topModal);
+      }
+      e.preventDefault();
+      return;
+    }
+
+    // 4. Close floating agent panel or logging panel if open
+    const agentChat = document.getElementById('aiAgentChatPanel');
+    if (agentChat && window.getComputedStyle(agentChat).display !== 'none') {
+      const agentClose = document.getElementById('btnAgentClose');
+      if (agentClose) agentClose.click();
+      else agentChat.style.display = 'none';
+      e.preventDefault();
+      return;
+    }
+
+    const loggingPanel = document.getElementById('loggingPanel');
+    if (loggingPanel && window.getComputedStyle(loggingPanel).display !== 'none') {
+      const loggingClose = document.getElementById('btnLoggingClose');
+      if (loggingClose) loggingClose.click();
+      else loggingPanel.style.display = 'none';
+      e.preventDefault();
+      return;
     }
   });
   window.addEventListener('resize', () => {
@@ -492,7 +564,10 @@ export function bindEvents(): void {
 
   ui.tabTranslate?.addEventListener('click', () => switchWorkspaceTab('translate'));
   ui.tabGlossary?.addEventListener('click', () => switchWorkspaceTab('glossary'));
-  ui.tabAiCheck?.addEventListener('click', () => switchWorkspaceTab('aiCheck'));
+  ui.tabAiCheck?.addEventListener('click', () => {
+    switchWorkspaceTab('aiCheck');
+    import('./ai-check').then(m => m.renderAiCheckSettingsUI()).catch(() => {});
+  });
   ui.tabDelete?.addEventListener('click', () => switchWorkspaceTab('delete'));
 
   ui.btnCopyForAiCheck?.addEventListener('click', onCopyForAiCheck);
@@ -500,6 +575,74 @@ export function bindEvents(): void {
   ui.btnApplyAiCheck?.addEventListener('click', onApplyAiCheckCorrections);
   ui.btnClearAiCheck?.addEventListener('click', onClearAiCheck);
   ui.pasteAiCheckArea?.addEventListener('input', updateButtonStates);
+
+  ui.aiCheckEnableChainingCheck?.addEventListener('change', (e: Event) => {
+    state.enableAiCheckChaining = (e.target as HTMLInputElement).checked;
+    import('./ai-check').then(m => m.renderAiCheckSettingsUI()).catch(() => {});
+    queueAutoSave();
+  });
+  ui.aiCheckEnableStoryContextCheck?.addEventListener('change', (e: Event) => {
+    state.enableAiCheckStoryContext = (e.target as HTMLInputElement).checked;
+    queueAutoSave();
+  });
+  ui.aiCheckEnableAgentMemoryCheck?.addEventListener('change', (e: Event) => {
+    state.enableAiCheckAgentMemory = (e.target as HTMLInputElement).checked;
+    queueAutoSave();
+  });
+  ui.aiCheckLocalizationNotesInput?.addEventListener('input', (e: Event) => {
+    state.aiCheckLocalizationNotes = (e.target as HTMLTextAreaElement).value;
+    queueAutoSave();
+  });
+  ui.aiCheckRevisionsInput?.addEventListener('input', (e: Event) => {
+    state.aiCheckRevisionsSummary = (e.target as HTMLTextAreaElement).value;
+    queueAutoSave();
+  });
+  ui.btnAiCheckClearRevisions?.addEventListener('click', () => {
+    state.aiCheckRevisionsSummary = '';
+    import('./ai-check').then(m => m.renderAiCheckSettingsUI()).catch(() => {});
+    queueAutoSave();
+  });
+
+  ui.aiCheckStoryContextInput?.addEventListener('input', (e: Event) => {
+    state.aiCheckStoryContext = (e.target as HTMLTextAreaElement).value;
+    queueAutoSave();
+  });
+  ui.btnAiCheckClearStoryContext?.addEventListener('click', () => {
+    state.aiCheckStoryContext = '';
+    import('./ai-check').then(m => m.renderAiCheckSettingsUI()).catch(() => {});
+    queueAutoSave();
+  });
+  ui.btnAiCheckCopyStoryFromTranslate?.addEventListener('click', () => {
+    state.aiCheckStoryContext = state.currentBackground || '';
+    import('./ai-check').then(m => m.renderAiCheckSettingsUI()).catch(() => {});
+    queueAutoSave();
+  });
+  ui.btnSettingsAiCheckClearStoryContext?.addEventListener('click', () => {
+    state.aiCheckStoryContext = '';
+    import('./ai-check').then(m => m.renderAiCheckSettingsUI()).catch(() => {});
+    queueAutoSave();
+  });
+  ui.btnSettingsAiCheckCopyStoryFromTranslate?.addEventListener('click', () => {
+    state.aiCheckStoryContext = state.currentBackground || '';
+    import('./ai-check').then(m => m.renderAiCheckSettingsUI()).catch(() => {});
+    queueAutoSave();
+  });
+  ui.btnSettingsAiCheckSummaryPromptReset?.addEventListener('click', () => {
+    state.aiCheckSummaryPrompt = DEFAULT_AI_CHECK_SUMMARY_PROMPT;
+    if (ui.settingsAiCheckSummaryPromptInput) {
+      (ui.settingsAiCheckSummaryPromptInput as HTMLTextAreaElement).value = DEFAULT_AI_CHECK_SUMMARY_PROMPT;
+    }
+    queueAutoSave();
+  });
+  ui.btnSettingsAiCheckClearRevisions?.addEventListener('click', () => {
+    state.aiCheckRevisionsSummary = '';
+    import('./ai-check').then(m => m.renderAiCheckSettingsUI()).catch(() => {});
+    queueAutoSave();
+  });
+  ui.settingsAiCheckRevisionsInput?.addEventListener('input', (e: Event) => {
+    state.aiCheckRevisionsSummary = (e.target as HTMLTextAreaElement).value;
+    queueAutoSave();
+  });
   ui.btnUndo?.addEventListener('click', onUndoLastApply);
   ui.btnRedo?.addEventListener('click', onRedoLastUndo);
   ui.btnProofread?.addEventListener('click', onOpenProofread);
@@ -509,11 +652,14 @@ export function bindEvents(): void {
     state.lines.forEach(l => { if (isSelectableForActiveTab(l)) state.selectedLines.add(l.line_num); });
     recordSelectionHistory();
     syncCheckboxUI();
+    const config = getActiveBatchConfig();
+    flashHint(`Dipilih ${state.selectedLines.size} baris untuk ${config.tabLabel}.`);
   });
   ui.btnClearSelection?.addEventListener('click', () => {
     state.selectedLines.clear();
     recordSelectionHistory();
     syncCheckboxUI();
+    flashHint('Pilihan baris dibatalkan.');
   });
 
   ui.btnSelectRange?.addEventListener('click', () => {
@@ -527,7 +673,8 @@ export function bindEvents(): void {
     }
     recordSelectionHistory();
     syncCheckboxUI();
-    flashHint(`Dipilih ${state.selectedLines.size} baris untuk translate.`);
+    const config = getActiveBatchConfig();
+    flashHint(`Dipilih ${state.selectedLines.size} baris untuk ${config.tabLabel}.`);
     const mainScroller = getMainScroller();
     const targetIndex = state.displayRows.findIndex(row => row.type === 'line' && row.line?.line_num === f);
     if (targetIndex !== -1) {
@@ -546,9 +693,10 @@ export function bindEvents(): void {
     }
   });
 
-  ui.btnSettingsGeneral?.addEventListener('click', onOpenSettings);
-  ui.btnSettingsPrompts?.addEventListener('click', onOpenPromptsSettings);
-  ui.btnSettingsGlossary?.addEventListener('click', onOpenGlossarySettings);
+  initSettingsTabs();
+  ui.btnSettingsGeneral?.addEventListener('click', () => onOpenSettings('general'));
+  ui.btnSettingsPrompts?.addEventListener('click', () => onOpenSettings('prompts'));
+  ui.btnSettingsGlossary?.addEventListener('click', () => onOpenSettings('glossary'));
   ui.btnSettingsReset?.addEventListener('click', () => {
     const format = (ui.settingsAiTranslationFormatSelect as HTMLSelectElement)?.value || DEFAULT_AI_TRANSLATION_FORMAT;
     (ui.settingsPromptInput as HTMLTextAreaElement).value = getDefaultPromptHeaderForFormat(format);
@@ -1122,12 +1270,20 @@ if (ui.settingsCheckSimilarity) {
     }
   }
 
-  ui.btnAgentMemory?.addEventListener('click', () => {
+  const openAgentMemoryModal = () => {
     renderAgentMemoryList();
-    (ui.agentMemoryModal as HTMLElement).style.display = 'flex';
-  });
+    openModal(ui.agentMemoryModal as HTMLElement);
+  };
+  ui.btnAgentMemory?.addEventListener('click', openAgentMemoryModal);
+  ui.btnAiCheckOpenMemoryModal?.addEventListener('click', openAgentMemoryModal);
+  ui.btnOpenAgentMemoryFromSettings?.addEventListener('click', openAgentMemoryModal);
   ui.btnAgentMemoryCancel?.addEventListener('click', () => {
-    (ui.agentMemoryModal as HTMLElement).style.display = 'none';
+    closeModal(ui.agentMemoryModal as HTMLElement);
+  });
+  ui.agentMemoryModal?.addEventListener('click', (e: MouseEvent) => {
+    if (e.target === ui.agentMemoryModal) {
+      closeModal(ui.agentMemoryModal as HTMLElement);
+    }
   });
   ui.btnAgentMemorySave?.addEventListener('click', async () => {
     const key = (ui.agentMemoryKey as HTMLInputElement).value.trim();
@@ -1384,6 +1540,9 @@ export async function init(): Promise<void> {
 
   // Initialize Shortcuts
   Shortcuts.init();
+
+  // Initialize OPFS Explorer
+  OpfsExplorer.init();
 }
 
 

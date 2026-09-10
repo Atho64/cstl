@@ -8,7 +8,7 @@ import { rebuildDisplayState, renderPreviewRows, syncCheckboxUI, updateButtonSta
 import { queueAutoSave } from './project';
 import { applyPromptVariables } from './ai-format';
 import { getGlossaryPrompt, sanitizeTagsForChatgpt } from './glossary';
-import { DEFAULT_AI_CHECK_PROMPT } from './constants';
+import { DEFAULT_AI_CHECK_PROMPT, DEFAULT_AI_CHECK_SUMMARY_PROMPT } from './constants';
 import { getDisplayOrderedLines } from './selection';
 import type { Line, AiCheckCorrection } from './types';
 
@@ -78,19 +78,72 @@ export function getLineForAiCheck(line: Line): string {
   ].join('\n');
 }
 
+export function buildAiCheckStoryBlock(): string {
+  if (state.enableAiCheckStoryContext === false) return '';
+  const summary = (state.aiCheckStoryContext || '').trim();
+  if (!summary) return '';
+  const block = `<story_context>\nKonteks Alur Cerita Proyek:\n${summary}\n</story_context>`;
+  return sanitizeTagsForChatgpt(block);
+}
+
+export function buildAiCheckRevisionsBlock(): string {
+  if (state.enableAiCheckChaining === false) return '';
+  const revs = (state.aiCheckRevisionsSummary || '').trim();
+  if (!revs) return '';
+  const block = `<previous_revisions>\nCatatan Perubahan & Koreksi dari Baris Sebelumnya:\n${revs}\n(PENTING: Gunakan catatan di atas untuk MENJAGA KONSISTENSI gaya bahasa dan istilah yang telah disepakati. Jangan mengembalikan istilah yang sudah diperbaiki ke bentuk lama.)\n</previous_revisions>`;
+  return sanitizeTagsForChatgpt(block);
+}
+
+export function buildAiCheckLocalizationBlock(): string {
+  const parts: string[] = [];
+  const userNotes = (state.aiCheckLocalizationNotes || '').trim();
+  if (userNotes) {
+    parts.push(`Panduan Khusus Lokalisasi Pengguna:\n${userNotes}`);
+  }
+
+  if (state.enableAiCheckAgentMemory !== false && state.agentMemories && state.agentMemories.length > 0) {
+    const memLines: string[] = [];
+    for (const m of state.agentMemories) {
+      if (!m.value || !m.value.trim()) continue;
+      const cat = (m.category || 'note').toUpperCase();
+      const scope = m.scope ? `[${m.scope}] ` : '';
+      const keyStr = m.key ? `${m.key}: ` : '';
+      memLines.push(`- ${scope}[${cat}] ${keyStr}${m.value.trim()}`);
+    }
+    if (memLines.length > 0) {
+      parts.push(`Aturan Karakter & Memori AI Agent:\n${memLines.join('\n')}`);
+    }
+  }
+
+  if (!parts.length) return '';
+  const block = `<localization_guidelines>\n${parts.join('\n\n')}\n</localization_guidelines>`;
+  return sanitizeTagsForChatgpt(block);
+}
+
 export function buildAiCheckPrompt(sel: Line[]): string {
   if (!sel.length) return '';
   const baseCheck = sanitizeTagsForChatgpt(applyPromptVariables((state.aiCheckPrompt || DEFAULT_AI_CHECK_PROMPT).trim()));
   const contextBlock = buildAiCheckContextBlock(sel);
+  const storyBlock = buildAiCheckStoryBlock();
   const joinedOriginal = sel.map(l => {
     const n = l.name || '';
     return n ? `${n}: ${l.message}` : l.message;
   }).join('\n');
   const glossaryBlock = getGlossaryPrompt(joinedOriginal).trim();
+  const localizationBlock = buildAiCheckLocalizationBlock();
+  const revisionsBlock = buildAiCheckRevisionsBlock();
   const linesBlock = sanitizeTagsForChatgpt(`<lines>\n${sel.map(getLineForAiCheck).join('\n\n')}\n</lines>`);
+
   const sections: string[] = [baseCheck];
   if (contextBlock) sections.push(contextBlock);
+  if (storyBlock) sections.push(storyBlock);
   if (glossaryBlock) sections.push(glossaryBlock);
+  if (localizationBlock) sections.push(localizationBlock);
+  if (revisionsBlock) sections.push(revisionsBlock);
+  if (state.enableAiCheckStoryContext !== false) {
+    const summaryInstr = sanitizeTagsForChatgpt(applyPromptVariables((state.aiCheckSummaryPrompt || DEFAULT_AI_CHECK_SUMMARY_PROMPT).trim()));
+    if (summaryInstr) sections.push(summaryInstr);
+  }
   sections.push(linesBlock);
   return sections.join('\n\n') + '\n';
 }
@@ -137,6 +190,119 @@ function splitNameMessage(correction: string): { name: string; message: string }
   else if (jpColonIdx !== -1) splitIdx = jpColonIdx;
   if (splitIdx === -1) return { name: '', message: raw.trim() };
   return { name: raw.substring(0, splitIdx).trim(), message: raw.substring(splitIdx + 1).trim() };
+}
+
+export function extractAiCheckRevisionsAndPayload(rawText: string): { cleanText: string; aiRevisions: string; aiSummary: string } {
+  let text = rawText.trim();
+  let aiRevisions = '';
+  let aiSummary = '';
+
+  // Extract Summary (Story Context)
+  const sumSafeIdx = text.search(/^=== SUMMARY ===\s*$/im);
+  if (sumSafeIdx >= 0) {
+    aiSummary = text.slice(sumSafeIdx + '=== SUMMARY ==='.length).trim();
+    text = text.slice(0, sumSafeIdx).trim();
+  } else {
+    const sumMatch = text.match(/<summary>([\s\S]*?)<\/summary>/i);
+    if (sumMatch) {
+      aiSummary = sumMatch[1].trim();
+      text = text.replace(/<summary>[\s\S]*?<\/summary>/i, '').trim();
+    }
+  }
+
+  // Extract Revisions
+  const revSafeIdx = text.search(/^=== REVISIONS ===\s*$/im);
+  if (revSafeIdx >= 0) {
+    aiRevisions = text.slice(revSafeIdx + '=== REVISIONS ==='.length).trim();
+    text = text.slice(0, revSafeIdx).trim();
+  } else {
+    const revMatch = text.match(/<revisions>([\s\S]*?)<\/revisions>/i);
+    if (revMatch) {
+      aiRevisions = revMatch[1].trim();
+      text = text.replace(/<revisions>[\s\S]*?<\/revisions>/i, '').trim();
+    }
+  }
+  return { cleanText: text, aiRevisions, aiSummary };
+}
+
+export function renderAiCheckSettingsUI(): void {
+  const isChaining = state.enableAiCheckChaining !== false;
+  const isStory = state.enableAiCheckStoryContext !== false;
+  const isAgentMem = state.enableAiCheckAgentMemory !== false;
+  const notes = state.aiCheckLocalizationNotes || '';
+  const revs = state.aiCheckRevisionsSummary || '';
+  const story = state.aiCheckStoryContext || '';
+  const storyPrompt = state.aiCheckSummaryPrompt !== undefined && state.aiCheckSummaryPrompt !== ''
+    ? state.aiCheckSummaryPrompt
+    : DEFAULT_AI_CHECK_SUMMARY_PROMPT;
+
+  // Workspace AI Check panel inputs
+  const chkChaining = document.getElementById('aiCheckEnableChainingCheck') as HTMLInputElement | null;
+  if (chkChaining) chkChaining.checked = isChaining;
+
+  const chkStory = document.getElementById('aiCheckEnableStoryContextCheck') as HTMLInputElement | null;
+  if (chkStory) chkStory.checked = isStory;
+
+  const chkAgentMem = document.getElementById('aiCheckEnableAgentMemoryCheck') as HTMLInputElement | null;
+  if (chkAgentMem) chkAgentMem.checked = isAgentMem;
+
+  const locNotes = document.getElementById('aiCheckLocalizationNotesInput') as HTMLTextAreaElement | null;
+  if (locNotes && document.activeElement !== locNotes) locNotes.value = notes;
+
+  const revInput = document.getElementById('aiCheckRevisionsInput') as HTMLTextAreaElement | null;
+  if (revInput && document.activeElement !== revInput) revInput.value = revs;
+
+  const storyInput = document.getElementById('aiCheckStoryContextInput') as HTMLTextAreaElement | null;
+  if (storyInput && document.activeElement !== storyInput) storyInput.value = story;
+
+  const badge = document.getElementById('aiCheckChainingBadge');
+  if (badge) {
+    badge.textContent = isChaining ? 'Aktif' : 'Nonaktif';
+    badge.className = isChaining ? 'badge' : 'badge badge-outline';
+    badge.style.opacity = isChaining ? '1' : '0.6';
+  }
+
+  // Settings modal inputs (if present)
+  const setChkChaining = document.getElementById('settingsEnableAiCheckChaining') as HTMLInputElement | null;
+  if (setChkChaining) setChkChaining.checked = isChaining;
+
+  const setChkStory = document.getElementById('settingsEnableAiCheckStoryContext') as HTMLInputElement | null;
+  if (setChkStory) setChkStory.checked = isStory;
+
+  const setChkAgentMem = document.getElementById('settingsEnableAiCheckAgentMemory') as HTMLInputElement | null;
+  if (setChkAgentMem) setChkAgentMem.checked = isAgentMem;
+
+  const setLocNotes = document.getElementById('settingsAiCheckLocalizationNotes') as HTMLTextAreaElement | null;
+  if (setLocNotes && document.activeElement !== setLocNotes) setLocNotes.value = notes;
+
+  const setStoryInput = document.getElementById('settingsAiCheckStoryContextInput') as HTMLTextAreaElement | null;
+  if (setStoryInput && document.activeElement !== setStoryInput) setStoryInput.value = story;
+
+  const setStoryPromptInput = document.getElementById('settingsAiCheckSummaryPromptInput') as HTMLTextAreaElement | null;
+  if (setStoryPromptInput && document.activeElement !== setStoryPromptInput) setStoryPromptInput.value = storyPrompt;
+}
+
+export function recordAiCheckCorrections(corrections: AiCheckCorrection[]): void {
+  if (state.enableAiCheckChaining === false || !corrections.length) return;
+  const entries: string[] = [];
+  for (const c of corrections) {
+    const line = state.lineByNum.get(c.num);
+    const oldVal = (line ? (line.trans_message || '') : '').trim();
+    const newVal = (c.text || '').trim();
+    const reason = c.reason ? ` (${c.reason})` : '';
+    const cat = c.category ? `[${c.category}] ` : '';
+    const shortOld = oldVal.length > 35 ? oldVal.slice(0, 32) + '...' : oldVal;
+    const shortNew = newVal.length > 35 ? newVal.slice(0, 32) + '...' : newVal;
+    entries.push(`- [line ${c.num}] ${cat}"${shortOld}" → "${shortNew}"${reason}`);
+  }
+
+  if (!entries.length) return;
+  const existing = (state.aiCheckRevisionsSummary || '').trim();
+  const existingLines = existing ? existing.split('\n').filter(l => l.trim().startsWith('-')) : [];
+  const combined = [...existingLines, ...entries].slice(-25);
+  state.aiCheckRevisionsSummary = combined.join('\n');
+
+  renderAiCheckSettingsUI();
 }
 
 export function parseAiCheckBlocks(text: string): { num: number; category: string; reason: string; name: string; text: string }[] {
@@ -204,7 +370,19 @@ export function parseAiCheckBlocks(text: string): { num: number; category: strin
 
 export function onParseAiCheck(selectedLineNums?: Set<number>): boolean {
   try {
-    const parsed = parseAiCheckBlocks(ui.pasteAiCheckArea.value.trim());
+    const rawVal = ui.pasteAiCheckArea.value.trim();
+    const { cleanText, aiRevisions, aiSummary } = extractAiCheckRevisionsAndPayload(rawVal);
+    if (aiSummary && state.enableAiCheckStoryContext !== false) {
+      state.aiCheckStoryContext = aiSummary;
+      queueAutoSave();
+    }
+    if (aiRevisions && state.enableAiCheckChaining !== false) {
+      const existing = (state.aiCheckRevisionsSummary || '').trim();
+      state.aiCheckRevisionsSummary = existing ? `${existing}\n${aiRevisions}` : aiRevisions;
+      queueAutoSave();
+    }
+    renderAiCheckSettingsUI();
+    const parsed = parseAiCheckBlocks(cleanText);
     const selectedTranslated = selectedLineNums
       ? new Set([...selectedLineNums].filter(num => {
           const line = state.lineByNum.get(num);
@@ -454,6 +632,7 @@ export function onApplyAiCheckCorrections(pushUndo = true): { applied: number; c
     applied++;
     catStats.set(correction.category, (catStats.get(correction.category) || 0) + 1);
   }
+  recordAiCheckCorrections(corrections);
   state.aiCheckCorrections = state.aiCheckCorrections.filter(c => !c.checked);
   renderAiCheckCorrections();
   refreshAll();

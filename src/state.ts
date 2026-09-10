@@ -40,6 +40,7 @@ export const state: AppState = {
   checkLanguage: false,
   checkPunctuation: false,
   checkUntransName: false,
+  ignorePasteNames: false,
   enableUncertainMarking: false,
   safeTagsForChatgpt: false,
   aiBackupKeys: '',
@@ -113,6 +114,13 @@ export const state: AppState = {
   projectLoggingEnabled: false,
   autoRepeatOnFailure: false,
   incrementEnabled: false,
+  enableAiCheckChaining: true,
+  enableAiCheckStoryContext: true,
+  aiCheckStoryContext: '',
+  aiCheckSummaryPrompt: '',
+  enableAiCheckAgentMemory: true,
+  aiCheckLocalizationNotes: '',
+  aiCheckRevisionsSummary: '',
 };
 
 // ─── Shared UI Element Cache ──────────────────────────────────────────────────

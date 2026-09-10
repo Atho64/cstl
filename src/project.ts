@@ -206,6 +206,7 @@ export function getDefaultSettings(): Record<string, any> {
     checkLanguage: true,
     checkPunctuation: true,
     checkUntransName: false,
+    ignorePasteNames: false,
     enableUncertainMarking: false,
     safeTagsForChatgpt: false,
     agentMaxTurns: 10,
@@ -247,6 +248,7 @@ export function openDashboardSettings(): void {
   if (ui.dsCheckLanguage) (ui.dsCheckLanguage as HTMLInputElement).checked = d.checkLanguage !== undefined ? !!d.checkLanguage : true;
   if (ui.dsCheckPunctuation) (ui.dsCheckPunctuation as HTMLInputElement).checked = d.checkPunctuation !== undefined ? !!d.checkPunctuation : true;
   if (ui.dsCheckUntransName) (ui.dsCheckUntransName as HTMLInputElement).checked = !!d.checkUntransName;
+  if (ui.dsIgnorePasteNames) (ui.dsIgnorePasteNames as HTMLInputElement).checked = !!d.ignorePasteNames;
   if (ui.dsEnableBackgroundChaining) (ui.dsEnableBackgroundChaining as HTMLInputElement).checked = !!d.enableBackgroundChaining;
   if (ui.dsEnableUncertainMarking) (ui.dsEnableUncertainMarking as HTMLInputElement).checked = !!d.enableUncertainMarking;
   if (ui.dsSafeTagsForChatgpt) (ui.dsSafeTagsForChatgpt as HTMLInputElement).checked = !!d.safeTagsForChatgpt;
@@ -302,6 +304,7 @@ export function saveDashboardSettings(): void {
   if (ui.dsCheckLanguage) d.checkLanguage = !!(ui.dsCheckLanguage as HTMLInputElement).checked;
   if (ui.dsCheckPunctuation) d.checkPunctuation = !!(ui.dsCheckPunctuation as HTMLInputElement).checked;
   if (ui.dsCheckUntransName) d.checkUntransName = !!(ui.dsCheckUntransName as HTMLInputElement).checked;
+  if (ui.dsIgnorePasteNames) d.ignorePasteNames = !!(ui.dsIgnorePasteNames as HTMLInputElement).checked;
   if (ui.dsEnableBackgroundChaining) d.enableBackgroundChaining = !!(ui.dsEnableBackgroundChaining as HTMLInputElement).checked;
   if (ui.dsEnableUncertainMarking) d.enableUncertainMarking = !!(ui.dsEnableUncertainMarking as HTMLInputElement).checked;
   if (ui.dsSafeTagsForChatgpt) d.safeTagsForChatgpt = !!(ui.dsSafeTagsForChatgpt as HTMLInputElement).checked;
@@ -753,12 +756,19 @@ export async function createNewProject(): Promise<void> {
     check_language: d.checkLanguage !== undefined ? !!d.checkLanguage : true,
     check_punctuation: d.checkPunctuation !== undefined ? !!d.checkPunctuation : true,
     check_untrans_name: !!d.checkUntransName,
+    ignore_paste_names: !!d.ignorePasteNames,
     enable_uncertain_marking: !!d.enableUncertainMarking,
     safe_tags_for_chatgpt: !!d.safeTagsForChatgpt,
     agent_max_turns: d.agentMaxTurns || 10,
     enableBackgroundChaining: !!d.enableBackgroundChaining,
-    currentBackground: '',
     summary_prompt: d.summaryPrompt !== undefined ? d.summaryPrompt : '',
+    enable_ai_check_chaining: d.enableAiCheckChaining !== undefined ? !!d.enableAiCheckChaining : true,
+    enable_ai_check_story_context: d.enableAiCheckStoryContext !== undefined ? !!d.enableAiCheckStoryContext : true,
+    ai_check_story_context: '',
+    ai_check_summary_prompt: '',
+    enable_ai_check_agent_memory: d.enableAiCheckAgentMemory !== undefined ? !!d.enableAiCheckAgentMemory : true,
+    ai_check_localization_notes: d.aiCheckLocalizationNotes || '',
+    ai_check_revisions_summary: '',
     show_epub_images: d.showEpubImages !== undefined ? !!d.showEpubImages : true,
     imported_files: [], file_order: [], lines: [],
     prompt_header: d.promptHeader !== undefined ? d.promptHeader : getDefaultPromptHeaderForFormat(d.aiFormat),
@@ -1017,6 +1027,7 @@ function buildProjectPersistenceData(): Record<string, any> {
     check_linebreak: state.checkLinebreak, check_length_ratio: state.checkLengthRatio,
     length_ratio_threshold: state.lengthRatioThreshold, check_language: state.checkLanguage,
     check_punctuation: state.checkPunctuation, check_untrans_name: state.checkUntransName,
+    ignore_paste_names: state.ignorePasteNames,
     enable_uncertain_marking: state.enableUncertainMarking,
     safe_tags_for_chatgpt: state.safeTagsForChatgpt, agent_max_turns: state.agentMaxTurns,
     show_furigana: state.showFurigana, furigana_type: state.furiganaType || 'hiragana',
@@ -1039,6 +1050,13 @@ function buildProjectPersistenceData(): Record<string, any> {
     enableBackgroundChaining: state.enableBackgroundChaining,
     currentBackground: state.currentBackground,
     summary_prompt: state.summaryPrompt,
+    enable_ai_check_chaining: state.enableAiCheckChaining,
+    enable_ai_check_story_context: state.enableAiCheckStoryContext,
+    ai_check_story_context: state.aiCheckStoryContext,
+    ai_check_summary_prompt: state.aiCheckSummaryPrompt,
+    enable_ai_check_agent_memory: state.enableAiCheckAgentMemory,
+    ai_check_localization_notes: state.aiCheckLocalizationNotes,
+    ai_check_revisions_summary: state.aiCheckRevisionsSummary,
     enable_logging: state.projectLoggingEnabled,
     show_epub_images: state.showEpubImages === true,
     increment_enabled: state.incrementEnabled === true,
@@ -1600,6 +1618,7 @@ export async function openProject(id: string, data: any): Promise<void> {
   state.checkLanguage = data.check_language !== undefined ? !!data.check_language : false;
   state.checkPunctuation = data.check_punctuation !== undefined ? !!data.check_punctuation : false;
   state.checkUntransName = !!data.check_untrans_name;
+  state.ignorePasteNames = !!data.ignore_paste_names;
   state.enableUncertainMarking = !!data.enable_uncertain_marking;
   state.safeTagsForChatgpt = data.safe_tags_for_chatgpt !== undefined ? !!data.safe_tags_for_chatgpt : false;
   state.agentMaxTurns = (typeof data.agent_max_turns === 'number' && data.agent_max_turns >= 3) ? data.agent_max_turns : 10;
@@ -1632,6 +1651,13 @@ export async function openProject(id: string, data: any): Promise<void> {
   state.parallelBatchSize = Math.max(1, Math.min(10, parseInt(data.parallel_batch_size) || 1));
   state.subagentWorkers = Math.max(1, Math.min(10, parseInt(data.subagent_workers) || 3));
   state.incrementEnabled = !!(data.increment_enabled ?? data.incrementEnabled ?? false);
+  state.enableAiCheckChaining = data.enable_ai_check_chaining !== undefined ? !!data.enable_ai_check_chaining : true;
+  state.enableAiCheckStoryContext = data.enable_ai_check_story_context !== undefined ? !!data.enable_ai_check_story_context : true;
+  state.aiCheckStoryContext = data.ai_check_story_context || '';
+  state.aiCheckSummaryPrompt = data.ai_check_summary_prompt || '';
+  state.enableAiCheckAgentMemory = data.enable_ai_check_agent_memory !== undefined ? !!data.enable_ai_check_agent_memory : true;
+  state.aiCheckLocalizationNotes = data.ai_check_localization_notes || '';
+  state.aiCheckRevisionsSummary = data.ai_check_revisions_summary || '';
   
   const proofreadSettings = data.proofread_settings || {};
   if (ui.proofreadScope) (ui.proofreadScope as HTMLSelectElement).value = proofreadSettings.scope || 'all';
@@ -1686,6 +1712,7 @@ export async function openProject(id: string, data: any): Promise<void> {
   }
   applyHtlMode();
   switchWorkspaceTab('translate');
+  import('./ai-check').then(m => m.renderAiCheckSettingsUI()).catch(() => {});
   applyProjectLoggingVisibility();
   try { (window as any).CSTL?.plugins?.onProjectOpened(); } catch (_) {}
 }

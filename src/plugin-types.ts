@@ -59,6 +59,7 @@ export interface PluginManifestUi {
 
 export interface PluginManifestRaw {
   manifestVersion?: number;
+  manifest_version?: number;
   id?: string;
   name?: string;
   version?: string;
@@ -163,6 +164,7 @@ export interface PluginHostBridge {
     deleteBlob: (pluginId: string, key: string) => Promise<void>;
     listBlobs: (pluginId: string) => Promise<string[]>;
     blobExists: (pluginId: string, key: string) => Promise<boolean>;
+    root?: () => Promise<FileSystemDirectoryHandle>;
   };
   state: {
     projectId: () => string | null;
@@ -182,6 +184,12 @@ export interface PluginHostBridge {
     clearSelection: () => void;
     selectRangeUI: (from: number, to: number) => void;
     copyForAi: () => void;
+    snapshot?: () => any;
+    lineByNum?: (num: number) => any;
+    updateLine?: (num: number, changes: any) => boolean;
+    addLine?: (line: any) => boolean;
+    removeLine?: (num: number) => boolean;
+    markTranslated?: (num: number, transMsg?: string | null, transName?: string | null) => boolean;
   };
   ui: {
     flash: (msg: string, keepAlive?: boolean) => void;
@@ -189,5 +197,19 @@ export interface PluginHostBridge {
     onShortcutListMaybeRender?: () => void;
     loadDashboard?: () => void;
     closeDropdowns: () => void;
+    addMenuItem?: (menu: string, label: string, onClick: () => void) => HTMLElement | null;
+    removeMenuItem?: (btn: HTMLElement | null) => void;
+    addToolbarButton?: (label: string, onClick: () => void, opts?: any) => HTMLElement | null;
+    removeToolbarButton?: (btn: HTMLElement | null) => void;
+    createModal?: (title: string, bodyHtml: string | HTMLElement, opts?: any) => any;
+    closeModal?: (modal: any) => void;
+    addDashboardCard?: (cardEl: HTMLElement) => HTMLElement | null;
+    removeDashboardCard?: (cardEl: HTMLElement) => void;
+    setTheme?: (vars: Record<string, string>) => void;
+    injectStyle?: (css: string, id?: string) => HTMLStyleElement | null;
+    getRegion?: (name: string) => HTMLElement | null;
+    prompt?: (title: string, def?: string) => Promise<string | null>;
+    confirm?: (title: string, body?: string) => Promise<boolean | null>;
+    alert?: (title: string, body?: string) => Promise<void>;
   };
 }

@@ -232,6 +232,13 @@ export const DEFAULT_SUMMARY_PROMPT_AERA_SIMPLE = `Include updated summary of th
 
 export const DEFAULT_BACKGROUND_PROMPT = DEFAULT_SUMMARY_PROMPT;
 
+export const DEFAULT_AI_CHECK_SUMMARY_PROMPT = `Generate an updated running story summary (in {{targetLang}}) capturing:
+- Current scene, location, and atmosphere
+- Active characters and their interactions / emotional state
+- Key plot developments, decisions, or core topics discussed
+
+Your summary output MUST be enclosed in <summary>...</summary> tags at the very end of your response, INSIDE the \`\`\`plaintext block.`;
+
 export const DEFAULT_GLOSSARY_PROMPT = `Extract important names and story-specific terminology from the following text to build a typed glossary.\nFormat the output STRICTLY as:\n[type] [{{sourceLang}} term] = [{{targetLang}} term] {short description}\n\nAllowed types:\n[character], [place], [organization], [item], [ability], [title], [concept], [term]\n\nDescription examples:\n{male name}, {female name}, {family name}, {given name}, {place name}, {school}, {food}, {honorific}, {concept}\n\nExample:\n[character] 速川麦 = Hayakawa Mugi {male name}\n[character] 辻倉朱比華 = Tsujikura Spica {female name}\n[place] 渋谷 = Shibuya {place name}\n[item] 炬燵 = Kotatsu {household item}\n[term] 義妹 = adik tiri perempuan {family term}\n\nRules:\n1. Do NOT translate the text itself.\n2. Only output the typed glossary list.\n3. Do NOT include common everyday words, ordinary verbs, generic adjectives, or basic nouns unless they are proper nouns, recurring key terms, culturally specific terms, or story-specific concepts.\n4. Prefer character names, family names, given names, place names, organization names, titles, unique items, abilities, honorifics, relationship terms, and recurring setting-specific terminology.\n5. Prefer specific types over [term].\n6. Include gender for character names when inferable from context; otherwise use {character name}.\n7. Put results inside a \`\`\`plaintext block.\n8. If no important glossary entries are found, return an empty plaintext block.`;
 export const DEFAULT_AI_CHECK_PROMPT = `You are a translation QA reviewer. Check the existing {{targetLang}} translation against the original {{sourceLang}} text.
 Only return lines that need correction. Do not return lines that are already good.
@@ -239,7 +246,10 @@ Only return lines that need correction. Do not return lines that are already goo
 ## Input
 Lines to review are inside <lines>. Each has an "original" (source) and a "current" (existing {{targetLang}} translation).
 If a <Context> block is present, it is for reference only — do NOT correct context lines.
+If a <story_context> block is present, use it to understand the narrative and character relationships.
 If a <Glossary> block is present, respect it for names and terms.
+If a <localization_guidelines> block is present, strictly adhere to its rules for character tone, honorifics, and custom localization preferences.
+If a <previous_revisions> block is present, maintain consistency with those earlier decisions — do not revert standardized terms or tone.
 
 ## Output
 Return corrections inside a \`\`\`plaintext block. Use this exact format per corrected line:
@@ -267,6 +277,7 @@ The "correction" field must contain the COMPLETE corrected line. If the line has
 5. Is punctuation correct for {{targetLang}}? (Do not flag quote style — the translator may use double quotes or Japanese 「」『』.)
 6. Does the formality level match the character's speech style?
 7. Does it make sense in context (pronouns, references, implied subjects)?
+8. Does it strictly adhere to <localization_guidelines> and maintain consistency with <previous_revisions>?
 
 ## Example
 Input:

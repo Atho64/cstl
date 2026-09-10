@@ -3,7 +3,7 @@
 import { state, ui, getOpfsRoot } from './state';
 import { normalizeLineDict, EPUB_ILUSTRASI_MARKER } from './state';
 import { decodeArrayBuffer, arrayBufferToBase64, splitBufferToLines } from './binary-utils';
-import { parseLucaTxt, getLucaProfile, getActiveLucaProfile, normalizeLucaHeavyQuoteFields, parseJsonEntries, parseJsonFromFileObject, clearLucaFileLineBytesCache, DEFAULT_LUCA_PROFILE } from './luca-engine';
+import { parseLucaTxt, getLucaProfile, getActiveLucaProfile, getLucaExportSlotOptions, normalizeLucaHeavyQuoteFields, parseJsonEntries, parseJsonFromFileObject, clearLucaFileLineBytesCache, DEFAULT_LUCA_PROFILE } from './luca-engine';
 import { WINDOWS_FILE_ORDER_COLLATOR } from './constants';
 import { normalizeFileBaseName, windowsFileOrderCompare, getFileOrderPath } from './string-utils';
 import { refreshAll, flashHint, renumberLinesToDisplayOrder } from './render';
@@ -14,7 +14,127 @@ import { resetSelectionHistory } from './selection';
 import { resolveZipPath, preloadEpubImages } from './epub-images';
 import type { Line, CustomParser } from './types';
 
+const esc = (s: any) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+export async function promptLucaProfileDialog(initialProfile: string): Promise<{ profileId: string; exportLang: string; mcName: string } | null> {
+  return new Promise((resolve) => {
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-backdrop open';
+    overlay.style.zIndex = '3000';
+    
+    const profs = [
+      { id: 'summer-pockets-steam', label: 'Summer Pockets Steam (MESSAGE 4-slot)' },
+      { id: 'clannad-switch', label: 'CLANNAD Switch (MESSAGE JP+EN)' },
+      { id: 'tomoyo-switch', label: 'Tomoyo After Switch (MESSAGE voice+text)' },
+      { id: 'clannad-ss', label: 'CLANNAD Side Stories (MESSAGE_WAIT)' }
+    ];
+
+    overlay.innerHTML = `
+      <div class="modal" role="dialog" aria-modal="true" style="max-width: 480px;">
+        <div class="modal-head">
+          <h3 style="display: flex; align-items: center; gap: 8px;">
+            <svg class="lucide-icon text-luca" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg>
+            Pilih Format Game Luca System
+          </h3>
+        </div>
+        <div class="modal-body" style="padding: 12px 2px;">
+          <p class="mb-3 text-muted text-sm">File skenario LucaSystem terdeteksi. Silakan tentukan game target untuk parsing perintah teks dengan akurat:</p>
+          <div class="flex-col gap-1 mb-3">
+            <label class="form-label" style="font-weight: 600;">Profil Game Luca</label>
+            <select id="modalPickerLucaProfile" class="text-input w-full">
+              ${profs.map(p => `<option value="${p.id}" ${p.id === initialProfile ? 'selected' : ''}>${p.label}</option>`).join('')}
+            </select>
+          </div>
+          <div class="flex-col gap-1 mb-3" id="modalPickerLucaLangRow">
+            <label class="form-label" style="font-weight: 600;">Slot Bahasa Ekspor</label>
+            <select id="modalPickerLucaLang" class="text-input w-full"></select>
+          </div>
+          <div class="flex-col gap-1 mb-2" id="modalPickerLucaMcRow" style="display: none;">
+            <label class="form-label" style="font-weight: 600;">Nama Protagonis (@nama di CLANNAD)</label>
+            <input id="modalPickerLucaMc" class="text-input w-full" type="text" value="${esc(state.lucaMcDisplayName || 'Tomoya')}" placeholder="Nama MC tampilan (mis. Tomoya)" />
+          </div>
+        </div>
+        <div class="modal-actions" style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px;">
+          <button type="button" class="btn btn-outline btn-picker-cancel">Batal</button>
+          <button type="button" class="btn btn-primary btn-picker-confirm">Mulai Impor</button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(overlay);
+
+    const selProfile = overlay.querySelector('#modalPickerLucaProfile') as HTMLSelectElement;
+    const selLang = overlay.querySelector('#modalPickerLucaLang') as HTMLSelectElement;
+    const rowLang = overlay.querySelector('#modalPickerLucaLangRow') as HTMLElement;
+    const inputMc = overlay.querySelector('#modalPickerLucaMc') as HTMLInputElement;
+    const rowMc = overlay.querySelector('#modalPickerLucaMcRow') as HTMLElement;
+
+    const updateUI = () => {
+      const pId = selProfile?.value || 'summer-pockets-steam';
+      const prof = getLucaProfile(pId);
+      if (rowMc) rowMc.style.display = prof.nameAtFormat ? '' : 'none';
+      if (selLang) {
+        const opts = getLucaExportSlotOptions(prof);
+        const cur = selLang.value || state.lucaExportLang || 'en';
+        selLang.replaceChildren();
+        for (const o of opts) {
+          const opt = document.createElement('option');
+          opt.value = o.value;
+          opt.textContent = o.label.replace('arg 3', 'Slot 2/3').replace('arg 4', 'Slot 3/4').replace('arg 2', 'Slot 2');
+          selLang.appendChild(opt);
+        }
+        const match = opts.find((o: any) => o.value === cur);
+        selLang.value = match ? cur : opts[0].value;
+        if (rowLang) rowLang.style.display = opts.length > 1 || prof.hasMultiLangRef ? '' : 'none';
+      }
+    };
+
+    selProfile?.addEventListener('change', updateUI);
+    updateUI();
+
+    const cleanup = () => {
+      overlay.classList.remove('open');
+      overlay.remove();
+    };
+
+    overlay.querySelector('.btn-picker-cancel')?.addEventListener('click', () => {
+      cleanup();
+      resolve(null);
+    });
+
+    overlay.querySelector('.btn-picker-confirm')?.addEventListener('click', () => {
+      const res = {
+        profileId: selProfile?.value || 'summer-pockets-steam',
+        exportLang: selLang?.value || 'en',
+        mcName: inputMc?.value.trim() || 'Tomoya'
+      };
+      cleanup();
+      resolve(res);
+    });
+  });
+}
+
 export async function handleImportLucaTxtLogic(files: FileList | File[]): Promise<void> {
+  const txtFiles = Array.from(files).filter(f => f.name.toLowerCase().endsWith('.txt'));
+  if (txtFiles.length === 0) {
+    flashHint('Tidak ada file .txt yang valid.', false);
+    return;
+  }
+
+  if (state.lines.length === 0) {
+    const picked = await promptLucaProfileDialog(state.lucaProfile || DEFAULT_LUCA_PROFILE);
+    if (!picked) {
+      flashHint('Impor Luca dibatalkan.', false);
+      return;
+    }
+    state.projectType = 'luca';
+    state.lucaProfile = picked.profileId;
+    state.lucaExportLang = picked.exportLang;
+    state.lucaMcDisplayName = picked.mcName;
+  } else if (state.projectType !== 'luca') {
+    throw new Error('Format LucaSystem tidak cocok dengan tipe proyek saat ini. Buat proyek baru untuk mengimpor skenario Luca.');
+  }
+
   flashHint('Memproses file TXT... Mohon tunggu.', true);
   document.body.style.cursor = 'wait';
   await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
@@ -33,20 +153,6 @@ export async function handleImportLucaTxtLogic(files: FileList | File[]): Promis
     const existingFiles = new Set(state.importedFiles);
     const skippedFiles: string[] = [];
     const newLines: Line[] = [];
-
-    const selectedProfile = ui.settingsLucaProfileSelect
-      ? ((ui.settingsLucaProfileSelect as HTMLSelectElement).value || DEFAULT_LUCA_PROFILE)
-      : (state.lucaProfile || DEFAULT_LUCA_PROFILE);
-    if (state.lines.length === 0) {
-      state.projectType = 'luca';
-      state.lucaProfile = selectedProfile;
-    } else if (state.lucaProfile && state.lucaProfile !== selectedProfile) {
-      throw new Error(
-        `Profil aktif: ${getLucaProfile(state.lucaProfile).label}. ` +
-        `Profil di Setting: ${getLucaProfile(selectedProfile).label}. ` +
-        `Buat proyek baru atau samakan profil sebelum impor.`
-      );
-    }
 
     const sortedFiles = Array.from(files).sort((a, b) =>
       windowsFileOrderCompare(getFileOrderPath(a), getFileOrderPath(b))

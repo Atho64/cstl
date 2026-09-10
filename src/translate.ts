@@ -331,7 +331,7 @@ function onApplyTranslationInternal(options: ApplyTranslationOptions = {}): void
     }
   }
 
-  const ignoreNames = (ui.checkIgnorePasteNames as HTMLInputElement).checked;
+  const ignoreNames = !!state.ignorePasteNames || !!(ui.checkIgnorePasteNames as HTMLInputElement)?.checked;
   const updates: { l: any; it: any }[] = [];
   for (const it of parsed) {
     const l = state.lineByNum.get(it.num);
