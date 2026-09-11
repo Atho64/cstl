@@ -773,16 +773,6 @@ function applyAiCheckResult(text: string): void {
 
 function parseFullAutoAiCheckResult(text: string, batch: typeof state.lines): ReturnType<typeof parseAiCheckBlocks> {
   const { cleanText, aiRevisions, aiSummary } = extractAiCheckRevisionsAndPayload(text);
-  if (aiSummary && state.enableAiCheckStoryContext !== false) {
-    state.aiCheckStoryContext = aiSummary;
-    queueAutoSave();
-  }
-  if (aiRevisions && state.enableAiCheckChaining !== false) {
-    const existing = (state.aiCheckRevisionsSummary || '').trim();
-    state.aiCheckRevisionsSummary = existing ? `${existing}\n${aiRevisions}` : aiRevisions;
-    queueAutoSave();
-  }
-  renderAiCheckSettingsUI();
 
   const clean = cleanText.trim();
   const emptyPlaintextBlock = /```(?:plaintext|text)?\s*```/i.test(clean);
@@ -790,7 +780,19 @@ function parseFullAutoAiCheckResult(text: string, batch: typeof state.lines): Re
   try {
     parsed = parseAiCheckBlocks(clean);
   } catch (err) {
-    if (emptyPlaintextBlock) return [];
+    if (emptyPlaintextBlock) {
+      if (aiSummary && state.enableAiCheckStoryContext !== false) {
+        state.aiCheckStoryContext = aiSummary;
+        queueAutoSave();
+      }
+      if (aiRevisions && state.enableAiCheckChaining !== false) {
+        const existing = (state.aiCheckRevisionsSummary || '').trim();
+        state.aiCheckRevisionsSummary = existing ? `${existing}\n${aiRevisions}` : aiRevisions;
+        queueAutoSave();
+      }
+      renderAiCheckSettingsUI();
+      return [];
+    }
     throw err;
   }
 
@@ -803,6 +805,18 @@ function parseFullAutoAiCheckResult(text: string, batch: typeof state.lines): Re
     if (!item.text.trim()) throw new Error(`Correction line ${item.num} kosong.`);
     seen.add(item.num);
   }
+
+  if (aiSummary && state.enableAiCheckStoryContext !== false) {
+    state.aiCheckStoryContext = aiSummary;
+    queueAutoSave();
+  }
+  if (aiRevisions && state.enableAiCheckChaining !== false) {
+    const existing = (state.aiCheckRevisionsSummary || '').trim();
+    state.aiCheckRevisionsSummary = existing ? `${existing}\n${aiRevisions}` : aiRevisions;
+    queueAutoSave();
+  }
+  renderAiCheckSettingsUI();
+
   return parsed;
 }
 

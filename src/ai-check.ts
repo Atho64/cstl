@@ -418,16 +418,6 @@ export function onParseAiCheck(selectedLineNums?: Set<number>): boolean {
   try {
     const rawVal = ui.pasteAiCheckArea.value.trim();
     const { cleanText, aiRevisions, aiSummary } = extractAiCheckRevisionsAndPayload(rawVal);
-    if (aiSummary && state.enableAiCheckStoryContext !== false) {
-      state.aiCheckStoryContext = aiSummary;
-      queueAutoSave();
-    }
-    if (aiRevisions && state.enableAiCheckChaining !== false) {
-      const existing = (state.aiCheckRevisionsSummary || '').trim();
-      state.aiCheckRevisionsSummary = existing ? `${existing}\n${aiRevisions}` : aiRevisions;
-      queueAutoSave();
-    }
-    renderAiCheckSettingsUI();
     const parsed = parseAiCheckBlocks(cleanText);
     const selectedTranslated = selectedLineNums
       ? new Set([...selectedLineNums].filter(num => {
@@ -459,6 +449,18 @@ export function onParseAiCheck(selectedLineNums?: Set<number>): boolean {
     }
     state.aiCheckCorrections = corrections;
     renderAiCheckCorrections();
+
+    if (aiSummary && state.enableAiCheckStoryContext !== false) {
+      state.aiCheckStoryContext = aiSummary;
+      queueAutoSave();
+    }
+    if (aiRevisions && state.enableAiCheckChaining !== false) {
+      const existing = (state.aiCheckRevisionsSummary || '').trim();
+      state.aiCheckRevisionsSummary = existing ? `${existing}\n${aiRevisions}` : aiRevisions;
+      queueAutoSave();
+    }
+    renderAiCheckSettingsUI();
+
     setAiCheckStatus(`Parsed ${corrections.length} koreksi.`);
     return true;
   } catch (err: any) {
