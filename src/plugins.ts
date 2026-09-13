@@ -1188,7 +1188,7 @@ export const Sandbox = {
     const map = new Map<string, number>();
     const d2 = new TextDecoder('windows-31j');
     const pair = new Uint8Array(2);
-    const leadRanges = [[0x81, 0x9f], [0xe0, 0xef]];
+    const leadRanges = [[0x81, 0x9f], [0xe0, 0xfc]];
     for (const r of leadRanges) {
       for (let hi = r[0]; hi <= r[1]; hi++) {
         for (let lo = 0x40; lo <= 0xfc; lo++) {
@@ -2662,7 +2662,7 @@ export const Runtime = {
       const lp = getCustomParser(meta.id);
       if (!lp) throw new Error(`Custom parser lama "${meta.name}" tidak ditemukan.`);
       const bytes = new Uint8Array(input.buffer);
-      const text = new TextDecoder('utf-8').decode(bytes);
+      const text = decodeArrayBuffer(bytes);
       const entries = await runCustomParse(lp, {
         fileName: input.fileName,
         text,
@@ -2722,7 +2722,7 @@ export const Runtime = {
       const lp = getCustomParser(meta.id);
       if (!lp) throw new Error(`Custom parser lama "${meta.name}" tidak ditemukan.`);
       const bytes = input.buffer ? new Uint8Array(input.buffer) : new Uint8Array(0);
-      const text = new TextDecoder('utf-8').decode(bytes);
+      const text = decodeArrayBuffer(bytes);
       const res = await runCustomSerialize(lp, {
         fileName: input.fileName || 'export.txt',
         text,

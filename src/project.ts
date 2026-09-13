@@ -12,7 +12,7 @@ import {
 import { DEFAULT_LUCA_PROFILE, clearLucaFileLineBytesCache, parseLucaTxt } from './luca-engine';
 import type { Line } from './types';
 import { normalizeAiTranslationFormat, getDefaultPromptHeaderForFormat } from './ai-format';
-import { readEpubSourceForBackup, writeEpubSourceFromBackup, cloneExistingEpubSource, bytesToBase64, base64ToBytes } from './binary-utils';
+import { readEpubSourceForBackup, writeEpubSourceFromBackup, cloneExistingEpubSource, bytesToBase64, base64ToBytes, decodeArrayBuffer } from './binary-utils';
 import { resetSelectionHistory, switchWorkspaceTab, normalizeSelectionBatchSize } from './selection';
 import { normalizeLineDict, isIlustrasiLine } from './state';
 import { normalizeShortcutString } from './shortcuts';
@@ -1452,7 +1452,7 @@ export async function readCustomSourceFile(fileName: string): Promise<{ bytes: U
     try {
       const target = customLazySource.files.includes(fileName) ? fileName : baseName;
       const bytes = await customLazySource.readFile(target);
-      const text = new TextDecoder().decode(bytes);
+      const text = decodeArrayBuffer(bytes);
       return { bytes, text };
     } catch (_) {
       return { bytes: null, text: null };
