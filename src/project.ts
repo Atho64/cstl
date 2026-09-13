@@ -1619,6 +1619,7 @@ export async function openProject(id: string, data: any): Promise<void> {
   state.checkPunctuation = data.check_punctuation !== undefined ? !!data.check_punctuation : false;
   state.checkUntransName = !!data.check_untrans_name;
   state.ignorePasteNames = !!data.ignore_paste_names;
+  if (ui.settingsIgnorePasteNames) (ui.settingsIgnorePasteNames as HTMLInputElement).checked = state.ignorePasteNames;
   state.enableUncertainMarking = !!data.enable_uncertain_marking;
   state.safeTagsForChatgpt = data.safe_tags_for_chatgpt !== undefined ? !!data.safe_tags_for_chatgpt : false;
   state.agentMaxTurns = (typeof data.agent_max_turns === 'number' && data.agent_max_turns >= 3) ? data.agent_max_turns : 10;

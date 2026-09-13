@@ -284,6 +284,8 @@ function onApplyTranslationInternal(options: ApplyTranslationOptions = {}): void
   let parsed: any[] = [];
   let errors: string[] = [];
 
+  const ignoreNames = !!state.ignorePasteNames;
+
   try {
     if (pasteFormat === AI_TRANSLATION_FORMAT_BLOCK) {
       parsed = parseTranslationBlocks(rawText);
@@ -298,7 +300,7 @@ function onApplyTranslationInternal(options: ApplyTranslationOptions = {}): void
       parsed = jsonlResult.parsed;
       errors = jsonlResult.errors;
     } else {
-      const numbered = parseTranslationNumberedPaste(rawText);
+      const numbered = parseTranslationNumberedPaste(rawText, { ignoreNames });
       parsed = numbered.parsed;
       errors = numbered.errors;
     }
@@ -325,7 +327,6 @@ function onApplyTranslationInternal(options: ApplyTranslationOptions = {}): void
     }
   }
 
-  const ignoreNames = !!state.ignorePasteNames || !!(ui.checkIgnorePasteNames as HTMLInputElement)?.checked;
   const updates: { l: any; it: any }[] = [];
   for (const it of parsed) {
     const l = state.lineByNum.get(it.num);
@@ -339,15 +340,18 @@ function onApplyTranslationInternal(options: ApplyTranslationOptions = {}): void
     it.msg = applyReplaceRules(it.msg.replace(/<br>/gi, '\\n'), state.postReplaceRules, 'msg');
 
     if (!oN && tN) {
-      const mergedRaw = it.rawMsg || it.msg;
-      it.msg = escapeStoredNewlines(applyReplaceRules(mergedRaw.replace(/<br>/gi, '\\n'), state.postReplaceRules, 'msg'));
-      it.name = null;
-      tN = false;
+      if (ignoreNames) {
+        const mergedRaw = it.rawMsg || it.msg;
+        it.msg = escapeStoredNewlines(applyReplaceRules(mergedRaw.replace(/<br>/gi, '\\n'), state.postReplaceRules, 'msg'));
+        it.name = null;
+        tN = false;
+      } else {
+        errors.push(`[#${it.num}] Tiba-tiba ada nama karakter.`);
+      }
     }
 
-    if (!ignoreNames) {
-      if (oN && !tN) errors.push(`[#${it.num}] Nama karakter hilang.`);
-      else if (!oN && tN) errors.push(`[#${it.num}] Tiba-tiba ada nama karakter.`);
+    if (!ignoreNames && oN && !tN) {
+      errors.push(`[#${it.num}] Nama karakter hilang.`);
     }
 
     if (!it.msg && !state.disableEmptyLineValidation) errors.push(`[#${it.num}] Pesannya kosong.`);
@@ -394,7 +398,11 @@ function onApplyTranslationInternal(options: ApplyTranslationOptions = {}): void
   for (const { l, it } of updates) {
     l.trans_message = stripLeakedAiSections(it.msg);
     l.is_translated = !!(l.trans_message || state.disableEmptyLineValidation);
-    if (it.name && !ignoreNames) l.trans_name = it.name;
+    if (ignoreNames) {
+      l.trans_name = null;
+    } else if (it.name) {
+      l.trans_name = it.name;
+    }
     if (!selectedLineNums) state.selectedLines.delete(l.line_num);
   }
   (ui.pasteArea as HTMLTextAreaElement).value = '';

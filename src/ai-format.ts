@@ -308,10 +308,21 @@ export function parseTranslationBlocks(text: string): ParsedTranslationItem[] {
   });
 }
 
-export function parseTranslationNumberedPaste(text: string): { parsed: ParsedTranslationItem[]; errors: string[] } {
+export function parseTranslationNumberedPaste(
+  text: string,
+  options: { ignoreNames?: boolean } = {}
+): { parsed: ParsedTranslationItem[]; errors: string[] } {
   const rawLines = stripPlaintextFences(text).split(/\r?\n/);
   const parsed: ParsedTranslationItem[] = [];
   const errors: string[] = [];
+
+  interface RawNumberedLine {
+    num: number;
+    rawText: string;
+    content: string;
+  }
+  const linesToProcess: RawNumberedLine[] = [];
+
   for (let i = 0; i < rawLines.length; i++) {
     const txt = rawLines[i].trim();
     if (!txt) continue;
@@ -321,26 +332,95 @@ export function parseTranslationNumberedPaste(text: string): { parsed: ParsedTra
       continue;
     }
     const num = Number(match[1]);
-    let name: string | null = null;
-    let msg = match[2].trim();
-    const rawMsg = msg;
-    // A colon is a speaker separator only when the source line has a speaker.
-    // Otherwise ordinary text such as "Time: 12:30" must stay in the message.
-    const sourceLine = state.lineByNum.get(num);
-    if (sourceLine?.name) {
-      const colonIdx = msg.indexOf(':');
-      const jpColonIdx = msg.indexOf('：');
-      let splitIdx = -1;
-      if (colonIdx !== -1 && jpColonIdx !== -1) splitIdx = Math.min(colonIdx, jpColonIdx);
-      else if (colonIdx !== -1) splitIdx = colonIdx;
-      else if (jpColonIdx !== -1) splitIdx = jpColonIdx;
-      if (splitIdx > 0) {
-        name = msg.substring(0, splitIdx).trim();
-        msg = msg.substring(splitIdx + 1).trim();
+    linesToProcess.push({ num, rawText: txt, content: match[2].trim() });
+  }
+
+  const findSplitIndex = (str: string): number => {
+    const colonIdx = str.indexOf(':');
+    const jpColonIdx = str.indexOf('：');
+    if (colonIdx !== -1 && jpColonIdx !== -1) return Math.min(colonIdx, jpColonIdx);
+    if (colonIdx !== -1) return colonIdx;
+    return jpColonIdx;
+  };
+
+  const isPlausibleSpeaker = (cand: string): boolean => {
+    const clean = cand.replace(/^\[\?\]\s*/, '').trim();
+    if (!clean) return false;
+    // Karakter misterius/anonim seperti "???", "？？？", "??", "？"
+    if (/^[?？!！]+$/.test(clean)) return true;
+    if (/^\d+$/.test(clean)) return false;
+    if (clean.length > 40) return false;
+    if (clean.split(/\s+/).filter(Boolean).length > 5) return false;
+    if (/[.,!?~…—–\n\r"“”'«»「」『』]/.test(clean)) return false;
+    return true;
+  };
+
+  const matchesSourceSpeaker = (cand: string, sourceLine: any): boolean => {
+    if (!sourceLine?.name) return false;
+    const cleanCand = cand.replace(/^\[\?\]\s*/, '').trim().toLowerCase();
+    const origName = String(sourceLine.name).trim().toLowerCase();
+    const normCand = cleanCand.replace(/？/g, '?').replace(/！/g, '!');
+    const normOrig = origName.replace(/？/g, '?').replace(/！/g, '!');
+    if (normCand === normOrig) return true;
+    if (sourceLine.trans_name) {
+      const normTrans = String(sourceLine.trans_name).trim().toLowerCase().replace(/？/g, '?').replace(/！/g, '!');
+      if (normCand === normTrans) return true;
+    }
+    for (const l of state.lines) {
+      if (l.name && l.name.trim().toLowerCase().replace(/？/g, '?').replace(/！/g, '!') === normOrig) {
+        if (l.trans_name && l.trans_name.trim().toLowerCase().replace(/？/g, '?').replace(/！/g, '!') === normCand) return true;
       }
     }
+    return false;
+  };
+
+  let totalSpeakerSourceLines = 0;
+  let linesWithColonSpeaker = 0;
+
+  for (const item of linesToProcess) {
+    const sourceLine = state.lineByNum.get(item.num);
+    if (sourceLine?.name) {
+      totalSpeakerSourceLines++;
+      const splitIdx = findSplitIndex(item.content);
+      if (splitIdx > 0) {
+        const cand = item.content.substring(0, splitIdx).trim();
+        if (matchesSourceSpeaker(cand, sourceLine) || isPlausibleSpeaker(cand)) {
+          linesWithColonSpeaker++;
+        }
+      }
+    }
+  }
+
+  const batchHasSpeakers = totalSpeakerSourceLines > 0 &&
+    (totalSpeakerSourceLines === 1
+      ? (options.ignoreNames ? false : linesWithColonSpeaker === 1)
+      : (linesWithColonSpeaker / totalSpeakerSourceLines >= 0.7));
+
+  for (const item of linesToProcess) {
+    const { num, content } = item;
+    let name: string | null = null;
+    let msg = content;
+    const sourceLine = state.lineByNum.get(num);
+
+    if (sourceLine?.name) {
+      const splitIdx = findSplitIndex(msg);
+      if (splitIdx > 0) {
+        const cand = msg.substring(0, splitIdx).trim();
+        const matchesExact = matchesSourceSpeaker(cand, sourceLine);
+        const plausible = isPlausibleSpeaker(cand);
+
+        const shouldSplit = matchesExact || (batchHasSpeakers && plausible);
+
+        if (shouldSplit) {
+          name = cand;
+          msg = msg.substring(splitIdx + 1).trim();
+        }
+      }
+    }
+
     const cleanMsg = stripLeakedAiSections(msg);
     parsed.push({ num, name, msg: escapeStoredNewlines(cleanMsg), rawMsg: cleanMsg });
   }
+
   return { parsed, errors };
 }
