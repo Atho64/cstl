@@ -597,6 +597,7 @@ export function openLineEditor(num: number): void {
   const l = state.lineByNum.get(num);
   if (!l) return;
   setActiveLineEditorLineNum(num);
+  try { (window as any).CSTL?.plugins?.runHooksSync?.('lineOpen', num, l); } catch (_) {}
   (ui.lineEditorTitle as HTMLElement).textContent = l.luca_command === 'SELECT'
     ? `Edit Baris ${num} - Select Choice ${(l.luca_choice_index || 0) + 1}`
     : `Edit Baris ${num}`;
@@ -687,9 +688,11 @@ export function onSaveLineEditor(): void {
   const hideMcName = isClannadProtagonistToken(l.name) && getActiveLucaProfile().nameAtFormat;
   if (l.name && !hideMcName) n = (ui.lineNameInput as HTMLInputElement).value.trim().replace(/\r?\n/g, '\\n');
   pushUndoSnapshot();
+  const before = { trans_message: l.trans_message, trans_name: l.trans_name, is_translated: l.is_translated };
   l.trans_message = m || ((ui.lineTranslatedCheck as HTMLInputElement).checked && (state.disableEmptyLineValidation || ilustrasi) ? '' : null);
   l.is_translated = !!((ui.lineTranslatedCheck as HTMLInputElement).checked && (m || state.disableEmptyLineValidation || ilustrasi));
   if (l.name && !hideMcName) l.trans_name = n || null;
+  try { (window as any).CSTL?.plugins?.runHooksSync?.('lineSave', l.line_num, l, before); } catch (_) {}
   closeModal(ui.lineEditorModal as HTMLElement);
   refreshAll();
   import('./proofread').then(m => {
