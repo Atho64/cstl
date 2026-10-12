@@ -21,6 +21,7 @@ window.addEventListener('unhandledrejection', function(event) {
 
 import { init } from './ui-init';
 import { initExtensionBridge } from './extension-bridge';
+import { initMigrationNotice } from './migration-notice';
 
 // Inject critical dynamic CSS that Vite may strip from external stylesheet
 (function injectDynamicStyles() {
@@ -47,6 +48,7 @@ async function bootstrap() {
     removeLoader();
   }
   initExtensionBridge();
+  initMigrationNotice();
 }
 
 if (document.readyState === 'loading') {

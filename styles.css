@@ -3623,6 +3623,88 @@ body.htl-mode .panel-left { flex: 1 !important; height: 100% !important; min-hei
 }
 .cp-test-table th { background: var(--panel-2); color: var(--muted); font-weight: 600; }
 
+/* ─── Migration Notice (versi web lama → CopasTool) ─── */
+.migration-banner {
+  position: relative;
+  margin-bottom: 18px;
+  padding: 14px 16px;
+  border: 1px solid color-mix(in srgb, var(--warning) 45%, var(--line));
+  border-radius: var(--radius-lg);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--warning) 12%, var(--surface)) 0%, var(--surface) 100%);
+  box-shadow: 0 14px 40px -20px rgba(0, 0, 0, 0.6);
+  animation: slide-down var(--dur-3) var(--ease) both;
+  z-index: 20;
+}
+.migration-inner {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+.migration-icon {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--warning) 18%, transparent);
+  color: var(--warning);
+}
+.migration-icon svg { stroke: var(--warning); }
+.migration-body { flex: 1 1 auto; min-width: 0; }
+.migration-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.35;
+}
+.migration-text {
+  margin-top: 5px;
+  font-size: var(--text-sm);
+  line-height: 1.55;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.migration-text strong { color: var(--text); font-weight: 700; }
+.migration-text code {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  padding: 1px 5px;
+  border-radius: var(--radius-xs);
+  background: var(--surface-3);
+  color: var(--text);
+}
+.migration-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+.migration-cta {
+  text-decoration: none;
+}
+.migration-cta:hover { text-decoration: none; }
+.migration-close {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--muted-2);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+.migration-close:hover { color: var(--text); background: var(--surface-3); }
+
+/* Item menu "Pindah ke CopasTool" di dropdown Tools workspace */
+.migration-menu-item { color: var(--text); }
+.migration-menu-item:hover { text-decoration: none; }
+
 /* ─── Storage Warning Banner ─── */
 .storage-warning-banner {
   background: rgba(239, 68, 68, 0.15);

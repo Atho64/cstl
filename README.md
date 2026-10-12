@@ -1,11 +1,20 @@
-# CSTL — Copas Tool
+# CSTL — Copas Tool (versi web, legacy)
 
 <div align="center">
 
   [![Live](https://img.shields.io/badge/Live-atho64.github.io%2Fcstl-blue?style=for-the-badge)](https://atho64.github.io/cstl/)
   ![Version](https://img.shields.io/badge/Version-M15-purple?style=for-the-badge)
+  [![Deprecated](https://img.shields.io/badge/Status-Deprecated-red?style=for-the-badge)](https://github.com/Atho64/copastool/releases/latest)
 
 </div>
+
+> ⚠️ **Versi web ini sudah tidak dikembangkan lagi.**
+>
+> Lanjutan pengembangan ada di **[CopasTool](https://github.com/Atho64/copastool)** — aplikasi native **Windows & Android** (Tauri v2). Backup proyek `.cstl` dari versi web ini tetap bisa dibuka di CopasTool.
+>
+> 👉 **[Unduh CopasTool di sini](https://github.com/Atho64/copastool/releases/latest)**
+>
+> Repo ini dipertahankan agar [aplikasi web lama](https://atho64.github.io/cstl/) tetap bisa diakses; aplikasi tersebut juga menampilkan pemberitahuan migrasi untuk penggunanya.
 
 Tool bantu terjemahan visual novel yang jalan di browser. Dibuat karena capek bolak-balik copy-paste manual antara file script dan AI. Semua workflow dari impor, terjemah pakai AI, kelola nama karakter, sampai ekspor bisa dilakukan di satu tempat.
 
